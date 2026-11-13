@@ -222,3 +222,21 @@ La publicación es opcional y envía estos datos al endpoint configurado únicam
 - Comparar contra `main`: mismos conteos del motor y C2, misma hoja `CRUCE_RESUMEN` y mismo `CRUCE_REVISOR` al retirar la nueva columna Técnico.
 
 Validación realizada con Chromium/Playwright y workbooks sintéticos en memoria: prioridad y alternativas de técnico, filtro, modal, dos POST simulados por polígono, fechas, saneamiento, respuesta de error y regresión contra `main` de los resultados del motor y ambas hojas C2. Ningún envío real durante las pruebas.
+
+### Asignar técnicos por validador y polígono
+
+En Cruce revisor, abrir **👤 Asignar técnicos**, junto a **⚙ Publicación**, y elegir un polígono cargado. El panel muestra los validadores y el número de filas del Excel, incluidas las pendientes que todavía no aparecen en el cruce. Cada entrada sugiere técnicos conocidos de los archivos y de las asignaciones de los polígonos cargados.
+
+Las asignaciones se guardan al cambiar el campo, en mayúsculas y sin espacios extremos, en `localStorage['vc-cmp-asig-<poligono>']`, como `{validador: 'TECNICO'}`. Solo se aplican a filas `SIN ASIGNAR`: ENCARGADO y el sufijo de la hoja conservan prioridad. Si todas las filas del validador ya tienen técnico, se muestra `desde Excel: NOMBRE` y el campo queda deshabilitado. En grupos mixtos solo reciben la asignación las filas sin técnico.
+
+**Limpiar asignación** elimina las asignaciones del polígono seleccionado. La asignación afecta tabla, filtro Técnico, columna Técnico de `CRUCE_REVISOR` y publicación (`filas` y `porTecnico`). No modifica archivos fuente ni Sheets de revisores. Las asignaciones persisten al recargar; hay que volver a cargar los archivos.
+
+Prueba para Rodrigo (datos sintéticos; sin publicar a un endpoint real):
+
+1. Cargar un Excel del polígono `123456789` con tres filas APLICA del mismo validador: una con ENCARGADO `ANA`, otra sin encargado en hoja `VAL_CRC-LUIS`, otra sin encargado en `VAL_CRC-TODOS`. Incluir otro validador que tenga técnico en todas sus filas.
+2. Abrir el panel: comprobar el número de filas por validador, las sugerencias ANA/LUIS y el campo deshabilitado con `desde Excel` del otro validador. Asignar `  rodrigo  ` al primer validador y salir del campo: debe guardarse `RODRIGO`.
+3. Comprobar que las tres filas mantienen ANA, LUIS y RODRIGO respectivamente. Filtrar Técnico por RODRIGO: solo aparece la fila asignada. Cargar otro polígono con el mismo validador: debe seguir SIN ASIGNAR hasta recibir su propia asignación.
+4. Exportar y revisar Técnico en `CRUCE_REVISOR`. Con el interceptor `window.fetch` del apartado anterior, preparar la publicación de una fila sin cambio: comprobar `filas[].tecnico === 'RODRIGO'` y `porTecnico.RODRIGO`. No enviar a un endpoint real.
+5. Recargar y volver a cargar los Excel: RODRIGO se conserva. Pulsar **Limpiar asignación** en ese polígono: vuelve a SIN ASIGNAR en tabla, filtro, exportación y nueva preparación de publicación; las asignaciones del otro polígono permanecen.
+
+Validación de esta función: `node --check` de los scripts extraídos; comparación de las declaraciones protegidas contra `main`; pruebas sintéticas con Chromium/Playwright del panel, prioridad ENCARGADO/sufijo, copias sin mutación, separación por polígono, normalización, tabla/filtro, persistencia, limpieza, exportación y payload. Sin envíos reales.

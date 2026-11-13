@@ -528,7 +528,8 @@ input, select, textarea, button {max-width:100%;}
     <div id="c2Stats" class="panel stats"></div>
     <p class="bulkmsg">El cruce utiliza solo reportes comparados. Las hojas sin columna de estado se informan en la carga.</p>
     <div class="board"><table><thead><tr><th>Validador</th><th>Filas</th><th>Verificado / cambió</th><th>Otro campo</th><th>Sin cambio</th><th>No encontrado</th><th>Inválido / incompleto</th><th>NO APLICA con cambio</th></tr></thead><tbody id="c2Summary"></tbody></table></div>
-    <div class="actions"><label>Validador <select id="c2Validator"><option value="">Todos</option></select></label><label>Técnico <select id="c2Technician"><option value="">Todos</option></select></label><label>Resultado <select id="c2Result"><option value="">Todos</option></select></label><label><input type="checkbox" id="c2NoAplica" checked> Avisar NO APLICA con cambio</label><button type="button" class="rbtn" id="pubStart">Publicar pendientes</button><a href="#pubPanel" class="rbtn" id="pubSettings" aria-expanded="false">⚙ Publicación</a></div>
+    <div class="actions"><label>Validador <select id="c2Validator"><option value="">Todos</option></select></label><label>Técnico <select id="c2Technician"><option value="">Todos</option></select></label><label>Resultado <select id="c2Result"><option value="">Todos</option></select></label><label><input type="checkbox" id="c2NoAplica" checked> Avisar NO APLICA con cambio</label><button type="button" class="rbtn" id="pubStart">Publicar pendientes</button><a href="#pubPanel" class="rbtn" id="pubSettings" aria-expanded="false">⚙ Publicación</a><button type="button" class="rbtn" id="asgToggle" aria-controls="asgPanel" aria-expanded="false">👤 Asignar técnicos</button></div>
+    <div id="asgPanel" class="panel hidden"><label>Polígono <select id="asgPolygon"></select></label><div id="asgRows"></div><datalist id="asgTechnicians"></datalist><button type="button" class="rbtn" id="asgClear">Limpiar asignación</button><p id="asgStatus" role="status"></p></div>
     <div id="pubPanel" class="panel hidden"><label>URL del Apps Script (/exec) <input id="pubUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label><label>Clave de escritura <input id="pubKey" type="password" autocomplete="off"></label><label><input type="checkbox" id="pubRemember"> Recordar clave en este navegador</label><label><input type="checkbox" id="pubObs"> Incluir observación del revisor (puede contener nombres)</label></div>
     <p class="sub">Publicar envía todos los polígonos cargados; tu vista no cambia.</p>
     <div id="pubStatus" role="status" aria-live="polite"></div>
@@ -2170,9 +2171,39 @@ function c2rows(){
 }
 function c2bucket(s){if(/VERIFICADO|✔ CAMBIÓ/.test(s))return 0;if(/OTRO CAMPO/.test(s))return 1;if(/SIN CAMBIO/.test(s))return 2;if(/NO ENCONTRADO|SECTOR NO CARGADO/.test(s))return 3;if(/INVÁLIDO|INCOMPLETO|PENDIENTE|LOTE AMBIGUO/.test(s))return 4;return 5;}
 function c2summary(rows){var result={};rows.forEach(function(r){var a=result[r.validator]||(result[r.validator]=[0,0,0,0,0,0,0]);a[0]++;a[c2bucket(r.result)+1]++;});return result;}
-function c2render(){var files=c2files(), section=$('c2Section');$('c2Load').classList.toggle('hidden',CUR<0);section.classList.toggle('hidden',!files.length);if(!files.length){$('c2FilesSummary').textContent='Ningún archivo cargado.';return;}
+/* Asignaciones locales por polígono y validador; nunca se editan filas fuente. */
+function asgRead(polygon){
+  try{var value=JSON.parse(localStorage.getItem('vc-cmp-asig-'+polygon)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch(e){return {};}
+}
+function c2assign(rows){
+  var assignments=Object.create(null);
+  return rows.map(function(row){var p=row.polygon;if(!assignments[p])assignments[p]=asgRead(p);var map=assignments[p],value=Object.prototype.hasOwnProperty.call(map,row.validator)?map[row.validator]:'';
+    return Object.assign({},row,row.tecnico==='SIN ASIGNAR'&&typeof value==='string'&&value.trim()?{tecnico:value.trim().toUpperCase()}:{});
+  });
+}
+function asgRender(){
+  var files=c2files(),select=$('asgPolygon'),old=select.value,polygons=Array.from(new Set(files.map(function(f){return f.polygon;}))).sort();
+  select.innerHTML=polygons.map(function(p){return '<option value="'+esc(p)+'">'+esc(p||'Sin polígono identificado')+'</option>';}).join('');
+  if(polygons.indexOf(old)>=0)select.value=old;
+  var polygon=select.value,groups=Object.create(null),known=new Set(),saved=asgRead(polygon);
+  files.forEach(function(f){f.rows.forEach(function(r){if(r.tecnico&&r.tecnico!=='SIN ASIGNAR')known.add(r.tecnico);if(f.polygon===polygon)(groups[r.validator]||(groups[r.validator]=[])).push(r);});});
+  polygons.forEach(function(p){var map=asgRead(p);Object.keys(map).forEach(function(k){if(typeof map[k]==='string'&&map[k].trim())known.add(map[k].trim().toUpperCase());});});
+  $('asgTechnicians').innerHTML=Array.from(known).sort().map(function(t){return '<option value="'+esc(t)+'"></option>';}).join('');
+  $('asgRows').innerHTML=Object.keys(groups).sort().map(function(v){var rows=groups[v],locked=rows.every(function(r){return r.tecnico!=='SIN ASIGNAR';}),names=Array.from(new Set(rows.map(function(r){return r.tecnico;}))).sort().join(', '),value=Object.prototype.hasOwnProperty.call(saved,v)&&typeof saved[v]==='string'?saved[v]:'';
+    return '<div><label for="asg-'+esc(v)+'">'+esc(v)+' · '+rows.length+' filas'+(locked?' · desde Excel: '+esc(names):'')+'</label> <input type="text" id="asg-'+esc(v)+'" data-validator="'+esc(v)+'" list="asgTechnicians" value="'+esc(locked?names:value)+'"'+(locked?' disabled':'')+'></div>';
+  }).join('');
+  $('asgClear').disabled=!polygons.length;
+}
+$('asgToggle').addEventListener('click',function(){var hidden=$('asgPanel').classList.toggle('hidden');this.setAttribute('aria-expanded',String(!hidden));asgRender();});
+$('asgPolygon').addEventListener('change',asgRender);
+$('asgRows').addEventListener('change',function(e){var input=e.target,v=input.dataset.validator;if(!v||input.disabled)return;var polygon=$('asgPolygon').value,map=asgRead(polygon),value=input.value.trim().toUpperCase();if(value)Object.defineProperty(map,v,{value:value,enumerable:true,configurable:true,writable:true});else delete map[v];
+  try{localStorage.setItem('vc-cmp-asig-'+polygon,JSON.stringify(map));$('asgStatus').textContent='Asignación guardada.';}catch(err){$('asgStatus').textContent='No se pudo guardar la asignación: '+err.message;}c2render();
+});
+$('asgClear').addEventListener('click',function(){try{localStorage.removeItem('vc-cmp-asig-'+$('asgPolygon').value);$('asgStatus').textContent='Asignación eliminada.';}catch(err){$('asgStatus').textContent='No se pudo limpiar la asignación: '+err.message;}c2render();});
+
+function c2render(){asgRender();var files=c2files(), section=$('c2Section');$('c2Load').classList.toggle('hidden',CUR<0);section.classList.toggle('hidden',!files.length);if(!files.length){$('c2FilesSummary').textContent='Ningún archivo cargado.';return;}
   $('c2FilesSummary').innerHTML=files.map(function(f){var t=f.totals;return esc(f.name)+' · Polígono '+esc(f.polygon||'no identificado')+' · '+f.sheets.length+' hojas VAL_ · '+t.valid+' filas · '+t.reviewed+' revisadas · APLICA '+t.aplica+' · NO APLICA '+t.no+' · OTRO CAMBIO '+t.otro+' · vacías / pendientes '+t.empty+' · inválidas '+t.invalid+(t.noState?' · '+t.noState+' SIN COLUMNA DE ESTADO: '+esc(f.sheets.filter(function(s){return s.noState;}).map(function(s){return s.name+' ('+s.rows+' filas)';}).join(', ')):'');}).join('<br>');
-  var rows=c2rows(), summary=c2summary(rows), totals=[0,0,0,0,0,0];rows.forEach(function(r){totals[c2bucket(r.result)]++;});var labels=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio'];$('c2Stats').innerHTML=labels.map(function(l,i){return '<div class="stat '+(['new','mod','del','same','del','same'][i])+'"><div class="k">'+l+'</div><div class="v">'+totals[i]+'</div></div>';}).join('');
+  var rows=c2assign(c2rows()), summary=c2summary(rows), totals=[0,0,0,0,0,0];rows.forEach(function(r){totals[c2bucket(r.result)]++;});var labels=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio'];$('c2Stats').innerHTML=labels.map(function(l,i){return '<div class="stat '+(['new','mod','del','same','del','same'][i])+'"><div class="k">'+l+'</div><div class="v">'+totals[i]+'</div></div>';}).join('');
   $('c2Summary').innerHTML=Object.keys(summary).sort().map(function(k){return '<tr><td>'+esc(k)+'</td>'+summary[k].map(function(n){return '<td>'+n+'</td>';}).join('')+'</tr>';}).join('');
   function options(id,values){var el=$(id),old=el.value;el.innerHTML='<option value="">Todos</option>'+values.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');el.value=old;}
   options('c2Technician',Array.from(new Set(rows.map(function(r){return r.tecnico;}))).sort());options('c2Validator',Array.from(new Set(rows.map(function(r){return r.validator;}))).sort());options('c2Result',Array.from(new Set(rows.map(function(r){return r.result;}))).sort());
@@ -2180,6 +2211,7 @@ function c2render(){var files=c2files(), section=$('c2Section');$('c2Load').clas
   $('c2Body').innerHTML=rows.map(function(r){return '<tr>'+[r.polygon,r.sheet,r.tecnico,r.validator+' · '+r.fi,r.code,r.piso,r.state,r.message,r.result,r.change,r.observation,r.note].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+'</tr>';}).join('');
 }
 function c2sheets(){var rows=c2rows(),head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,r.result,r.change,r.note]);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);c2files().forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=c2files().reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
+(function(){var original=c2sheets;c2sheets=function(){var sheets=original();sheets.forEach(function(sheet){if(sheet.name!=='CRUCE_REVISOR')return;var head=sheet.aoa[sheet.headerRow],tech=head.indexOf('Técnico'),polygon=head.indexOf('Polígono'),validator=head.indexOf('Validador');sheet.aoa.slice(sheet.headerRow+1).forEach(function(row){row[tech]=c2assign([{polygon:row[polygon],validator:row[validator],tecnico:row[tech]}])[0].tecnico;});});return sheets;};})();
 (function(){var original=writeStyledWorkbook;writeStyledWorkbook=function(sheets,filename){if(c2files().length)sheets=sheets.concat(c2sheets());return original(sheets,filename);};})();
 $('c2Files').addEventListener('change',function(){var files=Array.from(this.files),district=DISTRICTS[CUR];this.value='';files.forEach(function(file){var fr=new FileReader();fr.onload=function(e){try{var parsed=c2read(XLSX.read(new Uint8Array(e.target.result),{type:'array',cellText:true}),file.name);district.c2=(district.c2||[]).filter(function(f){return f.name!==file.name;});district.c2.push(parsed);c2render();}catch(err){showErr('No se pudo leer '+file.name+': '+err.message);}};fr.onerror=function(){showErr('No se pudo leer '+file.name);};fr.readAsArrayBuffer(file);});});
 $('c2Clear').addEventListener('click',function(){if(CUR>=0)DISTRICTS[CUR].c2=[];c2render();});
@@ -2199,6 +2231,7 @@ function pubFields(row,events){
   }).map(function(e){return e.report+' · '+e.field;}))).join(' | ');
 }
 function pubPayload(polygon,rows,key,includeObs){
+  rows=c2assign(rows);
   var dates={A:new Set(),B:new Set()},events=[];
   BOARD_().forEach(function(c){if(!c.RES)return;events=events.concat(c2events(c));['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))dates[side].add(day);});});});
   if(!dates.A.size||!dates.B.size)throw new Error('Se necesita al menos una fecha de descarga ANTES y DESPUÉS en los reportes comparados.');
@@ -2237,7 +2270,7 @@ async function pubPost(url,payload){
       filterNodes.forEach(function(el){el.value='';});$('c2NoAplica').checked=true;
       if(!district)throw new Error('No hay distrito cargado.');
       district.board=board.map(function(ctx){var copy=Object.assign({},ctx);['A','B'].forEach(function(side){if(ctx[side])copy[side]=mergeFiles(ctx[side].files||[ctx[side]]);});if(ctx.RES&&copy.A&&copy.B)copy.RES=compareCtx(copy);return copy;});
-      var polygons=Array.from(new Set(c2files().map(function(f){return f.polygon;}))),rows=c2rows(),dates={A:new Set(),B:new Set()};
+      var polygons=Array.from(new Set(c2files().map(function(f){return f.polygon;}))),rows=c2assign(c2rows()),dates={A:new Set(),B:new Set()};
       BOARD_().forEach(function(c){if(c.RES)['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){dates[side].add(fileDate(f).day);});});});
       warnings=['A','B'].filter(function(side){return dates[side].size>1;}).map(function(side){return (side==='A'?'ANTES':'DESPUÉS')+' con '+dates[side].size+' fechas distintas';}).join(' · ');
       if(polygons.some(function(p){return !p;}))throw new Error('Hay archivos sin polígono identificado; revisa el nombre del Excel.');
