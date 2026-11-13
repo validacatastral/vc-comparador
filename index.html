@@ -427,7 +427,7 @@ footer .cr b{color:var(--accent);font-weight:500;}
 .board tr.brow.pending:hover{background:none;}
 
 </style>
-</head>
+<style>.multi{position:relative;min-width:95px;font-size:12px}.multi summary{cursor:pointer;padding:7px;border:1px solid var(--border);border-radius:5px}.multi-search,textarea{width:100%;font-size:12px}.multi-options{max-height:140px;overflow:auto}.multi-options label{display:block;font-size:12px}.file-list{font-size:11px;overflow-wrap:anywhere}@media(max-width:700px){.multi{width:100%}}</style></head>
 <body>
 
 <div class="topbar">
@@ -439,7 +439,7 @@ footer .cr b{color:var(--accent);font-weight:500;}
     <span class="mod">// COMPARADOR DE REPORTES SICUN</span>
   </div>
   <div class="topbar-right">
-    <span id="clock">--:--:--</span>
+    <span class="pill" id="polyPill">Sin polígono</span><span id="clock">--:--:--</span>
     <button class="pill" id="themeBtn" type="button" title="Cambiar tema"><span class="dot"></span><span id="themeName">Cálido</span></button>
   </div>
 </div>
@@ -457,6 +457,12 @@ footer .cr b{color:var(--accent);font-weight:500;}
   </header>
 
   <section>
+    <p class="sec-label">Universo de polígonos</p>
+    <div class="bulkdrop" id="polyDrop" tabindex="0" role="button"><div class="bd-txt"><b>Cargar Excel de polígonos</b><span>Haz clic o arrastra el archivo aquí. Cada hoja representa un polígono.</span></div><input type="file" id="polyFile" accept=".xlsx,.xls" class="hidden"></div>
+    <div id="polySummary" class="bulkmsg">Ningún polígono cargado.</div>
+    <label>Polígono activo <select id="polySelect"><option value="">Sin polígono (todo)</option></select></label>
+  </section>
+  <section>
     <p class="sec-label">Distrito de trabajo</p>
     <div class="distbar" id="distBar">
       <div class="dtabs" id="dtabs"></div>
@@ -469,7 +475,7 @@ footer .cr b{color:var(--accent);font-weight:500;}
   </section>
 
   <section id="loadSection" class="hidden">
-    <p class="sec-label">1 · Cargar cada reporte en su fila · <span id="curDist" style="color:var(--accent);">—</span></p>
+    <p class="sec-label">1 · Cargar cada reporte en su fila · <span id="curDist" style="color:var(--accent);">—</span> · <span id="polyLoad">Sin polígono</span></p>
 
     <div class="bulkdrop" id="bulkDrop" tabindex="0" role="button" aria-label="Cargar varios reportes de una vez">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -912,13 +918,13 @@ function buildRows(){
   BOARD_().forEach(function(ctx,i){
     ["A","B"].forEach(function(s){
       var drop = $("slot"+i+s).querySelector(".drop");
-      var input = document.createElement("input"); input.type="file"; input.accept=".xlsx,.xls"; input.className="hidden";
+      var input = document.createElement("input"); input.type="file"; input.accept=".xlsx,.xls"; input.multiple=true; input.className="hidden";
       $("slot"+i+s).appendChild(input);
       drop.addEventListener("click", function(){ input.click(); });
-      input.addEventListener("change", function(){ if(input.files[0]) loadInto(i,s,input.files[0]); });
+      input.addEventListener("change", function(){ if(input.files.length) loadInto(i,s,input.files); input.value=""; });
       ["dragenter","dragover"].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.classList.add("drag"); }); });
       ["dragleave","drop"].forEach(function(ev){ drop.addEventListener(ev,function(e){ e.preventDefault(); drop.classList.remove("drag"); }); });
-      drop.addEventListener("drop", function(e){ if(e.dataTransfer.files[0]) loadInto(i,s,e.dataTransfer.files[0]); });
+      drop.addEventListener("drop", function(e){ if(e.dataTransfer.files.length) loadInto(i,s,e.dataTransfer.files); });
     });
     $("slot"+i+"A").querySelector(".x").addEventListener("click", function(){ clearSlot(i,"A"); });
     $("slot"+i+"B").querySelector(".x").addEventListener("click", function(){ clearSlot(i,"B"); });
@@ -933,35 +939,64 @@ function buildRows(){
   });
   renderBoard();
 }
+function fileDate(d){
+  for(var i=0;i<d.rows.length;i++){
+    var m=txt(d.rows[i]["Nombre Backup"]).trim().match(/^(\d{4})(\d{2})(\d{2})_(\d{2})_(\d{2})(?:_(\d{2}))?/);
+    if(m) return {day:m[1]+"-"+m[2]+"-"+m[3], display:m[3]+"/"+m[2]+"/"+m[1]+" "+m[4]+":"+m[5]};
+  }
+  var n=d.name.match(/_(\d{2})(\d{2})(\d{2})\.xlsx?$/i);
+  if(n) return {day:"20"+n[1]+"-"+n[2]+"-"+n[3], display:n[3]+"/"+n[2]+"/20"+n[1]};
+  var dt=new Date(d.lastMod||0), p=function(x){return String(x).padStart(2,"0");};
+  return {day:dt.getFullYear()+"-"+p(dt.getMonth()+1)+"-"+p(dt.getDate()), display:p(dt.getDate())+"/"+p(dt.getMonth()+1)+"/"+dt.getFullYear()};
+}
+function mergeFiles(files){
+  if(!files.length) return null;
+  var seen=new Set(), rows=[], omitted=0;
+  files.forEach(function(f){
+    var current=new Set();
+    f.rows.forEach(function(r){
+      var signature=JSON.stringify(f.headers.map(function(h){return r[h];}));
+      if(seen.has(signature)) omitted++; else rows.push(r);
+      current.add(signature);
+    });
+    current.forEach(function(k){seen.add(k);});
+  });
+  var allRows=rows; if(POLY_ACTIVE) rows=rows.filter(function(r){return POLY_ACTIVE.keys.has(mzKeyOf(r[files[0].preset ? files[0].preset.key : (detectPreset(files[0].headers)||{}).key]));});
+  return {allRows:allRows, name:files.length===1?files[0].name:files.length+" archivos", sheet:files[0].sheet,
+    headers:files[0].headers, rows:rows, lastMod:Math.max.apply(null,files.map(function(f){return f.lastMod||0;})), files:files, omitted:omitted};
+}
 function slotFilled(i,s,data){
   var slot = $("slot"+i+s), drop = slot.querySelector(".drop");
   slot.classList.add("has"); drop.classList.add("filled");
-  drop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span class="fn" title="'+esc(data.name)+'">'+esc(data.name)+'</span>';
+  var files=data.files||[data], dates=new Set(files.map(function(f){return fileDate(f).day;}));
+  drop.innerHTML = '<span class="fn">'+files.length+' archivo'+(files.length===1?'':'s')+' · '+data.rows.length+' filas'+(dates.size>1?' · ⚠ Mezcla de fechas':'')+(data.omitted?' · '+data.omitted+' duplicados omitidos':'')+'</span>';
+  var old=slot.querySelector(".file-list"); if(old) old.remove();
+  var details=document.createElement("details"); details.className="file-list";
+  details.innerHTML='<summary>Ver archivos</summary>'+files.map(function(f,n){return '<div>'+esc(f.name)+' · '+esc(fileDate(f).display)+' · '+f.rows.length+' filas <button type="button" data-file="'+n+'" aria-label="Quitar '+esc(f.name)+'">×</button></div>';}).join("");
+  details.addEventListener("click",function(e){ var n=e.target.getAttribute("data-file"); if(n===null) return; var ctx=BOARD_()[i], remaining=(ctx[s].files||[ctx[s]]).slice(); remaining.splice(Number(n),1); ctx[s]=mergeFiles(remaining); ctx.RES=null; if(ACTIVE===i){$("detailSection").classList.add("hidden"); ACTIVE=null;} buildRows(); updateRunAll(); });
+  slot.appendChild(details);
 }
 function slotEmpty(i,s){
   var slot = $("slot"+i+s), drop = slot.querySelector(".drop");
-  slot.classList.remove("has"); drop.classList.remove("filled");
+  slot.classList.remove("has"); drop.classList.remove("filled"); var details=slot.querySelector(".file-list"); if(details) details.remove();
   drop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="ph">soltar .xlsx</span>';
 }
-function loadInto(i,s,file){
+function loadInto(i,s,files){
   showErr("");
-  readWorkbook(file, function(err, data){
-    if(err){ showErr("Error al leer "+file.name+": "+err.message); return; }
-    data.preset = detectPreset(data.headers);
-    var ctx = BOARD_()[i];
-    // Validar que corresponde a esta fila
-    if(data.preset && data.preset.id !== ctx.preset.id){
-      showErr("Ese archivo parece ser «"+data.preset.nombre+"», no «"+ctx.preset.nombre+"». Cárgalo en su fila correcta.");
-      return;
-    }
-    if(ctx.preset.key && data.headers.indexOf(ctx.preset.key) === -1){
-      showErr("El archivo no tiene la columna llave «"+ctx.preset.key+"» que este reporte necesita.");
-      return;
-    }
-    ctx[s] = data;
-    slotFilled(i,s,data);
-    refreshRow(i);
-  });
+  var ctx=BOARD_()[i], list=Array.prototype.slice.call(files), existing=ctx[s]?(ctx[s].files||[ctx[s]]).slice():[], errors=[], pending=list.length, results=new Array(list.length);
+  list.forEach(function(file,n){ readWorkbook(file,function(err,data){
+    if(err) errors.push(file.name+": "+err.message); else results[n]=data;
+    if(--pending) return;
+    results.forEach(function(d){ if(!d) return; var preset=detectPreset(d.headers);
+      if(!preset || preset.id!==ctx.preset.id){errors.push(d.name+": reporte no reconocido o distinto de «"+ctx.preset.nombre+"»."); return;}
+      if(d.headers.indexOf(ctx.preset.key)<0){errors.push(d.name+": falta la columna llave «"+ctx.preset.key+"»."); return;}
+      if(existing.length && JSON.stringify(existing[0].headers)!==JSON.stringify(d.headers)){errors.push(d.name+": los encabezados no coinciden con los del primer archivo."); return;}
+      existing.push(d);
+    });
+    ctx[s]=mergeFiles(existing); ctx.RES=null;
+    if(ACTIVE===i){$("detailSection").classList.add("hidden"); ACTIVE=null;}
+    buildRows(); if(errors.length) showErr(errors.join(" "));
+  }); });
 }
 function clearSlot(i,s){
   BOARD_()[i][s] = null; BOARD_()[i].RES = null;
@@ -1020,6 +1055,7 @@ function paintMini(i){
 
 /* ============ Tablero resumen ============ */
 function renderBoard(){
+  if($("lMulti0")) syncFilter("l");
   var any = BOARD_().some(function(c){ return c.RES; });
   if(!any){ $("boardSection").classList.add("hidden"); return; }
   var body = BOARD_().map(function(ctx,i){
@@ -1078,48 +1114,53 @@ var CF_SEGS = [
   {id:"fUnidad", off:20, len:3}
 ];
 var CF_LABELS = ["Sector","Mz","Lote","Edif","Ent","Piso","Un"];
-function cfMask(){
-  var parts = [], active = false;
-  for(var i=0;i<CF_SEGS.length;i++){ var s = CF_SEGS[i], v = ($(s.id).value||"").trim(); if(v==="") break; active = true; parts.push(v.padStart(s.len,"0")); }
-  return active ? parts.join("") : "";
+var FILTER_STATE={f:[new Set(),new Set(),new Set()],l:[new Set(),new Set(),new Set()]};
+function filterKeys(prefix){var keys=[]; BOARD_().forEach(function(c){if(!c.RES || (prefix==='f' && BOARD_()[ACTIVE]!==c))return; [c.A,c.B].forEach(function(d){d.rows.forEach(function(r){var k=txt(r[c.preset.key]);if(k.length===14||k.length===24)keys.push(k);});});});return keys;}
+function pasted(prefix){return $(prefix+'Paste').value.split(/\r?\n/).map(function(x){return x.replace(/\D/g,'');}).filter(function(x){return x.length===14||x.length===24;});}
+function filterActive(prefix){return FILTER_STATE[prefix].some(function(s){return s.size;}) || pasted(prefix).length>0 || (prefix==='f'?CF_SEGS:LOC_SEGS).slice(3).some(function(x){return $(x.id).value.trim();});}
+function filterPass(key,prefix){var k=txt(key), sels=FILTER_STATE[prefix], segs=prefix==='f'?CF_SEGS:LOC_SEGS, offsets=[6,8,11,14,16,18,20];
+  if(k.length!==14 && k.length!==24)return false;
+  for(var i=0;i<3;i++)if(sels[i].size && !sels[i].has(k.slice(offsets[i],offsets[i]+segs[i].len)))return false;
+  for(var j=3;j<segs.length;j++){var v=$(segs[j].id).value.trim();if(v && k.slice(offsets[j],offsets[j]+segs[j].len)!==v.padStart(segs[j].len,'0'))return false;}
+  var list=pasted(prefix);return !list.length || list.some(function(c){return c.length===14?k.slice(0,14)===c:k===c;});
 }
-function passesFilter(key){
-  var mask = cfMask(); if(!mask) return true;
-  var k = txt(key); if(k.length < 6 + mask.length) return false;
-  return k.slice(6, 6 + mask.length) === mask;
-}
-function cfActive(){ return cfMask() !== ""; }
-function cfLocationText(){
-  var out = [];
-  for(var i=0;i<CF_SEGS.length;i++){ var v = ($(CF_SEGS[i].id).value||"").trim(); if(v==="") break; out.push(CF_LABELS[i]+" "+v.padStart(CF_SEGS[i].len,"0")); }
-  return out.join(" · ");
-}
-function clearCf(){ CF_SEGS.forEach(function(s){ $(s.id).value = ""; }); cfSync(); $("cfResult").classList.add("hidden"); }
-
-/* ============ Avance por ubicación (consolidado del distrito) ============ */
+function filterText(prefix){var out=[], segs=prefix==='f'?CF_SEGS:LOC_SEGS; FILTER_STATE[prefix].forEach(function(set,i){var a=Array.from(set).sort();if(a.length)out.push(CF_LABELS[i]+' '+a.slice(0,2).join(', ')+(a.length>2?' (+'+(a.length-2)+')':''));});segs.slice(3).forEach(function(s,i){var v=$(s.id).value.trim();if(v)out.push(CF_LABELS[i+3]+' '+v.padStart(s.len,'0'));});var n=pasted(prefix).length;if(n)out.push(n+' CRC pegados');return out.join(' · ');}
+function cfMask(){return filterActive('f')?'*':'';}
+function passesFilter(key){return !filterActive('f')||filterPass(key,'f');}
+function cfActive(){return filterActive('f');}
+function cfLocationText(){return filterText('f');}
+function clearCf(){clearFilter('f');}
 var LOC_SEGS = [
-  {id:"lSector", len:2},{id:"lManzana",len:3},{id:"lLote",  len:3},
-  {id:"lEdif",   len:2},{id:"lEntrada",len:2},{id:"lPiso",  len:2},{id:"lUnidad", len:3}
+  {id:"lSector", len:2},{id:"lManzana",len:3},{id:"lLote",len:3},
+  {id:"lEdif",len:2},{id:"lEntrada",len:2},{id:"lPiso",len:2},{id:"lUnidad",len:3}
 ];
-function locMask(){
-  var parts = [], active = false;
-  for(var i=0;i<LOC_SEGS.length;i++){ var v = ($(LOC_SEGS[i].id).value||"").trim(); if(v==="") break; active = true; parts.push(v.padStart(LOC_SEGS[i].len,"0")); }
-  return active ? parts.join("") : "";
+function locMask(){return filterActive('l')?'*':'';}
+function locPasses(key,mask){return !!mask && filterPass(key,'l');}
+function locActive(){return filterActive('l');}
+function locText(){return filterText('l');}
+function locSync(){syncFilter('l');}
+function syncFilter(prefix){
+  var segs=prefix==='f'?CF_SEGS:LOC_SEGS, sets=FILTER_STATE[prefix], keys=filterKeys(prefix), offsets=[6,8,11];
+  for(var i=0;i<3;i++){
+    var valid=new Set(keys.filter(function(k){for(var j=0;j<i;j++)if(sets[j].size && !sets[j].has(k.slice(offsets[j],offsets[j]+segs[j].len)))return false;return true;}).map(function(k){return k.slice(offsets[i],offsets[i]+segs[i].len);}));
+    sets[i].forEach(function(v){if(!valid.has(v))sets[i].delete(v);});
+    var host=$(prefix+'Multi'+i), query=host.querySelector('.multi-search').value.toLowerCase(), options=Array.from(valid).sort();
+    host.querySelector('.multi-title').textContent=sets[i].size?Array.from(sets[i]).sort().join(', '):'Todos';
+    host.querySelector('.multi-options').innerHTML=options.filter(function(x){return x.toLowerCase().indexOf(query)>=0;}).map(function(x){return '<label><input type="checkbox" value="'+esc(x)+'"'+(sets[i].has(x)?' checked':'')+'> '+esc(x)+'</label>';}).join('');
+  }
+  var enable=sets.every(function(set){return set.size===1;});segs.slice(3).forEach(function(s){$(s.id).disabled=!enable;if(!enable)$(s.id).value='';});
+  var list=pasted(prefix), missing=list.filter(function(c){return !keys.some(function(k){return c.length===14?k.slice(0,14)===c:k===c;});});
+  $(prefix+'PasteStatus').textContent=(list.length-missing.length)+' encontrados · '+missing.length+' no encontrados'; $(prefix+'Copy').dataset.missing=missing.join('\n');
 }
-function locPasses(key, mask){
-  if(!mask) return false;
-  var k = txt(key); if(k.length < 6 + mask.length) return false;
-  return k.slice(6, 6 + mask.length) === mask;
-}
-function locActive(){ return locMask() !== ""; }
-function locText(){
-  var out = [];
-  for(var i=0;i<LOC_SEGS.length;i++){ var v = ($(LOC_SEGS[i].id).value||"").trim(); if(v==="") break; out.push(CF_LABELS[i]+" "+v.padStart(LOC_SEGS[i].len,"0")); }
-  return out.join(" · ");
-}
-function locSync(){
-  var prev = true;
-  for(var i=0;i<LOC_SEGS.length;i++){ var el = $(LOC_SEGS[i].id); if(i>0){ el.disabled = !prev; if(el.disabled) el.value=""; } prev = prev && (el.value.trim()!==""); }
+function clearFilter(prefix){FILTER_STATE[prefix].forEach(function(x){x.clear();}); var segs=prefix==='f'?CF_SEGS:LOC_SEGS;segs.forEach(function(s){$(s.id).value='';});$(prefix+'Paste').value='';syncFilter(prefix);}
+function setupFilter(prefix){
+  var segs=prefix==='f'?CF_SEGS:LOC_SEGS;
+  segs.slice(0,3).forEach(function(s,i){var el=$(s.id), host=document.createElement('details');host.className='multi';host.id=prefix+'Multi'+i;host.innerHTML='<summary class="multi-title">Todos</summary><input class="multi-search" placeholder="Buscar" aria-label="Buscar"><div><button type="button" data-action="all">Todos</button> <button type="button" data-action="none">Ninguno</button></div><div class="multi-options"></div>';el.hidden=true;el.disabled=false;el.parentNode.appendChild(host);
+    host.addEventListener('input',function(e){if(e.target.className==='multi-search'){syncFilter(prefix);return;}if(e.target.type==='checkbox'){if(e.target.checked)FILTER_STATE[prefix][i].add(e.target.value);else FILTER_STATE[prefix][i].delete(e.target.value);syncFilter(prefix);if(prefix==='f')paint();else renderLoc();}});
+    host.addEventListener('click',function(e){var act=e.target.dataset.action;if(!act)return;var set=FILTER_STATE[prefix][i];set.clear();if(act==='all')host.querySelectorAll('.multi-options input').forEach(function(x){set.add(x.value);});syncFilter(prefix);if(prefix==='f')paint();else renderLoc();});
+  });
+  var box=document.createElement('div');box.innerHTML='<label>Pegar CRC <textarea id="'+prefix+'Paste" rows="3" placeholder="Uno por línea"></textarea></label> <span id="'+prefix+'PasteStatus"></span> <button type="button" id="'+prefix+'Copy">Copiar no encontrados</button>';$(prefix==='f'?'crcFilter':'locFilter').appendChild(box);
+  $(prefix+'Paste').addEventListener('input',function(){syncFilter(prefix);if(prefix==='f')paint();else renderLoc();});$(prefix+'Copy').addEventListener('click',function(){navigator.clipboard.writeText(this.dataset.missing||'');});syncFilter(prefix);
 }
 // cuenta un reporte comparado dentro de la ubicación
 function locCountReport(ctx, mask){
@@ -1219,8 +1260,8 @@ function renderLocCount(mask){
   var host = $("locCount");
   if(!ua){ host.innerHTML = '<div class="dempty" style="margin-top:12px;">Compara el reporte de Unidades Administrativas para ver el conteo catastral (unidades, lotes, edificas) de esta ubicación.</div>'; return; }
   var key = ua.preset.key;
-  var A = catastralCount(ua.A.rows, key, mask);
-  var B = catastralCount(ua.B.rows, key, mask);
+  var A = catastralCount(ua.A.rows.filter(function(r){return filterPass(r[key],'l');}), key, '');
+  var B = catastralCount(ua.B.rows.filter(function(r){return filterPass(r[key],'l');}), key, '');
   function cell(lbl, a, b, nt){
     var da = b - a, sign = da>0?"+":"", cls = da>0?"up":(da<0?"down":"eq");
     return '<div class="ccell"><div class="cl">'+lbl+'</div>'+
@@ -1279,7 +1320,7 @@ function exportLoc(){
   // Hoja de conteo catastral (Unidades Administrativas)
   var ua = board.filter(function(c){ return c.preset.id==="UA" && c.RES; })[0];
   if(ua){
-    var kk = ua.preset.key, cA = catastralCount(ua.A.rows, kk, mask), cB = catastralCount(ua.B.rows, kk, mask);
+    var kk = ua.preset.key, cA = catastralCount(ua.A.rows.filter(function(r){return filterPass(r[kk],'l');}), kk, ''), cB = catastralCount(ua.B.rows.filter(function(r){return filterPass(r[kk],'l');}), kk, '');
     var cnt = [["CONTEO CATASTRAL — Unidades Administrativas"],["Ubicación", locText()],[],
       ["Métrica","ANTES","DESPUÉS","Δ"],
       ["Unidades (sin 99/999)", cA.unidades, cB.unidades, cB.unidades-cA.unidades],
@@ -1464,37 +1505,36 @@ function bulkLoad(files){
     });
   });
 }
+var BULK_GROUPS = null, BULK_ERRORS = [];
 function bulkDistribute(leidos, sinRec){
-  var porTipo = {};
-  leidos.forEach(function(d){ (porTipo[d.preset.id] = porTipo[d.preset.id] || []).push(d); });
-
-  var lineas = [], board = BOARD_();
-  Object.keys(porTipo).forEach(function(id){
-    var grupo = porTipo[id];
-    var idx = -1;
-    board.forEach(function(c,i){ if(c.preset.id === id) idx = i; });
-    if(idx < 0) return;
-    grupo.sort(function(a,b){ return stampValue(a) - stampValue(b); });   // más antiguo primero
-    var ctx = board[idx];
-    if(grupo.length === 1){
-      // un solo archivo: al primer hueco libre
-      var slot = ctx.A ? "B" : "A";
-      ctx[slot] = grupo[0];
-      lineas.push('<b>'+esc(ctx.preset.nombre)+'</b> · '+(slot==="A"?"ANTES":"DESPUÉS")+' ← '+esc(grupo[0].name));
-    } else {
-      ctx.A = grupo[0]; ctx.B = grupo[grupo.length-1];
-      lineas.push('<b>'+esc(ctx.preset.nombre)+'</b> · ANTES ← '+esc(grupo[0].name)+' &nbsp;|&nbsp; DESPUÉS ← '+esc(grupo[grupo.length-1].name));
-      if(grupo.length > 2) lineas.push('<span class="warn">'+esc(ctx.preset.nombre)+': llegaron '+grupo.length+' archivos; se usaron el más antiguo y el más nuevo.</span>');
-    }
+  BULK_GROUPS={}; BULK_ERRORS=sinRec.slice();
+  leidos.forEach(function(d){var g=BULK_GROUPS[d.preset.id]||(BULK_GROUPS[d.preset.id]={}); var day=fileDate(d).day; (g[day]=g[day]||[]).push(d);});
+  Object.keys(BULK_GROUPS).forEach(function(id){ var days=Object.keys(BULK_GROUPS[id]).sort(); var idx=BOARD_().findIndex(function(c){return c.preset.id===id;}); if(idx<0)return;
+    var ctx=BOARD_()[idx];
+    if(days.length===1){var side=ctx.A?"B":"A"; bulkSet(ctx,side,BULK_GROUPS[id][days[0]]);}
+    else {bulkSet(ctx,"A",BULK_GROUPS[id][days[0]]); bulkSet(ctx,"B",BULK_GROUPS[id][days[days.length-1]]);}
+    ctx.RES=null;
   });
-
-  buildRows();
-  updateRunAll();
-  renderDistTabs();
-
-  if(sinRec.length) lineas.push('<span class="warn">Sin usar: '+sinRec.map(esc).join(" · ")+'</span>');
-  if(!lineas.length) lineas.push('<span class="warn">No se reconoció ningún reporte.</span>');
-  $("bulkMsg").innerHTML = lineas.join("<br>");
+  if(ACTIVE!==null){$("detailSection").classList.add("hidden"); ACTIVE=null;}
+  buildRows(); updateRunAll(); renderDistTabs(); bulkMessage();
+}
+function bulkSet(ctx,side,files){
+  var accepted=[], headers=null;
+  files.forEach(function(f){if(!headers) headers=JSON.stringify(f.headers); if(JSON.stringify(f.headers)!==headers){BULK_ERRORS.push(f.name+": encabezados incompatibles"); return;} accepted.push(f);});
+  ctx[side]=mergeFiles(accepted);
+}
+function bulkMessage(){
+  var lines=[];
+  Object.keys(BULK_GROUPS).forEach(function(id){var ctx=BOARD_().find(function(c){return c.preset.id===id;}); if(!ctx)return;
+    var days=Object.keys(BULK_GROUPS[id]).sort();
+    function describe(side){var d=ctx[side]; if(!d)return "—"; var files=d.files||[d], sectors=new Set(); files.forEach(function(f){var m=f.name.match(/_\d{6}(\d{2})_/); if(m) sectors.add("S"+m[1]); else f.rows.forEach(function(r){var k=txt(r[ctx.preset.key]); if(k.length>=11) sectors.add("S"+k.slice(6,8));});}); return fileDate(files[0]).display+" ("+files.length+" archivos, "+Array.from(sectors).sort().join(", ")+")";}
+    var line='<b>'+esc(ctx.preset.nombre)+'</b> · ANTES '+esc(describe("A"))+' → DESPUÉS '+esc(describe("B"));
+    if(days.length>2){["A","B"].forEach(function(side){var chosen=ctx[side]?fileDate((ctx[side].files||[ctx[side]])[0]).day:""; line+=' · '+(side==="A"?"ANTES":"DESPUÉS")+' <select data-bulk-id="'+esc(id)+'" data-bulk-side="'+side+'">'+days.map(function(day){return '<option value="'+day+'"'+(day===chosen?' selected':'')+'>'+day+'</option>';}).join("")+'</select>';});}
+    lines.push(line);
+  });
+  if(BULK_ERRORS.length)lines.push('<span class="warn">Sin usar: '+BULK_ERRORS.map(esc).join(" · ")+'</span>');
+  $("bulkMsg").innerHTML=lines.join("<br>")||'No se reconoció ningún reporte.';
+  $("bulkMsg").querySelectorAll("select").forEach(function(el){el.addEventListener("change",function(){var ctx=BOARD_().find(function(c){return c.preset.id===el.dataset.bulkId;}); bulkSet(ctx,el.dataset.bulkSide,BULK_GROUPS[el.dataset.bulkId][el.value]); ctx.RES=null; if(ACTIVE!==null){$("detailSection").classList.add("hidden");ACTIVE=null;} buildRows(); bulkMessage();});});
 }
 
 /* ============ Reporte por manzana (diario) ============ */
@@ -1514,12 +1554,13 @@ function mzGather(){
     }
     return map[mk];
   }
+  if(POLY_ACTIVE) POLY_ACTIVE.keys.forEach(function(k){ ensure(k); });
   // universo de manzanas: todas las que aparecen en cualquier reporte (lado B y A)
   board.forEach(function(ctx){
     if(!ctx.RES) return;
     var key = ctx.preset.key;
     [ctx.A, ctx.B].forEach(function(side){
-      side.rows.forEach(function(r){ var mk = mzKeyOf(r[key]); if(mk) ensure(mk); });
+      side.rows.forEach(function(r){ var mk = mzKeyOf(r[key]); if(mk) ensure(mk).hasData=true; });
     });
   });
   // métricas por reporte
@@ -1620,7 +1661,7 @@ function renderMz(){
 
   var rows = show.map(function(m){
     return '<tr class="mzrow'+(m.conCambio>0?'':' zero')+'" data-mk="'+esc(m.mk)+'">'+
-      '<td class="mono mzid" title="Ver el detalle de esta manzana">'+esc(m.sector)+' · '+esc(m.manzana)+'</td>'+
+      '<td class="mono mzid" title="Ver el detalle de esta manzana">'+esc(m.sector)+' · '+esc(m.manzana)+(POLY_ACTIVE && !m.hasData ? '<br><small>sin datos en los reportes cargados</small>' : '')+'</td>'+
       unidCell(m.unidades, m.unidadesA)+
       '<td class="mono num-m">'+m.mods+'</td>'+
       '<td class="mono num-n">'+m.nuevos+'</td>'+
@@ -1683,8 +1724,7 @@ function renderMz(){
 function openMzDetail(mk){
   if(!mk) return;
   var p = mk.split("|");
-  $("lSector").value = p[0]; locSync();
-  $("lManzana").value = p[1]; locSync();
+  clearFilter('l'); FILTER_STATE.l[0].add(p[0]); FILTER_STATE.l[1].add(p[1]); locSync();
   renderLoc();
   var el = $("locSection");
   el.classList.remove("hidden");
@@ -1939,16 +1979,54 @@ function exportMarked(){
   writeStyledWorkbook([{ name:"data", aoa:out, headerRow:0 }], "MARCADO_" + stampName() + ".xlsx");
 }
 
+/* ============ Universo de polígonos: solo memoria ============ */
+var POLYGONS=[], POLY_ACTIVE=null;
+function polyRead(file){
+  var fr=new FileReader(); fr.onload=function(e){try{
+    var wb=XLSX.read(new Uint8Array(e.target.result),{type:"array",cellDates:true}), result=[], skipped=[];
+    wb.SheetNames.forEach(function(name){
+      var rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:null,raw:true});
+      if(!rows.length){skipped.push(name);return;}
+      var h=rows[0].map(function(v){return stripAccents(txt(v)).toUpperCase().replace(/[^A-Z0-9]/g,"");});
+      var si=h.indexOf("SECTOR"), mi=h.indexOf("MANZANA"), ci=h.indexOf("NCRC");
+      if(si<0||mi<0){skipped.push(name);return;}
+      var keys=new Set(), sectors=new Set(), crc=0, hasCrc=ci>=0;
+      rows.slice(1).forEach(function(r){var sec=txt(r[si]).trim(), mz=txt(r[mi]).trim(); if(!/^\d+$/.test(sec)||!/^\d+$/.test(mz))return; sec=sec.padStart(2,"0");mz=mz.padStart(3,"0"); keys.add(sec+"|"+mz);sectors.add(sec);if(hasCrc)crc+=Number(r[ci])||0;});
+      result.push({code:name,keys:keys,sectors:sectors,crc:crc,hasCrc:hasCrc});
+    });
+    POLYGONS=result; POLY_ACTIVE=null;
+    $("polySelect").innerHTML='<option value="">Sin polígono (todo)</option>'+result.map(function(p,i){return '<option value="'+i+'">'+esc(p.code)+'</option>';}).join('');
+    $("polySummary").innerHTML=result.length+' polígonos cargados'+result.map(function(p){return '<div>'+esc(p.code)+' · '+p.keys.size+' manzanas · '+Array.from(p.sectors).sort().map(function(x){return 'S'+esc(x);}).join(' · ')+(p.hasCrc?' · '+p.crc+' CRC':'')+'</div>';}).join('')+(skipped.length?'<div class="warn">Hojas omitidas sin SECTOR y MANZANA: '+skipped.map(esc).join(', ')+'</div>':'');
+    applyPolygon();
+  }catch(err){$("polySummary").textContent="No se pudo leer el universo: "+err.message;}};fr.readAsArrayBuffer(file);
+}
+function applyPolygon(){
+  var v=$("polySelect").value; POLY_ACTIVE=v===""?null:POLYGONS[Number(v)];
+  $("polyPill").textContent=POLY_ACTIVE?'Polígono '+POLY_ACTIVE.code:'Sin polígono'; $("polyLoad").textContent=$("polyPill").textContent;
+  DISTRICTS.forEach(function(d){d.board.forEach(function(ctx){var had=!!ctx.RES; ["A","B"].forEach(function(side){if(ctx[side])ctx[side]=mergeFiles(ctx[side].files||[ctx[side]]);}); if(had && ctx.A && ctx.B)ctx.RES=compareCtx(ctx);});});
+  if(CUR<0)return;
+  buildRows(); renderBoard(); renderDistTabs(); if(ACTIVE!==null && R()){syncFilter("f");paintSummary();paint();} syncFilter("l"); renderLoc(); renderMz();
+  if(POLY_ACTIVE){var warnings=[]; BOARD_().forEach(function(ctx){["A","B"].forEach(function(side){var d=ctx[side];if(!d)return; var sectors=new Set(d.allRows.map(function(r){var k=txt(r[ctx.preset.key]);return k.slice(6,8);}));var missing=Array.from(POLY_ACTIVE.sectors).filter(function(x){return !sectors.has(x);});if(!d.rows.length||missing.length)warnings.push(ctx.preset.nombre+' '+side+(!d.rows.length?': ninguna fila en el polígono':'')+(missing.length?' · faltan sectores '+missing.map(function(x){return 'S'+x;}).join(', '):''));});});if(warnings.length)showErr(warnings.join(' | '));else showErr('');}
+}
+(function(){var zone=$("polyDrop"), input=$("polyFile");zone.addEventListener('click',function(){input.click();});zone.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();input.click();}});input.addEventListener('change',function(){if(input.files[0])polyRead(input.files[0]);input.value='';});zone.addEventListener('dragover',function(e){e.preventDefault();});zone.addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files[0])polyRead(e.dataTransfer.files[0]);});$("polySelect").addEventListener('change',applyPolygon);})();
+var originalExportReport=exportReport, originalExportMarked=exportMarked;
+function withDetailFilter(fn){
+  if(ACTIVE===null || !cfActive())return fn();
+  var ctx=BOARD_()[ACTIVE], a=ctx.A, b=ctx.B, result=ctx.RES;
+  try{ctx.A=Object.assign({},a,{rows:a.rows.filter(function(r){return passesFilter(r[ctx.preset.key]);})});ctx.B=Object.assign({},b,{rows:b.rows.filter(function(r){return passesFilter(r[ctx.preset.key]);})});ctx.RES=compareCtx(ctx);return fn();}
+  finally{ctx.A=a;ctx.B=b;ctx.RES=result;}
+}
+exportReport=function(split){return withDetailFilter(function(){return originalExportReport(split);});};
+exportMarked=function(){return withDetailFilter(originalExportMarked);};
+var originalWriteStyledWorkbook=writeStyledWorkbook;
+writeStyledWorkbook=function(sheets,filename){
+  if(POLY_ACTIVE){filename=filename.replace(/^(COMPARA_(?:CRCcol_)?|AVANCE_|REPORTE_MZ_|MARCADO_)/,'$1'+POLY_ACTIVE.code+'_');sheets.forEach(function(sh){if(sh.name==='RESUMEN'||sh.name==='AVANCE'){sh.aoa.splice(2,0,['Polígono',POLY_ACTIVE.code]);if(sh.headerRow>=2)sh.headerRow++;if(sh.totalRow>=2)sh.totalRow++;}});}
+  return originalWriteStyledWorkbook(sheets,filename);
+};
+
 /* ============ Wiring ============ */
 function showErr(msg){ var e = $("loadError"); if(!msg){ e.classList.add("hidden"); return; } e.textContent = msg; e.classList.remove("hidden"); }
-function cfSync(){
-  var prevFilled = true;
-  for(var i=0;i<CF_SEGS.length;i++){
-    var el = $(CF_SEGS[i].id);
-    if(i>0){ el.disabled = !prevFilled; if(el.disabled) el.value = ""; }
-    prevFilled = prevFilled && (el.value.trim()!=="");
-  }
-}
+function cfSync(){ syncFilter('f'); }
 /* ============ Gestión de distritos ============ */
 function renderDistTabs(){
   var host = $("dtabs");
@@ -2043,11 +2121,12 @@ $("crcToggle").addEventListener("click", function(){
   if(ACTIVE!==null && R()) paint();
 });
 var cft = null;
+setupFilter('f'); setupFilter('l');
 CF_SEGS.forEach(function(s){
   var el = $(s.id);
   el.addEventListener("input", function(){ el.value = el.value.replace(/\D/g,"").slice(0, s.len); cfSync(); clearTimeout(cft); cft = setTimeout(paint, 160); });
 });
-$("cfClear").addEventListener("click", function(){ CF_SEGS.forEach(function(s){ $(s.id).value = ""; }); cfSync(); paint(); });
+$("cfClear").addEventListener("click", function(){ clearFilter('f'); paint(); });
 cfSync();
 
 /* ----- Sección Avance por ubicación ----- */
@@ -2056,7 +2135,7 @@ LOC_SEGS.forEach(function(s){
   var el = $(s.id);
   el.addEventListener("input", function(){ el.value = el.value.replace(/\D/g,"").slice(0, s.len); locSync(); clearTimeout(loct); loct = setTimeout(renderLoc, 160); });
 });
-$("locClear").addEventListener("click", function(){ LOC_SEGS.forEach(function(s){ $(s.id).value = ""; }); locSync(); renderLoc(); });
+$("locClear").addEventListener("click", function(){ clearFilter('l'); renderLoc(); });
 $("expLoc").addEventListener("click", exportLoc);
 locSync();
 

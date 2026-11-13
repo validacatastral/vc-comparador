@@ -160,3 +160,7 @@ Guardar las descargas originales sin renombrar, en carpetas por fecha y hora. La
 - Definir una fórmula de *completitud real* (qué campos marcan que un predio está "terminado") para complementar el indicador de avance, que hoy mide "cuánto se movió", no "cuánto falta".
 - Opción de que las exportaciones respeten el filtro por ubicación activo (exportar solo la manzana en pantalla).
 - Resaltado de celdas en color dentro de la copia marcada (requeriría cambiar de SheetJS a ExcelJS).
+
+## Modo polígono y filtros múltiples
+
+Cada casilla admite varios archivos del mismo reporte; la carga masiva los agrupa por día y permite elegir fechas cuando hay más de dos. Carga un Excel con una hoja por polígono y columnas SECTOR y MANZANA para recortar las comparaciones. Los filtros de detalle y avance permiten seleccionar varios sectores, manzanas y lotes o pegar códigos CRC y de lote. Todo permanece en memoria durante la sesión.
