@@ -164,3 +164,13 @@ Guardar las descargas originales sin renombrar, en carpetas por fecha y hora. La
 ## Modo polígono y filtros múltiples
 
 Cada casilla admite varios archivos del mismo reporte; la carga masiva los agrupa por día y permite elegir fechas cuando hay más de dos. Carga un Excel con una hoja por polígono y columnas SECTOR y MANZANA para recortar las comparaciones. Los filtros de detalle y avance permiten seleccionar varios sectores, manzanas y lotes o pegar códigos CRC y de lote. Todo permanece en memoria durante la sesión.
+
+## C2 — Cruce con Excel del revisor
+
+Dentro del distrito de trabajo, carga uno o varios `.xlsx` de revisores mediante **Excel del revisor** y compara los pares de reportes SICUN. Los archivos se procesan en memoria, sin escribir en las hojas originales. El nombre del archivo aporta el código de polígono; se leen únicamente las hojas `VAL_`. La tarjeta de carga muestra filas válidas, revisadas, estados y hojas sin columna de estado. Las observaciones sin estado cuentan como no revisadas.
+
+La sección **Cruce revisor** agrupa titulares y muestra la hoja original, la regla FI, el código, los cambios y el resultado. `APLICA` se contrasta con los campos de `C2_MAP`; `OTRO CAMBIO` considera cualquier campo y el aviso de `NO APLICA` puede desactivarse. Las diferencias, altas, bajas y renombres provienen de los resultados existentes del comparador. Se pueden filtrar por validador y resultado, además de los filtros de ubicación y polígono activos. Los códigos numéricos o ambiguos se indican como incompletos. Se indica en la nota cuándo hay reportes sin comparar o no se puede comprobar el piso.
+
+Cada exportación formateada agrega `CRUCE_REVISOR` y `CRUCE_RESUMEN` mientras haya archivos de revisor cargados. Las columnas de código se escriben como texto. El mapeo editable `C2_MAP` está al inicio del script; usa las cabeceras SICUN facilitadas el 13/11/2026, con `OBR` y `REC` como identificadores internos para obras y recapitulaciones. La comparación de nombres ignora tildes, mayúsculas y diferencias de espacios múltiples, y equipara guiones largos y cortos.
+
+Para comprobarlo sin datos reales: crear en memoria un libro con hojas `VAL_CRC-X`, `VAL_FECHA_PISO` y `VAL_TITULARES_1-Y`, incluir estados válidos, vacío y selección múltiple, y cargar pares sintéticos UA, CON y TIT con cambios conocidos. Ejecutar **Comparar todo**, revisar conteos y resultados, y exportar para comprobar ambas hojas. La comprobación con `260210019.xlsx` y los reportes reales queda a cargo de quien tenga acceso autorizado a esos archivos.
