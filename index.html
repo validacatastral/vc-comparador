@@ -2214,8 +2214,8 @@ async function pubPost(url,payload){
 (function(){
   var queue=[],url='',busy=false,warnings='';
   function panel(){ $('pubPanel').classList.remove('hidden');$('pubSettings').setAttribute('aria-expanded','true'); }
-  // Las claves persistidas anteriormente pasan a la sesión sin activar recordar.
-  try{$('pubUrl').value=localStorage.getItem('vc-cmp-pub-url')||'';$('pubKey').value=sessionStorage.getItem('vc-cmp-pub-key')||localStorage.getItem('vc-cmp-pub-key')||'';}catch(e){}
+  // Recuperar la preferencia antes de guardar la clave en el almacenamiento elegido.
+  try{$('pubRemember').checked=!!(localStorage.getItem('vc-cmp-pub-key')||'').trim();$('pubUrl').value=localStorage.getItem('vc-cmp-pub-url')||'';$('pubKey').value=sessionStorage.getItem('vc-cmp-pub-key')||localStorage.getItem('vc-cmp-pub-key')||'';}catch(e){}
   function saveKey(){var key=$('pubKey').value.trim();try{if($('pubRemember').checked){localStorage.setItem('vc-cmp-pub-key',key);sessionStorage.removeItem('vc-cmp-pub-key');}else{sessionStorage.setItem('vc-cmp-pub-key',key);localStorage.removeItem('vc-cmp-pub-key');}}catch(e){}}
   saveKey();
   $('pubUrl').addEventListener('input',function(){try{localStorage.setItem('vc-cmp-pub-url',this.value.trim());}catch(e){}});
