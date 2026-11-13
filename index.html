@@ -452,7 +452,7 @@ footer .cr b{color:var(--accent);font-weight:500;}
     <h1>Comparador de reportes SICUN</h1>
     <p class="lede">Cada reporte tiene su propio par de casillas. Carga la descarga anterior y la nueva de cada uno, compáralos por separado o todos a la vez, y revisa el detalle de cada reporte con su filtro por manzana y su exportación.</p>
     <div class="keyline">
-      CRC de 24 dígitos: <code>UBIGEO · SECTOR · MANZANA · LOTE · EDIFICACIÓN · ENTRADA · PISO · UNIDAD · DV</code> — la columna <b>Nombre Backup</b> se ignora siempre (cambia en cada descarga).
+      CRC de 24 dígitos: <code>UBIGEO · SECTOR · MANZANA · LOTE · EDIFICACIÓN · ENTRADA · PISO · UNIDAD · DV</code> — la columna <b>Nombre Backup</b> se ignora en la comparación y se muestra como dato informativo.
     </div>
   </header>
 
@@ -809,12 +809,14 @@ function detectPreset(headers){
   return null;
 }
 function backupStamp(d){
+  return fileDate((d.files||[d])[0]).display;
+}
+function sicunStamp(d){
   for(var i=0;i<d.rows.length;i++){
     var v = txt(d.rows[i]["Nombre Backup"]).trim();
-    if(v){ var m = v.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})_(\d{2})/); if(m) return m[3]+"/"+m[2]+" "+m[4]+":"+m[5]; return v; }
+    if(v){ var m = v.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})_(\d{2})/); return m ? m[3]+"/"+m[2]+" "+m[4]+":"+m[5] : v; }
   }
-  var dt = new Date(d.lastMod||Date.now()), p=function(n){return String(n).padStart(2,"0");};
-  return p(dt.getDate())+"/"+p(dt.getMonth()+1)+" "+p(dt.getHours())+":"+p(dt.getMinutes())+" (fecha de archivo)";
+  return "—";
 }
 
 /* ============ Motor de comparación (por contexto) ============ */
@@ -940,14 +942,18 @@ function buildRows(){
   renderBoard();
 }
 function fileDate(d){
-  for(var i=0;i<d.rows.length;i++){
-    var m=txt(d.rows[i]["Nombre Backup"]).trim().match(/^(\d{4})(\d{2})(\d{2})_(\d{2})_(\d{2})(?:_(\d{2}))?/);
-    if(m) return {day:m[1]+"-"+m[2]+"-"+m[3], display:m[3]+"/"+m[2]+"/"+m[1]+" "+m[4]+":"+m[5]};
+  var n=txt(d.name).match(/_(\d{2})(\d{2})(\d{2})\.xlsx?$/i), dt, source;
+  if(n){
+    var year=2000+Number(n[1]), month=Number(n[2]), day=Number(n[3]);
+    dt=new Date(year,month-1,day);
+    if(dt.getFullYear()===year && dt.getMonth()===month-1 && dt.getDate()===day) source="nombre de archivo";
   }
-  var n=d.name.match(/_(\d{2})(\d{2})(\d{2})\.xlsx?$/i);
-  if(n) return {day:"20"+n[1]+"-"+n[2]+"-"+n[3], display:n[3]+"/"+n[2]+"/20"+n[1]};
-  var dt=new Date(d.lastMod||0), p=function(x){return String(x).padStart(2,"0");};
-  return {day:dt.getFullYear()+"-"+p(dt.getMonth()+1)+"-"+p(dt.getDate()), display:p(dt.getDate())+"/"+p(dt.getMonth()+1)+"/"+dt.getFullYear()};
+  if(!source){ dt=new Date(d.lastMod || 0); source="fecha de modificación"; }
+  var p=function(x){return String(x).padStart(2,"0");};
+  return {day:dt.getFullYear()+"-"+p(dt.getMonth()+1)+"-"+p(dt.getDate()), display:p(dt.getDate())+"/"+p(dt.getMonth()+1)+"/"+dt.getFullYear()+" ("+source+")", value:dt.getTime()};
+}
+function orderSlots(ctx){
+  if(ctx.A && ctx.B && stampValue(ctx.A)>stampValue(ctx.B)){ var temp=ctx.A; ctx.A=ctx.B; ctx.B=temp; }
 }
 function mergeFiles(files){
   if(!files.length) return null;
@@ -970,9 +976,10 @@ function slotFilled(i,s,data){
   slot.classList.add("has"); drop.classList.add("filled");
   var files=data.files||[data], dates=new Set(files.map(function(f){return fileDate(f).day;}));
   drop.innerHTML = '<span class="fn">'+files.length+' archivo'+(files.length===1?'':'s')+' · '+data.rows.length+' filas'+(dates.size>1?' · ⚠ Mezcla de fechas':'')+(data.omitted?' · '+data.omitted+' duplicados omitidos':'')+'</span>';
+  drop.innerHTML += '<span style="font-size:11px">'+files.map(function(f){return 'Descarga: '+esc(fileDate(f).display)+'<br>Backup SICUN: '+esc(sicunStamp(f));}).join('<br>')+'</span>';
   var old=slot.querySelector(".file-list"); if(old) old.remove();
   var details=document.createElement("details"); details.className="file-list";
-  details.innerHTML='<summary>Ver archivos</summary>'+files.map(function(f,n){return '<div>'+esc(f.name)+' · '+esc(fileDate(f).display)+' · '+f.rows.length+' filas <button type="button" data-file="'+n+'" aria-label="Quitar '+esc(f.name)+'">×</button></div>';}).join("");
+  details.innerHTML='<summary>Ver archivos</summary>'+files.map(function(f,n){return '<div>'+esc(f.name)+' · '+'Descarga: '+esc(fileDate(f).display)+' · Backup SICUN: '+esc(sicunStamp(f))+' · '+f.rows.length+' filas <button type="button" data-file="'+n+'" aria-label="Quitar '+esc(f.name)+'">×</button></div>';}).join("");
   details.addEventListener("click",function(e){ var n=e.target.getAttribute("data-file"); if(n===null) return; var ctx=BOARD_()[i], remaining=(ctx[s].files||[ctx[s]]).slice(); remaining.splice(Number(n),1); ctx[s]=mergeFiles(remaining); ctx.RES=null; if(ACTIVE===i){$("detailSection").classList.add("hidden"); ACTIVE=null;} buildRows(); updateRunAll(); });
   slot.appendChild(details);
 }
@@ -993,7 +1000,7 @@ function loadInto(i,s,files){
       if(existing.length && JSON.stringify(existing[0].headers)!==JSON.stringify(d.headers)){errors.push(d.name+": los encabezados no coinciden con los del primer archivo."); return;}
       existing.push(d);
     });
-    ctx[s]=mergeFiles(existing); ctx.RES=null;
+    ctx[s]=mergeFiles(existing); orderSlots(ctx); ctx.RES=null;
     if(ACTIVE===i){$("detailSection").classList.add("hidden"); ACTIVE=null;}
     buildRows(); if(errors.length) showErr(errors.join(" "));
   }); });
@@ -1476,14 +1483,7 @@ function paintSummary(){
 /* ============ Exportación (reporte activo) ============ */
 /* ============ Carga masiva ============ */
 /* Lee todos los archivos, los clasifica por tipo de reporte y reparte ANTES/DESPUÉS por antigüedad. */
-function stampValue(d){
-  for(var i=0;i<d.rows.length;i++){
-    var v = txt(d.rows[i]["Nombre Backup"]).trim();
-    if(v){ var m = v.match(/^(\d{4})(\d{2})(\d{2})_(\d{2})_(\d{2})_(\d{2})/);
-      if(m) return parseInt(m[1]+m[2]+m[3]+m[4]+m[5]+m[6], 10); }
-  }
-  return d.lastMod || 0;   // respaldo: fecha del archivo
-}
+function stampValue(d){ return fileDate((d.files||[d])[0]).value; }
 function bulkLoad(files){
   var list = Array.prototype.slice.call(files);
   if(!list.length) return;
@@ -1513,7 +1513,7 @@ function bulkDistribute(leidos, sinRec){
     var ctx=BOARD_()[idx];
     if(days.length===1){var side=ctx.A?"B":"A"; bulkSet(ctx,side,BULK_GROUPS[id][days[0]]);}
     else {bulkSet(ctx,"A",BULK_GROUPS[id][days[0]]); bulkSet(ctx,"B",BULK_GROUPS[id][days[days.length-1]]);}
-    ctx.RES=null;
+    orderSlots(ctx); ctx.RES=null;
   });
   if(ACTIVE!==null){$("detailSection").classList.add("hidden"); ACTIVE=null;}
   buildRows(); updateRunAll(); renderDistTabs(); bulkMessage();
@@ -1827,6 +1827,15 @@ function xlAutoWidths(aoa, headerRow){
 
 /* sheets: [{name, aoa, headerRow (índice 0-based de la fila de encabezado, o -1), totalRow (índice o -1), pctCols:[idx]}] */
 function writeStyledWorkbook(sheets, filename){
+  var usedNames = {};
+  sheets = sheets.map(function(s){
+    var base = txt(s.name).replace(/[:\\/?*\[\]]/g, "_").slice(0,31) || "Hoja", name=base, n=2;
+    while(usedNames[name.toLowerCase()]){ var suffix="_"+(n++); name=base.slice(0,31-suffix.length)+suffix; }
+    usedNames[name.toLowerCase()]=true;
+    return Object.assign({}, s, {name:name, aoa:s.aoa.map(function(row){ return (row||[]).map(function(v){
+      return typeof v === "string" && v.length>32767 ? v.slice(0,32766)+"…" : v;
+    }); })});
+  });
   if(typeof ExcelJS === "undefined"){ // respaldo: si el CDN falla, exporta plano con SheetJS
     var wb0 = XLSX.utils.book_new();
     sheets.forEach(function(s){ XLSX.utils.book_append_sheet(wb0, XLSX.utils.aoa_to_sheet(s.aoa), s.name); });
@@ -1838,8 +1847,9 @@ function writeStyledWorkbook(sheets, filename){
   wb.created = new Date();
 
   sheets.forEach(function(s){
-    var ws = wb.addWorksheet(s.name, {views:[{state:"frozen", ySplit:(s.headerRow>=0 ? s.headerRow+1 : 0)}]});
     var hr = (s.headerRow===undefined) ? 0 : s.headerRow;
+    var ySplit = hr >= 0 ? hr+1 : 0;
+    var ws = wb.addWorksheet(s.name, ySplit > 0 ? {views:[{state:"frozen", ySplit:ySplit}]} : {});
     var pct = s.pctCols || [];
 
     s.aoa.forEach(function(row, ri){
@@ -1917,7 +1927,7 @@ function writeStyledWorkbook(sheets, filename){
   });
 }
 
-function stampName(){ var ctx = BOARD_()[ACTIVE]; return ctx.preset.nombre.replace(/\s+/g,"_") + "_" + backupStamp(ctx.A).replace(/[^\d]/g,"") + "_vs_" + backupStamp(ctx.B).replace(/[^\d]/g,""); }
+function stampName(){ var ctx = BOARD_()[ACTIVE]; return ctx.preset.nombre.replace(/\s+/g,"_") + "_" + fileDate((ctx.A.files||[ctx.A])[0]).day.slice(2).replace(/-/g,"") + "_vs_" + fileDate((ctx.B.files||[ctx.B])[0]).day.slice(2).replace(/-/g,""); }
 function exportReport(split){
   if(ACTIVE===null || !R()) return;
   var ctx = BOARD_()[ACTIVE], Rr = R();
@@ -1927,8 +1937,8 @@ function exportReport(split){
   var resumen = [
     ["COMPARADOR DE REPORTES SICUN — ValidaCatastral ©diegocampos"],[],
     ["Reporte", ctx.preset.nombre],["Llave", Rr.key],
-    ["Archivo ANTES", ctx.A.name],["Descarga ANTES", backupStamp(ctx.A)],["Filas ANTES", ctx.A.rows.length],
-    ["Archivo DESPUÉS", ctx.B.name],["Descarga DESPUÉS", backupStamp(ctx.B)],["Filas DESPUÉS", ctx.B.rows.length],[],
+    ["Archivo ANTES", ctx.A.name],["Descarga ANTES", backupStamp(ctx.A)],["Backup SICUN ANTES", sicunStamp(ctx.A)],["Filas ANTES", ctx.A.rows.length],
+    ["Archivo DESPUÉS", ctx.B.name],["Descarga DESPUÉS", backupStamp(ctx.B)],["Backup SICUN DESPUÉS", sicunStamp(ctx.B)],["Filas DESPUÉS", ctx.B.rows.length],[],
     ["Registros en común", Rr.comun],["Modificados", Rr.mods.length],["Nuevos", nn],["Eliminados", nd],
     ["CRC renombrados", Rr.renombrados.length],["Sin cambio", Rr.sinCambio],[],["CAMBIOS POR CAMPO"],["Campo","Cantidad"]
   ];
