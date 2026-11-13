@@ -529,8 +529,8 @@ input, select, textarea, button {max-width:100%;}
     <p class="bulkmsg">El cruce utiliza solo reportes comparados. Las hojas sin columna de estado se informan en la carga.</p>
     <div class="board"><table><thead><tr><th>Validador</th><th>Filas</th><th>Verificado / cambió</th><th>Otro campo</th><th>Sin cambio</th><th>No encontrado</th><th>Inválido / incompleto</th><th>NO APLICA con cambio</th></tr></thead><tbody id="c2Summary"></tbody></table></div>
     <div class="actions"><label>Validador <select id="c2Validator"><option value="">Todos</option></select></label><label>Técnico <select id="c2Technician"><option value="">Todos</option></select></label><label>Resultado <select id="c2Result"><option value="">Todos</option></select></label><label><input type="checkbox" id="c2NoAplica" checked> Avisar NO APLICA con cambio</label><button type="button" class="rbtn" id="pubStart">Publicar pendientes</button><a href="#pubPanel" class="rbtn" id="pubSettings" aria-expanded="false">⚙ Publicación</a></div>
-    <div id="pubPanel" class="panel hidden"><label>URL del Apps Script (/exec) <input id="pubUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label><label>Clave de escritura <input id="pubKey" type="password" autocomplete="off"></label></div>
-    <p class="sub">Publicar incluye todos los polígonos: se quitan los filtros de ubicación y se activan los avisos NO APLICA.</p>
+    <div id="pubPanel" class="panel hidden"><label>URL del Apps Script (/exec) <input id="pubUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label><label>Clave de escritura <input id="pubKey" type="password" autocomplete="off"></label><label><input type="checkbox" id="pubRemember"> Recordar clave en este navegador</label><label><input type="checkbox" id="pubObs"> Incluir observación del revisor (puede contener nombres)</label></div>
+    <p class="sub">Publicar envía todos los polígonos cargados; tu vista no cambia.</p>
     <div id="pubStatus" role="status" aria-live="polite"></div>
     <dialog id="pubDialog" aria-labelledby="pubTitle"><h3 id="pubTitle">Publicar pendientes</h3><div id="pubPreview"></div><button type="button" id="pubCancel">Cancelar restantes</button> <button type="button" id="pubSend">Confirmar publicación</button></dialog>
     <div class="tablecard" style="border-radius:12px;margin-top:12px"><div class="scroll"><table><thead><tr><th>Polígono</th><th>Hoja</th><th>Técnico</th><th>Validador · FI</th><th>Código</th><th>Piso</th><th>Estado</th><th>Mensaje validador</th><th>Verificación SICUN</th><th>Qué cambió</th><th>Observación</th><th>Nota</th></tr></thead><tbody id="c2Body"></tbody></table></div></div>
@@ -2198,11 +2198,12 @@ function pubFields(row,events){
     return code && (lot||row.validator==='VAL_CRC'&&e.type==='nuevos'?sameLot:e.key===code||e.key.length===14&&e.key===code.slice(0,14));
   }).map(function(e){return e.report+' · '+e.field;}))).join(' | ');
 }
-function pubPayload(polygon,rows,key){
+function pubPayload(polygon,rows,key,includeObs){
   var dates={A:new Set(),B:new Set()},events=[];
-  BOARD_().forEach(function(c){if(!c.RES)return;events=events.concat(c2events(c));['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){dates[side].add(fileDate(f).day.split('-').reverse().join('/'));});});});
-  if(dates.A.size!==1||dates.B.size!==1)throw new Error('Se necesita una única fecha de descarga ANTES y DESPUÉS en los reportes comparados.');
-  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:Array.from(dates.A)[0],despues:Array.from(dates.B)[0],totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);return {poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:r.result,campos:pubFields(r,events),obs:txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500)};})};
+  BOARD_().forEach(function(c){if(!c.RES)return;events=events.concat(c2events(c));['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))dates[side].add(day);});});});
+  if(!dates.A.size||!dates.B.size)throw new Error('Se necesita al menos una fecha de descarga ANTES y DESPUÉS en los reportes comparados.');
+  function range(side){var days=Array.from(dates[side]).sort(),format=function(d){return d.split('-').reverse().join('/');};return format(days[0])+(days.length>1?' – '+format(days[days.length-1]):'');}
+  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:range('A'),despues:range('B'),totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.filter(function(r){var bucket=c2bucket(r.result);return bucket===2||bucket===5;}).map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);var fila={poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:r.result,campos:pubFields(r,events)};if(includeObs)fila.obs=txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500);return fila;})};
 }
 async function pubPost(url,payload){
   var response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
@@ -2211,24 +2212,43 @@ async function pubPost(url,payload){
   return data;
 }
 (function(){
-  var queue=[],url='',busy=false;
+  var queue=[],url='',busy=false,warnings='';
   function panel(){ $('pubPanel').classList.remove('hidden');$('pubSettings').setAttribute('aria-expanded','true'); }
-  try{$('pubUrl').value=localStorage.getItem('vc-cmp-pub-url')||'';$('pubKey').value=localStorage.getItem('vc-cmp-pub-key')||'';}catch(e){}
-  ['pubUrl','pubKey'].forEach(function(id){$(id).addEventListener('input',function(){try{localStorage.setItem(id==='pubUrl'?'vc-cmp-pub-url':'vc-cmp-pub-key',this.value.trim());}catch(e){}});});
+  // Las claves persistidas anteriormente pasan a la sesión sin activar recordar.
+  try{$('pubUrl').value=localStorage.getItem('vc-cmp-pub-url')||'';$('pubKey').value=sessionStorage.getItem('vc-cmp-pub-key')||localStorage.getItem('vc-cmp-pub-key')||'';}catch(e){}
+  function saveKey(){var key=$('pubKey').value.trim();try{if($('pubRemember').checked){localStorage.setItem('vc-cmp-pub-key',key);sessionStorage.removeItem('vc-cmp-pub-key');}else{sessionStorage.setItem('vc-cmp-pub-key',key);localStorage.removeItem('vc-cmp-pub-key');}}catch(e){}}
+  saveKey();
+  $('pubUrl').addEventListener('input',function(){try{localStorage.setItem('vc-cmp-pub-url',this.value.trim());}catch(e){}});
+  $('pubKey').addEventListener('input',saveKey);$('pubRemember').addEventListener('change',saveKey);
   $('pubSettings').addEventListener('click',function(e){e.preventDefault();var open=$('pubPanel').classList.toggle('hidden');this.setAttribute('aria-expanded',String(!open));});
-  function next(){if(!queue.length)return;var p=queue[0];$('pubPreview').textContent='Polígono '+p.poligono+' · '+p.filas.length+' filas · '+p.antes+' → '+p.despues+'\n'+PUB_COUNTS.map(function(k,i){return PUB_LABELS[i]+': '+p.totales[k];}).join(' · ');$('pubDialog').showModal();}
+  function next(){if(!queue.length)return;var p=queue[0];$('pubPreview').textContent='Polígono '+p.poligono+' · '+p.filas.length+' filas pendientes de '+p.totales.filas+' · '+p.antes+' → '+p.despues+(warnings?' · '+warnings:'')+'\n'+PUB_COUNTS.map(function(k,i){return PUB_LABELS[i]+': '+p.totales[k];}).join(' · ');$('pubDialog').showModal();}
   $('pubStart').addEventListener('click',function(){
     if(busy)return;url=$('pubUrl').value.trim();var key=$('pubKey').value.trim();
     if(!url||!key){panel();$('pubStatus').textContent='Configura la URL y la clave de escritura.';return;}
+    var district=DISTRICTS[CUR], board=district&&district.board, active=POLY_ACTIVE, noAplica=$('c2NoAplica').checked;
+    var filterNodes=CF_SEGS.concat(LOC_SEGS).map(function(s){return $(s.id);}).concat([$('fPaste'),$('lPaste')]);
+    var values=filterNodes.map(function(el){return el.value;}), filters=FILTER_STATE;
+    var ids=['polySelect','c2Validator','c2Technician','c2Result'], selections=ids.map(function(id){return $(id).value;});
+    queue=[];warnings='';
     try{
       var parsed=new URL(url);if(parsed.protocol!=='https:'||!parsed.pathname.endsWith('/exec'))throw new Error('La URL debe usar HTTPS y terminar en /exec.');
-      // Publicar el cruce completo de todos los polígonos, sin recortes de vista.
-      if(POLY_ACTIVE){$('polySelect').value='';applyPolygon();}
-      clearFilter('f');clearFilter('l');$('c2NoAplica').checked=true;c2render();
-      var polygons=Array.from(new Set(c2files().map(function(f){return f.polygon;}))),rows=c2rows();
+      // Comparar copias completas, sin reconstruir controles ni los reportes de la vista.
+      POLY_ACTIVE=null;FILTER_STATE={f:[new Set(),new Set(),new Set()],l:[new Set(),new Set(),new Set()]};
+      filterNodes.forEach(function(el){el.value='';});$('c2NoAplica').checked=true;
+      if(!district)throw new Error('No hay distrito cargado.');
+      district.board=board.map(function(ctx){var copy=Object.assign({},ctx);['A','B'].forEach(function(side){if(ctx[side])copy[side]=mergeFiles(ctx[side].files||[ctx[side]]);});if(ctx.RES&&copy.A&&copy.B)copy.RES=compareCtx(copy);return copy;});
+      var polygons=Array.from(new Set(c2files().map(function(f){return f.polygon;}))),rows=c2rows(),dates={A:new Set(),B:new Set()};
+      BOARD_().forEach(function(c){if(c.RES)['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){dates[side].add(fileDate(f).day);});});});
+      warnings=['A','B'].filter(function(side){return dates[side].size>1;}).map(function(side){return (side==='A'?'ANTES':'DESPUÉS')+' con '+dates[side].size+' fechas distintas';}).join(' · ');
       if(polygons.some(function(p){return !p;}))throw new Error('Hay archivos sin polígono identificado; revisa el nombre del Excel.');
-      queue=polygons.map(function(p){return pubPayload(p,rows.filter(function(r){return r.polygon===p;}),key);});next();
-    }catch(e){$('pubStatus').textContent=e.message;}
+      queue=polygons.map(function(p){return pubPayload(p,rows.filter(function(r){return r.polygon===p;}),key,$('pubObs').checked);});
+    }catch(e){queue=[];$('pubStatus').textContent=e.message;}
+    finally{
+      if(district)district.board=board;POLY_ACTIVE=active;FILTER_STATE=filters;
+      filterNodes.forEach(function(el,i){el.value=values[i];});$('c2NoAplica').checked=noAplica;
+      ids.forEach(function(id,i){$(id).value=selections[i];});c2render();
+    }
+    next();
   });
   $('pubCancel').addEventListener('click',function(){queue=[];$('pubDialog').close();});
   $('pubDialog').addEventListener('cancel',function(e){if(busy)e.preventDefault();else queue=[];});
