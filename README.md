@@ -174,3 +174,51 @@ La sección **Cruce revisor** agrupa titulares y muestra la hoja original, la re
 Cada exportación formateada agrega `CRUCE_REVISOR` y `CRUCE_RESUMEN` mientras haya archivos de revisor cargados. Las columnas de código se escriben como texto. El mapeo editable `C2_MAP` está al inicio del script; usa las cabeceras SICUN facilitadas el 13/11/2026, con `OBR` y `REC` como identificadores internos para obras y recapitulaciones. La comparación de nombres ignora tildes, mayúsculas y diferencias de espacios múltiples, y equipara guiones largos y cortos.
 
 Para comprobarlo sin datos reales: crear en memoria un libro con hojas `VAL_CRC-X`, `VAL_FECHA_PISO` y `VAL_TITULARES_1-Y`, incluir estados válidos, vacío y selección múltiple, y cargar pares sintéticos UA, CON y TIT con cambios conocidos. Ejecutar **Comparar todo**, revisar conteos y resultados, y exportar para comprobar ambas hojas. La comprobación con `260210019.xlsx` y los reportes reales queda a cargo de quien tenga acceso autorizado a esos archivos.
+
+## Publicar pendientes del cruce revisor
+
+El cruce añade **Técnico** después de Hoja en el detalle y en `CRUCE_REVISOR`, con filtro independiente. Se toma `ENCARGADO` de cada fila (sin espacios ni saltos, en mayúsculas); si está vacío o falta, se usa el sufijo después del último `-` de la hoja, excepto `VAL_*` y `TODOS`. Sin candidato válido: `SIN ASIGNAR`.
+
+### Configurar ⚙ Publicación
+
+1. En **Cruce revisor**, abrir **⚙ Publicación**.
+2. Introducir la URL HTTPS del despliegue de Apps Script terminada en `/exec` y la **Clave de escritura**. La clave se muestra como contraseña.
+3. Ambos campos se conservan en este navegador mediante `localStorage` (`vc-cmp-pub-url` y `vc-cmp-pub-key`). Si el almacenamiento está bloqueado, se pueden usar durante la sesión.
+4. Pulsar **Publicar pendientes**. Se prepara el cruce completo: se quitan los filtros de polígono y ubicación y se activan los avisos NO APLICA. Los filtros de Validador, Técnico y Resultado solo afectan el detalle, no la publicación.
+5. Revisar el modal de cada polígono: filas, seis conteos por resultado y fechas ANTES → DESPUÉS. Cada confirmación realiza un POST de ese polígono; **Cancelar restantes** o Escape cancela lo que falta. Durante el envío se bloquea la confirmación repetida.
+
+Se requiere una única fecha ANTES y una única fecha DESPUÉS entre los reportes comparados. Las fechas provienen de `fileDate`, igual que las fechas de descarga del comparador, en `dd/mm/aaaa`. Los archivos del revisor deben contener el polígono de nueve dígitos en su nombre. Los archivos de un mismo polígono se agrupan en un único envío.
+
+El endpoint recibe JSON con `accion: 'publicarPendientes'`, `k`, `poligono`, `antes`, `despues`, `totales`, `porValidador`, `porTecnico` y `filas`, mediante POST con `Content-Type: text/plain;charset=utf-8`. Los conteos usan las mismas seis categorías de las tarjetas C2. Debe responder JSON de éxito (por ejemplo `{"ok":true}`); `error`, `ok:false`, `success:false` o un estado HTTP fallido se muestran en la página y detienen la cola. El despliegue debe permitir leer su respuesta desde el origen del HTML (CORS).
+
+**Datos publicados:** identificadores de polígono y código, técnico, hoja, validador, FI, sector-manzana-lote, piso, estado, resultado, nombres de campos cambiados y observación saneada. `campos` contiene exclusivamente `REPORTE · Campo`, sin valores; `obs` sustituye secuencias de ocho o más dígitos por `••••` y se limita a 500 caracteres. No se publican Mensaje validador, Qué cambió ni valores SICUN antes/después. Los códigos y el polígono conservan sus dígitos porque son identificadores requeridos. La exportación Excel conserva su contenido previo, con la única adición de Técnico.
+
+La publicación es opcional y envía estos datos al endpoint configurado únicamente tras confirmar. Los archivos Excel completos siguen procesándose localmente. La URL y clave sí persisten al recargar, a diferencia de los archivos y resultados.
+
+### Cómo probar con datos sintéticos
+
+- Cargar filas APLICA en hojas `VAL_CRC-CRISTINA`, `VAL_TITULARES_2-HENRY` y `VAL_CRC-TODOS`. Probar `ENCARGADO = " he n\nry "` → `HENRY`, celda vacía → sufijo de hoja y `TODOS` sin encargado → `SIN ASIGNAR`. Comprobar filtro y columna Técnico en pantalla y Excel.
+- Comparar dos reportes con un cambio en Área Verificada (por ejemplo `11111111` → `99999999`). Usar observación `DNI 12345678` y otra de más de 500 caracteres. Incluir estados APLICA, OTRO CAMBIO y NO APLICA con cambio.
+- Para interceptar sin publicar, ejecutar en la consola del navegador antes de confirmar:
+
+  ```js
+  window.enviosPrueba = [];
+  window.fetch = async (url, options) => {
+    const payload = JSON.parse(options.body);
+    window.enviosPrueba.push(payload);
+    console.assert(options.headers['Content-Type'] === 'text/plain;charset=utf-8');
+    for (const fila of payload.filas) {
+      console.assert(!/\d{8,}/.test(fila.obs));
+      console.assert(fila.obs.length <= 500);
+      console.assert(!/11111111|99999999|→/.test(fila.campos));
+      console.assert(!('message' in fila) && !('change' in fila));
+    }
+    return {ok: true, text: async () => JSON.stringify({ok: true})};
+  };
+  ```
+
+- Cargar dos polígonos, confirmar ambos y comprobar dos entradas en `enviosPrueba`, fechas correctas y suma de filas/conteos. Antes de confirmar no debe haber envíos. Comprobar `obs === 'DNI ••••'` y campos como `CON · Área Verificada`. Recargar restaura `fetch` real.
+- Simular un error devolviendo `{"error":"Clave inválida"}` y verificar que aparece en la página. Probar cancelar, URL/clave vacías y filtros de detalle activos.
+- Comparar contra `main`: mismos conteos del motor y C2, misma hoja `CRUCE_RESUMEN` y mismo `CRUCE_REVISOR` al retirar la nueva columna Técnico.
+
+Validación realizada con Chromium/Playwright y workbooks sintéticos en memoria: prioridad y alternativas de técnico, filtro, modal, dos POST simulados por polígono, fechas, saneamiento, respuesta de error y regresión contra `main` de los resultados del motor y ambas hojas C2. Ningún envío real durante las pruebas.
