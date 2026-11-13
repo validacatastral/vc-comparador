@@ -1260,8 +1260,8 @@ function renderLocCount(mask){
   var host = $("locCount");
   if(!ua){ host.innerHTML = '<div class="dempty" style="margin-top:12px;">Compara el reporte de Unidades Administrativas para ver el conteo catastral (unidades, lotes, edificas) de esta ubicación.</div>'; return; }
   var key = ua.preset.key;
-  var A = catastralCount(ua.A.rows, key, mask);
-  var B = catastralCount(ua.B.rows, key, mask);
+  var A = catastralCount(ua.A.rows.filter(function(r){return filterPass(r[key],'l');}), key, '');
+  var B = catastralCount(ua.B.rows.filter(function(r){return filterPass(r[key],'l');}), key, '');
   function cell(lbl, a, b, nt){
     var da = b - a, sign = da>0?"+":"", cls = da>0?"up":(da<0?"down":"eq");
     return '<div class="ccell"><div class="cl">'+lbl+'</div>'+
@@ -1320,7 +1320,7 @@ function exportLoc(){
   // Hoja de conteo catastral (Unidades Administrativas)
   var ua = board.filter(function(c){ return c.preset.id==="UA" && c.RES; })[0];
   if(ua){
-    var kk = ua.preset.key, cA = catastralCount(ua.A.rows, kk, mask), cB = catastralCount(ua.B.rows, kk, mask);
+    var kk = ua.preset.key, cA = catastralCount(ua.A.rows.filter(function(r){return filterPass(r[kk],'l');}), kk, ''), cB = catastralCount(ua.B.rows.filter(function(r){return filterPass(r[kk],'l');}), kk, '');
     var cnt = [["CONTEO CATASTRAL — Unidades Administrativas"],["Ubicación", locText()],[],
       ["Métrica","ANTES","DESPUÉS","Δ"],
       ["Unidades (sin 99/999)", cA.unidades, cB.unidades, cB.unidades-cA.unidades],
@@ -1979,8 +1979,6 @@ function exportMarked(){
   writeStyledWorkbook([{ name:"data", aoa:out, headerRow:0 }], "MARCADO_" + stampName() + ".xlsx");
 }
 
-var originalCatastralCount=catastralCount;
-catastralCount=function(rows,key,mask){return mask==='*'?originalCatastralCount(rows.filter(function(r){return filterPass(r[key],'l');}),key,''):originalCatastralCount(rows,key,mask);};
 /* ============ Universo de polígonos: solo memoria ============ */
 var POLYGONS=[], POLY_ACTIVE=null;
 function polyRead(file){
