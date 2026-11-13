@@ -183,7 +183,7 @@ El cruce añade **Técnico** después de Hoja en el detalle y en `CRUCE_REVISOR`
 
 1. En **Cruce revisor**, abrir **⚙ Publicación**.
 2. Introducir la URL HTTPS del despliegue de Apps Script terminada en `/exec` y la **Clave de escritura**. La clave se muestra como contraseña.
-3. Ambos campos se conservan en este navegador mediante `localStorage` (`vc-cmp-pub-url` y `vc-cmp-pub-key`). Si el almacenamiento está bloqueado, se pueden usar durante la sesión.
+3. La URL se conserva en `localStorage['vc-cmp-pub-url']`. La clave de escritura usa `sessionStorage` por defecto; solo pasa a `localStorage['vc-cmp-pub-key']` al marcar Recordar. Si el almacenamiento está bloqueado, se pueden usar los campos durante la sesión.
 4. Pulsar **Publicar pendientes**. Se prepara el cruce completo: se quitan los filtros de polígono y ubicación y se activan los avisos NO APLICA. Los filtros de Validador, Técnico y Resultado solo afectan el detalle, no la publicación.
 5. Revisar el modal de cada polígono: filas, seis conteos por resultado y fechas ANTES → DESPUÉS. Cada confirmación realiza un POST de ese polígono; **Cancelar restantes** o Escape cancela lo que falta. Durante el envío se bloquea la confirmación repetida.
 
@@ -240,3 +240,37 @@ Prueba para Rodrigo (datos sintéticos; sin publicar a un endpoint real):
 5. Recargar y volver a cargar los Excel: RODRIGO se conserva. Pulsar **Limpiar asignación** en ese polígono: vuelve a SIN ASIGNAR en tabla, filtro, exportación y nueva preparación de publicación; las asignaciones del otro polígono permanecen.
 
 Validación de esta función: `node --check` de los scripts extraídos; comparación de las declaraciones protegidas contra `main`; pruebas sintéticas con Chromium/Playwright del panel, prioridad ENCARGADO/sufijo, copias sin mutación, separación por polígono, normalización, tabla/filtro, persistencia, limpieza, exportación y payload. Sin envíos reales.
+
+
+## Cargar desde Drive en la página pública
+
+Este repositorio y su código serán públicos en GitHub Pages: https://validacatastral.github.io/vc-comparador/. No incluir archivos catastrales, respuestas de Drive, URL de despliegue real ni claves en commits, capturas o incidencias. Las claves se introducen en la página, nunca en el HTML. La clave de lectura debe ser distinta de la clave de escritura y el servidor debe validarlas por separado.
+
+1. Crear o seleccionar un distrito de trabajo. Abrir **⚙ Publicación / URL de Drive**, disponible sin cargar archivos, e introducir la URL HTTPS `/exec` de InformeSICUN. Es el mismo campo `pubUrl` que utiliza Publicación. Configurar la clave de escritura solo si se va a publicar.
+2. Introducir **Clave de lectura** en el panel Drive. Usa `sessionStorage['vc-cmp-drv-key']` por defecto. Marcar **Recordar** la traslada a `localStorage['vc-cmp-drv-key']`; desmarcar elimina esa copia persistente y vuelve a sesión.
+3. Pulsar **☁ Cargar desde Drive**. Elegir polígono y cargar su Excel del revisor. Se usa el mismo lector que el selector manual; el revisor queda en el distrito actual. Se admite `.xlsx` o Google Sheet exportado como XLSX por el servicio. Si hay varios, se elige el único cuyo nombre coincide con la carpeta; de otro modo se avisa para resolver la ambigüedad.
+4. Revisar sectores deducidos de los CRC del revisor (UBIGEO+SS), marcados inicialmente. Se pueden quitar o añadir sectores de dos dígitos o UBIGEO+SS de ocho. Los códigos parciales del revisor permiten deducir SS; requieren elegir con cuidado el distrito de Drive.
+5. Elegir carpeta DISTRITO y **Buscar fechas**. Se leen sus carpetas `Sxx`, se agrupan los nombres `rep_TIPO_UBIGEO+SECTOR_AAMMDD.xlsx` y se proponen las dos fechas más recientes. Elegir ANTES y DESPUÉS; deben ser distintas y estar ordenadas. Se exige el par de fechas por tipo y sector presente y cobertura de todos los sectores elegidos. Un tipo ausente de ambas fechas no se inventa ni se compara.
+6. **Cargar y comparar** descarga como máximo tres archivos a la vez y muestra `n de N`. Antes de incorporar los reportes se validan fecha, tipo, encabezados y ubigeo cuando el revisor lo proporciona. Se crea un distrito de trabajo nuevo con los reportes y una copia del revisor; las tarjetas anteriores se conservan. Usa `readWorkbook`, `detectPreset`, `loadInto` y `runAll`, igual que las cargas manuales. La carga manual individual y masiva sigue disponible.
+
+Límites: 25 MiB por XLSX decodificado y 150 MiB por selección; tiempo de espera de 60 segundos por petición. Las respuestas del servicio se leen en memoria. No se persisten archivos ni resultados de Drive. Además de URL/clave, se recuerdan solo los identificadores de la última carpeta de polígono/distrito en `localStorage['vc-cmp-drv-last']`. Las preferencias y asignaciones manuales preexistentes mantienen su comportamiento.
+
+### Contrato de InformeSICUN
+
+Peticiones GET simples, sin cabeceras personalizadas ni preflight:
+
+```text
+<URL>/exec?api=listar&k=<claveLectura>&raiz=validaciones
+<URL>/exec?api=listar&k=<claveLectura>&raiz=reportes&carpeta=<id>
+<URL>/exec?api=archivo&k=<claveLectura>&id=<fileId>
+```
+
+`listar` acepta `{carpetas:[{id,nombre}], archivos:[{id,nombre,mimeType,size}]}`, o una lista mixta (array directo o `{items:[...]}`). En las listas mixtas las carpetas llevan `mimeType: 'application/vnd.google-apps.folder'`, `folder: true`, `esCarpeta: true` o `tipo: 'carpeta'`. También admite `name` en vez de `nombre`. Los Google Sheets llevan `mimeType: 'application/vnd.google-apps.spreadsheet'`. `archivo` devuelve `{nombre,base64}` con bytes XLSX, también para Google Sheets. `size` es opcional y se interpreta en bytes.
+
+El despliegue debe permitir acceso desde Pages y devolver JSON legible tras las redirecciones de Apps Script; el cliente no puede corregir permisos o CORS del servidor. Claves inválidas: HTTP 401/403 o `{error:'clave inválida'}`. No se muestran URLs ni respuestas crudas en los errores. Al ir la clave en la query de GET, el servidor debe evitar registrarla en sus logs. La carga del revisor y la comparación son locales; Publicar pendientes sigue siendo una acción explícita independiente.
+
+### Verificación sintética
+
+Se verificó en Chromium con `fetch` interceptado, SheetJS y XLSX generados durante la prueba: seis tipos de reporte, dos sectores y dos fechas (24 archivos), más un revisor con dos filas. Se compararon los nombres y datos de las tarjetas, resultados del motor y hojas/resumen C2 contra la carga manual de los mismos bytes. Se comprobó también la carga manual posterior, el máximo de tres descargas concurrentes, GET simples, almacenamiento de clave con/sin Recordar y errores de clave, carpeta vacía, fecha inválida y tamaño. `node --check` se ejecuta sobre cada script inline extraído del HTML.
+
+Las pruebas se mantienen fuera del commit para limitar el PR a `index.html` y este README. No se usaron archivos ni credenciales reales. Los pasos para Rodrigo figuran en el PR; la comprobación contra un despliegue real de InformeSICUN queda como validación de integración del servicio.
