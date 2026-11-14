@@ -498,6 +498,7 @@ input, select, textarea, button {max-width:100%;}
   <section>
     <p class="sec-label">Universo de polígonos</p>
     <div class="bulkdrop" id="polyDrop" tabindex="0" role="button"><div class="bd-txt"><b>Cargar Excel de polígonos</b><span>Haz clic o arrastra el archivo aquí. Cada hoja representa un polígono.</span></div><input type="file" id="polyFile" accept=".xlsx,.xls" class="hidden"></div>
+    <button type="button" id="polyDrive">☁ Cargar universo desde Drive</button>
     <div id="polySummary" class="bulkmsg">Ningún polígono cargado.</div>
     <label>Polígono activo <select id="polySelect"><option value="">Sin polígono (todo)</option></select></label>
   </section>
@@ -556,7 +557,7 @@ input, select, textarea, button {max-width:100%;}
     <p class="sub">Publicar envía todos los polígonos cargados; tu vista no cambia.</p>
     <div id="pubStatus" role="status" aria-live="polite"></div>
     <dialog id="pubDialog" aria-labelledby="pubTitle"><h3 id="pubTitle">Publicar pendientes</h3><div id="pubPreview"></div><button type="button" id="pubCancel">Cancelar restantes</button> <button type="button" id="pubSend">Confirmar publicación</button></dialog>
-    <div class="tablecard" style="border-radius:12px;margin-top:12px"><div class="scroll"><table><thead><tr><th>Polígono</th><th>Hoja</th><th>Técnico</th><th>Validador · FI</th><th>Código</th><th>Piso</th><th>Estado</th><th>Mensaje validador</th><th>Verificación SICUN</th><th>Qué cambió</th><th>Observación</th><th>Nota</th></tr></thead><tbody id="c2Body"></tbody></table></div></div>
+    <div class="tablecard" style="border-radius:12px;margin-top:12px"><div class="scroll"><table><thead><tr><th>Polígono</th><th>Hoja</th><th>Técnico</th><th>Validador · FI</th><th>Código</th><th>Sec-Mz-Lt</th><th>Piso</th><th>Estado</th><th>Mensaje validador</th><th>Verificación SICUN</th><th>Qué cambió</th><th>Observación</th><th>Nota</th></tr></thead><tbody id="c2Body"></tbody></table></div></div>
   </section>
 
   <section id="boardSection" class="hidden">
@@ -2078,12 +2079,42 @@ function polyRead(file){
       rows.slice(1).forEach(function(r){var sec=txt(r[si]).trim(), mz=txt(r[mi]).trim(); if(!/^\d+$/.test(sec)||!/^\d+$/.test(mz))return; sec=sec.padStart(2,"0");mz=mz.padStart(3,"0"); keys.add(sec+"|"+mz);sectors.add(sec);if(hasCrc)crc+=Number(r[ci])||0;});
       result.push({code:name,keys:keys,sectors:sectors,crc:crc,hasCrc:hasCrc});
     });
+    polySet(result,skipped);
+  }catch(err){$("polySummary").textContent="No se pudo leer el universo: "+err.message;}};fr.readAsArrayBuffer(file);
+}
+function polySet(result,skipped){
     POLYGONS=result; POLY_ACTIVE=null;
     $("polySelect").innerHTML='<option value="">Sin polígono (todo)</option>'+result.map(function(p,i){return '<option value="'+i+'">'+esc(p.code)+'</option>';}).join('');
     $("polySummary").innerHTML=result.length+' polígonos cargados'+result.map(function(p){return '<div>'+esc(p.code)+' · '+p.keys.size+' manzanas · '+Array.from(p.sectors).sort().map(function(x){return 'S'+esc(x);}).join(' · ')+(p.hasCrc?' · '+p.crc+' CRC':'')+'</div>';}).join('')+(skipped.length?'<div class="warn">Hojas omitidas sin SECTOR y MANZANA: '+skipped.map(esc).join(', ')+'</div>':'');
     applyPolygon();
-  }catch(err){$("polySummary").textContent="No se pudo leer el universo: "+err.message;}};fr.readAsArrayBuffer(file);
 }
+async function polyFromDrive(){
+  var data=await drvGet('universo',{}), polygons=data.poligonos;
+  if(!polygons||typeof polygons!=='object'||Array.isArray(polygons))throw new Error('Formato de universo no reconocido.');
+  var result=Object.keys(polygons).map(function(code){
+    if(!Array.isArray(polygons[code]))throw new Error('Universo inválido: '+code);
+    var keys=new Set(),sectors=new Set();
+    polygons[code].forEach(function(value){
+      var key=String(value);if(!/^\d{11}$/.test(key))throw new Error('Manzana inválida en el universo: '+code);
+      var sec=key.slice(6,8);keys.add(sec+'|'+key.slice(8,11));sectors.add(sec);
+    });
+    return {code:code,keys:keys,sectors:sectors,crc:0,hasCrc:false};
+  });
+  if(!result.length)throw new Error('El universo de Drive está vacío.');
+  polySet(result,[]);
+}
+async function polyDriveSelection(){
+  if(!POLYGONS.length)await polyFromDrive();
+  var label=$('drvPolygon').selectedOptions[0].textContent;
+  var index=POLYGONS.findIndex(function(p){return p.code===label;});
+  if(index<0)throw new Error('El polígono elegido no está en el universo: '+label);
+  $('polySelect').value=String(index);applyPolygon();
+}
+$('polyDrive').addEventListener('click',async function(){
+  this.disabled=true;
+  try{await polyFromDrive();}catch(e){$('polySummary').textContent='No se pudo cargar el universo: '+e.message;}
+  finally{this.disabled=false;}
+});
 function applyPolygon(){
   var v=$("polySelect").value; POLY_ACTIVE=v===""?null:POLYGONS[Number(v)];
   $("polyPill").textContent=POLY_ACTIVE?'Polígono '+POLY_ACTIVE.code:'Sin polígono'; $("polyLoad").textContent=$("polyPill").textContent;
@@ -2118,10 +2149,11 @@ function c2state(s){s=c2clean(s).toUpperCase().replace(/\s+/g,' ');return s==='O
 function c2technician(value,sheet){
   var name=txt(value).replace(/\s+/g,'').toUpperCase();
   if(name)return name;
+  if(c2map(txt(sheet).trim().toUpperCase().replace(/\s+/g,' ')))return 'SIN ASIGNAR';
   var split=sheet.lastIndexOf('-'), validator=c2val(sheet);
   var prefix=split>=0?sheet.slice(0,split).trim().toUpperCase().replace(/\s+/g,' '):'';
   var suffix=split>=0?sheet.slice(split+1).replace(/\s+/g,'').toUpperCase():'';
-  var knownPrefix=Object.prototype.hasOwnProperty.call(C2_MAP,prefix) || prefix===validator;
+  var knownPrefix=Object.prototype.hasOwnProperty.call(C2_MAP,prefix) || (/^VAL_/.test(prefix) && prefix===validator);
   var knownSuffix=Object.prototype.hasOwnProperty.call(C2_MAP,suffix) || suffix===validator;
   return knownPrefix && suffix && !knownSuffix && !/^VAL_/.test(suffix) && suffix!=='TODOS'?suffix:'SIN ASIGNAR';
 }
@@ -2227,6 +2259,12 @@ $('asgRows').addEventListener('change',function(e){var input=e.target,v=input.da
 });
 $('asgClear').addEventListener('click',function(){try{localStorage.removeItem('vc-cmp-asig-'+$('asgPolygon').value);$('asgStatus').textContent='Asignación eliminada.';}catch(err){$('asgStatus').textContent='No se pudo limpiar la asignación: '+err.message;}c2render();});
 
+// Presentación exclusiva de la tabla: conserva los códigos fuente.
+function c2codeCells(code){
+  var full=txt(code),parts=/^\d{24}$/.test(full)?full.match(/^(\d{6})(\d{2})(\d{3})(\d{3})(\d{2})(\d{2})(\d{2})(\d{3})(\d)$/):/^\d{14}$/.test(full)?full.match(/^(\d{6})(\d{2})(\d{3})(\d{3})$/):null;
+  var smz=parts?parts.slice(2,5).join('-'):/^\d{8}$/.test(full)?full.slice(0,2)+'-'+full.slice(2,5)+'-'+full.slice(5):'';
+  return '<td title="'+esc(full)+'">'+esc(parts?parts.slice(1).join(' · '):full)+'</td><td>'+esc(smz)+'</td>';
+}
 function c2render(){asgRender();var files=c2files(), section=$('c2Section');$('c2Load').classList.toggle('hidden',CUR<0);section.classList.toggle('hidden',!files.length);if(!files.length){$('c2FilesSummary').textContent='Ningún archivo cargado.';return;}
   $('c2FilesSummary').innerHTML=files.map(function(f){var t=f.totals;return esc(f.name)+' · Polígono '+esc(f.polygon||'no identificado')+' · '+f.sheets.length+' hojas VAL_ · '+t.valid+' filas · '+t.reviewed+' revisadas · APLICA '+t.aplica+' · NO APLICA '+t.no+' · OTRO CAMBIO '+t.otro+' · vacías / pendientes '+t.empty+' · inválidas '+t.invalid+(t.noState?' · '+t.noState+' SIN COLUMNA DE ESTADO: '+esc(f.sheets.filter(function(s){return s.noState;}).map(function(s){return s.name+' ('+s.rows+' filas)';}).join(', ')):'');}).join('<br>');
   var rows=c2assign(c2rows()), summary=c2summary(rows), totals=[0,0,0,0,0,0];rows.forEach(function(r){totals[c2bucket(r.result)]++;});var labels=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio'];$('c2Stats').innerHTML=labels.map(function(l,i){return '<div class="stat '+(['new','mod','del','same','del','same'][i])+'"><div class="k">'+l+'</div><div class="v">'+totals[i]+'</div></div>';}).join('');
@@ -2234,7 +2272,7 @@ function c2render(){asgRender();var files=c2files(), section=$('c2Section');$('c
   function options(id,values){var el=$(id),old=el.value;el.innerHTML='<option value="">Todos</option>'+values.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');el.value=old;}
   options('c2Technician',Array.from(new Set(rows.map(function(r){return r.tecnico;}))).sort());options('c2Validator',Array.from(new Set(rows.map(function(r){return r.validator;}))).sort());options('c2Result',Array.from(new Set(rows.map(function(r){return r.result;}))).sort());
   rows=rows.filter(function(r){return (!$('c2Technician').value||r.tecnico===$('c2Technician').value)&&(!$('c2Validator').value||r.validator===$('c2Validator').value)&&(!$('c2Result').value||r.result===$('c2Result').value);});
-  $('c2Body').innerHTML=rows.map(function(r){return '<tr>'+[r.polygon,r.sheet,r.tecnico,r.validator+' · '+r.fi,r.code,r.piso,r.state,r.message,r.result,r.change,r.observation,r.note].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+'</tr>';}).join('');
+  $('c2Body').innerHTML=rows.map(function(r){return '<tr>'+[r.polygon,r.sheet,r.tecnico,r.validator+' · '+r.fi].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+c2codeCells(r.code)+[r.piso,r.state,r.message,r.result,r.change,r.observation,r.note].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+'</tr>';}).join('');
 }
 function c2sheets(){var rows=c2rows(),head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,r.result,r.change,r.note]);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);c2files().forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=c2files().reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
 (function(){var original=c2sheets;c2sheets=function(){var sheets=original();sheets.forEach(function(sheet){if(sheet.name!=='CRUCE_REVISOR')return;var head=sheet.aoa[sheet.headerRow],tech=head.indexOf('Técnico'),polygon=head.indexOf('Polígono'),validator=head.indexOf('Validador');sheet.aoa.slice(sheet.headerRow+1).forEach(function(row){row[tech]=c2assign([{polygon:row[polygon],validator:row[validator],tecnico:row[tech]}])[0].tecnico;});});return sheets;};})();
@@ -2561,6 +2599,7 @@ $('drvLoad').addEventListener('click',function(){drvAction(async function(){
   });
   var grouped={};loaded.forEach(function(x){var k=x.preset.id+'|'+x.side;(grouped[k]||(grouped[k]=[])).push(x);});
   Object.keys(grouped).forEach(function(k){var group=grouped[k],h=JSON.stringify(group[0].data.headers);if(group.some(function(x){return JSON.stringify(x.data.headers)!==h;}))throw new Error('Encabezados incompatibles: '+k);});
+  await polyDriveSelection();
   // Se incorpora a un distrito nuevo para conservar cualquier carga manual previa.
   var source=DISTRICTS[DRV.district],name=$('drvDistrict').selectedOptions[0].textContent+' · Drive '+a+' → '+b;
   DISTRICTS.push({name:name,board:newBoard(),tec:{},c2:(source.c2||[]).slice()});switchDist(DISTRICTS.length-1);

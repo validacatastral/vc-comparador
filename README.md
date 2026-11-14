@@ -274,3 +274,53 @@ El despliegue debe permitir acceso desde Pages y devolver JSON legible tras las 
 Se verificó en Chromium con `fetch` interceptado, SheetJS y XLSX generados durante la prueba: seis tipos de reporte, dos sectores y dos fechas (24 archivos), más un revisor con dos filas. Se compararon los nombres y datos de las tarjetas, resultados del motor y hojas/resumen C2 contra la carga manual de los mismos bytes. Se comprobó también la carga manual posterior, el máximo de tres descargas concurrentes, GET simples, almacenamiento de clave con/sin Recordar y errores de clave, carpeta vacía, fecha inválida y tamaño. `node --check` se ejecuta sobre cada script inline extraído del HTML.
 
 Las pruebas se mantienen fuera del commit para limitar el PR a `index.html` y este README. No se usaron archivos ni credenciales reales. Los pasos para Rodrigo figuran en el PR; la comprobación contra un despliegue real de InformeSICUN queda como validación de integración del servicio.
+
+## Universo Drive y tabla C2
+
+El botón **☁ Cargar universo desde Drive** usa la URL `/exec` configurada y la clave de lectura (`drvKey`): `GET ?api=universo&k=…`. Se espera `{"poligonos":{"150112001":["15011219057"]}}`, con manzanas de 11 dígitos (ubigeo + sector + manzana). Comparte estructura, resumen y selección con el Excel manual. El asistente obtiene el universo si aún no está cargado y activa el polígono elegido en A; si falta en el universo, muestra un error.
+
+La tabla C2 presenta códigos de 24/14 dígitos agrupados, con el código íntegro en el tooltip y una columna Sec-Mz-Lt. Los valores fuente, filtros, publicación y exportaciones conservan sus códigos originales. ENCARGADO conserva prioridad; un nombre completo de validador, incluido `VAL_CATEGORIAS-AREAS_2`, no se interpreta como técnico.
+
+### Pruebas sintéticas reproducibles
+
+Desde la raíz del repo, ejecutar este bloque (solo usa Node; fetch simulado, sin Drive real):
+
+```bash
+node <<'JS'
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const html=fs.readFileSync('index.html','utf8');
+const scripts=[...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]).join('\n');
+fs.writeFileSync('/tmp/vc-index-script.js',scripts);
+function fn(name){const start=scripts.search(new RegExp('(?:async )?function '+name+'\\('));assert(start>=0,name);const tail=scripts.slice(start);return tail.slice(0,tail.indexOf('\n}')+2);}
+const nodes={};const $=id=>nodes[id]||(nodes[id]={value:'',innerHTML:'',selectedOptions:[{textContent:'150112001'}]});
+$('pubUrl').value='https://script.google.com/macros/s/test/exec';$('drvKey').value='lectura';
+let payload={poligonos:{'150112001':['15011219057','15011219057','15011220001']}};let calls=0;
+const ctx=vm.createContext({$,URL,AbortSignal,Set,console,txt:v=>v==null?'':String(v),esc:v=>String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'),POLYGONS:[],POLY_ACTIVE:null,DRV_LIMIT:25*1024*1024,
+applyPolygon(){ctx.POLY_ACTIVE=$('polySelect').value===''?null:ctx.POLYGONS[Number($('polySelect').value)];},
+fetch:async(url,options)=>{calls++;const u=new URL(url);assert.equal(u.searchParams.get('api'),'universo');assert.equal(u.searchParams.get('k'),'lectura');assert.equal(options.method,'GET');return {ok:true,status:200,text:async()=>JSON.stringify(payload)};}});
+vm.runInContext(scripts.match(/var C2_MAP = [\s\S]*?\n};/)[0],ctx);
+for(const name of ['c2val','c2map'])vm.runInContext(scripts.match(new RegExp('function '+name+'\\([^\\n]+'))[0],ctx);
+for(const name of ['polySet','polyFromDrive','polyDriveSelection','drvGet','c2technician','c2codeCells'])vm.runInContext(fn(name),ctx);
+(async()=>{
+await ctx.polyFromDrive();assert.equal(calls,1);assert.deepEqual(Array.from(ctx.POLYGONS[0].keys),['19|057','20|001']);assert.deepEqual(Array.from(ctx.POLYGONS[0].sectors),['19','20']);assert.equal(ctx.POLYGONS[0].hasCrc,false);assert.match($('polySummary').innerHTML,/2 manzanas/);
+await ctx.polyDriveSelection();assert.equal(calls,1);assert.equal(ctx.POLY_ACTIVE.code,'150112001');
+ctx.POLYGONS=[];await ctx.polyDriveSelection();assert.equal(calls,2);assert.equal(ctx.POLY_ACTIVE.code,'150112001');
+$('drvPolygon').selectedOptions[0].textContent='ausente';await assert.rejects(ctx.polyDriveSelection(),/no está/);
+for(const bad of [{},{poligonos:[]},{poligonos:{}},{poligonos:{P:['123']}},{poligonos:{P:null}}]){payload=bad;await assert.rejects(ctx.polyFromDrive());assert.equal(ctx.POLYGONS[0].code,'150112001');}
+for(const [sheet,want] of [['VAL_CRC-CRISTINA','CRISTINA'],['VAL_CATEGORIAS-AREAS','SIN ASIGNAR'],['VAL_CATEGORIAS-AREAS_2','SIN ASIGNAR'],['VAL_CATEGORIAS-AREAS-PAMELA','PAMELA'],['VAL_CATEGORIAS-AREAS_2-PAMELA','PAMELA'],['VAL_CRC-VAL_USO_PISO','SIN ASIGNAR'],['VAL_CRC','SIN ASIGNAR'],['OTRA-PAMELA','SIN ASIGNAR']]){assert.equal(ctx.c2technician('',sheet),want,sheet);assert.equal(ctx.c2technician(' Ana Maria ',sheet),'ANAMARIA');}
+const code='150112190570110101040026';assert.equal(ctx.c2codeCells(code),'<td title="'+code+'">150112 · 19 · 057 · 011 · 01 · 01 · 04 · 002 · 6</td><td>19-057-011</td>');
+assert.equal(ctx.c2codeCells(code.slice(0,14)),'<td title="15011219057011">150112 · 19 · 057 · 011</td><td>19-057-011</td>');assert.match(ctx.c2codeCells('19057011'),/<td>19-057-011/);assert.equal(ctx.c2codeCells('<bad>'),'<td title="&lt;bad>">&lt;bad></td><td></td>');
+assert.match(fn('c2render'),/c2codeCells\(r.code\)/);assert.match(html,/<th>Código<\/th><th>Sec-Mz-Lt<\/th>/);
+console.log('OK: universo (fetch simulado, validación y selección), técnicos y render de códigos');
+})().catch(e=>{console.error(e);process.exitCode=1;});
+JS
+node --check /tmp/vc-index-script.js
+```
+
+### Pasos para Rodrigo
+
+1. Abrir `index.html`, configurar la URL de Apps Script y la clave de lectura. Pulsar **Cargar universo desde Drive** y verificar polígonos, manzanas y sectores. Seleccionar uno y comprobar el filtro.
+2. Recargar la página sin cargar universo. Completar el asistente **Cargar desde Drive** con un polígono en A, sectores y dos fechas. Al completar, verificar que el universo esté cargado y que Polígono activo corresponda a A. Repetir con universo Excel ya cargado: no debe solicitarlo de nuevo.
+3. Cargar manualmente el Excel de polígonos y comprobar resumen, selección y filtrado habituales. Probar clave errónea y respuesta sin universo: deben mostrar error.
+4. Cargar revisor sin ENCARGADO con hojas `VAL_CRC-CRISTINA`, `VAL_CATEGORIAS-AREAS`, `VAL_CATEGORIAS-AREAS_2`, `VAL_CATEGORIAS-AREAS-PAMELA`: técnicos esperados CRISTINA, SIN ASIGNAR, SIN ASIGNAR y PAMELA. Con ENCARGADO, prevalece su valor.
+5. Revisar un código de 24 dígitos y uno de 14 en C2: agrupación, tooltip íntegro y Sec-Mz-Lt. Exportar y revisar que Código conserve el valor sin separadores. Comprobar filtros y vista previa de publicación sin enviar datos.
