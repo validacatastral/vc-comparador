@@ -765,20 +765,41 @@ input, select, textarea, button {max-width:100%;}
 (function(){
 "use strict";
 
-/* C2: nombres editables, contrastados con cabeceras SICUN del 13/11/2026. */
-var C2_MAP = {
-  VAL_CRC:{level:'CRC', reports:['UA'], fields:{}, fi:'FI.02.04'},
-  VAL_AREA_TERR_PISO:{level:'LOTE', reports:['UA','CON'], fields:{UA:['Área De Terreno Verificada (M2)'],CON:['Área verificada']}, fi:'FI.26.02'},
-  VAL_FECHA_PISO:{level:'LOTE', reports:['CON'], fields:{CON:['Fecha Construcción']}, fi:'FI.28.02'},
-  'VAL_CATEGORIAS-AREAS':{level:'CRC+PISO', reports:['CON'], fields:{CON:['Área Verificada']}, fi:'FI.31.02'},
-  VAL_PISO_CATEGORIA_TECHO:{level:'CRC+PISO', reports:['CON'], fields:{CON:['Techo','Muros y Columna','Puertas y Ventanas']}, fi:'FI.30.06'},
-  VAL_MEP_MEDIDA_PRODUCTO:{level:'CRC', reports:['OBR'], fields:{OBR:['MEP','ECS','ECC','Producto Total','Unidad de Medida']}, fi:'FI.29.03/06/09'},
-  VAL_RECAPITULACION_AREA:{level:'CRC', reports:['REC'], fields:{REC:['Recapitulación Edificas - % Area ocupada','Recapitulación Edificas - Area terreno ocupada','Recapitulación Bienes comunes - Total % Área ocupada','Recapitulación Bienes comunes - Total Área ocupada']}, fi:'FI.34.01–04'},
-  VAL_TITULAR_INSCRIPCION:{level:'CRC', reports:['UA'], fields:{UA:['Tipo de Partida Registral','Número de Partida Registral','Condición del Titular','Forma de Adquisición','Tipo de Documento']}, fi:'FI.15.03/16.02'},
-  VAL_TITULARES:{level:'CRC', reports:['TIT'], fields:{TIT:['Tipo de Titular','Tipo de Documento de Identidad','Nro. Documento Identidad','Apellido Paterno','Apellido Materno','Nombres','Tipo de Persona Jurídica','RUC','Razón Social','% de Cotitular']}, fi:''},
-  VAL_USO_CIIU:{level:'CRC+PISO', reports:['CON'], fields:{CON:['Código De Actividad Económica (CIIU)']}, fi:'FI.32.03'},
-  VAL_USO_PISO:{level:'CRC', reports:['UA','CON'], fields:{UA:['Código De Uso','Descripción Del Uso','Clasificación Del Predio','Predio Catastral En'],CON:[]}, fi:'FI.25.06'}
+/* C2 · CAMPOS_VALIDADOR: tabla única y editable del criterio APLICA.
+   observados   = campos que el validador señala.
+   relacionados = otros campos que, al corregirse, resuelven la MISMA inconsistencia
+                  (prueba: "si deshago el cambio, ¿vuelve la observación?" → sí = relacionado).
+   Claves de reporte: UA, CON (rep_CONS), OBR (rep_OBC), REC (rep_RECAP), TIT, ING; CRC = componentes del código.
+   Un reporte en observados con lista vacía (CON:[]) cuenta solo renglones agregados/retirados.
+   Nombres contrastados con las cabeceras SICUN del 14/11/2026; al comparar se ignoran mayúsculas, tildes, espacios y signos.
+   VAL_TITULARES cubre VAL_TITULARES_1/2/3 y VAL_CATEGORIAS-AREAS cubre VAL_CATEGORIAS-AREAS_2. */
+var CAMPOS_VALIDADOR = {
+  VAL_CRC:{level:'CRC', fi:'FI.02.04',
+    observados:{CRC:['Sector','Manzana','Lote','Edificación','Entrada','Piso','Unidad']}, relacionados:{}},
+  VAL_AREA_TERR_PISO:{level:'LOTE', fi:'FI.26.02',
+    observados:{UA:['Área De Terreno Verificada (M2)'],CON:['Área Verificada']}, relacionados:{CON:['N° Piso']}},
+  VAL_FECHA_PISO:{level:'LOTE', fi:'FI.28.02',
+    observados:{CON:['Fecha Construcción']}, relacionados:{CON:['N° Piso']}},   /* ECS (estado de conservación) NO es relacionado */
+  'VAL_CATEGORIAS-AREAS':{level:'CRC+PISO', fi:'FI.31.02',
+    observados:{CON:['Área Verificada']}, relacionados:{CON:['Muros y Columna','Techo','Puertas y Ventanas','N° Piso']}},
+  VAL_PISO_CATEGORIA_TECHO:{level:'CRC+PISO', fi:'FI.30.06',
+    observados:{CON:['Techo','Muros y Columna','Puertas y Ventanas']}, relacionados:{CON:['N° Piso']}},
+  VAL_MEP_MEDIDA_PRODUCTO:{level:'CRC', fi:'FI.29.03/06/09',
+    observados:{OBR:['MEP','ECS','ECC','Producto Total','Unidad de Medida']}, relacionados:{OBR:['Código','Descripción']}},
+  VAL_RECAPITULACION_AREA:{level:'CRC', fi:'FI.34.01–04',
+    observados:{REC:['Recapitulación Edificas - % Area ocupada','Recapitulación Edificas - Area terreno ocupada','Recapitulación Bienes comunes - Total % Área ocupada','Recapitulación Bienes comunes - Total Área ocupada']},
+    relacionados:{REC:['Recapitulación Edificas - Edificio','Recapitulación Bienes comunes - Edificación','Recapitulación Bienes comunes - Entrada','Recapitulación Bienes comunes - Piso','Recapitulación Bienes comunes - Unidad'],UA:['Área De Terreno Verificada (M2)']}},
+  VAL_TITULAR_INSCRIPCION:{level:'CRC', fi:'FI.15.03/16.02',
+    observados:{UA:['Tipo de Partida Registral','Número de Partida Registral','Condición del Titular','Forma de Adquisición','Tipo de Documento']}, relacionados:{}},
+  VAL_TITULARES:{level:'CRC', fi:'',
+    observados:{TIT:['Tipo de Titular','Tipo de Documento de Identidad','Nro. Documento Identidad','Apellido Paterno','Apellido Materno','Nombres','Tipo de Persona Jurídica','RUC','Razón Social','% de Cotitular']},
+    relacionados:{UA:['Condición del Titular']}},
+  VAL_USO_CIIU:{level:'CRC+PISO', fi:'FI.32.03',
+    observados:{CON:['Código De Actividad Económica (CIIU)']}, relacionados:{UA:['Código De Uso','Descripción Del Uso']}},
+  VAL_USO_PISO:{level:'CRC', fi:'FI.25.06',
+    observados:{UA:['Código De Uso','Descripción Del Uso','Clasificación Del Predio','Predio Catastral En'],CON:[]}, relacionados:{CON:['N° Piso']}}
 };
+var C2_MAP = CAMPOS_VALIDADOR;
 
 /* ============ Configuración de reportes SICUN ============ */
 var IGNORE_ALWAYS = ["Nombre Backup","Departamento","Provincia","Distrito","Ubigeo"];
@@ -2198,8 +2219,122 @@ function c2events(ctx){var out=[],res=ctx.RES;if(!res)return out;
   ['nuevos','eliminados'].forEach(function(kind){res[kind].forEach(function(g){if(g._renamed)return;g.rows.forEach(function(r){var detail=res.diffCols.map(function(f){var v=txt(r.row[f]);return v?f+'='+v:'';}).filter(Boolean).join(' | ');push(g.key,kind==='nuevos'?'(registro nuevo)':'(registro eliminado)',kind==='eliminados'?detail:'',kind==='nuevos'?detail:'',r.row,r.row,kind);});});});
   res.renombrados.forEach(function(x){push(x.de,'CRC renombrado',x.de,x.a,x.row,x.row,'rename');push(x.a,'CRC renombrado',x.de,x.a,x.row,x.row,'rename');});return out;
 }
+/* Criterio APLICA: campos observados / relacionados (tabla CAMPOS_VALIDADOR). */
+function c2campo(s){return c2norm(s).replace(/[^a-z0-9%]+/g,'');}
+function c2reports(map){var out=[];['observados','relacionados'].forEach(function(kind){Object.keys(map[kind]||{}).forEach(function(rep){rep=rep==='CRC'?'UA':rep;if(out.indexOf(rep)<0)out.push(rep);});});return out;}
+function c2expected(map){var out=[];['observados','relacionados'].forEach(function(kind){Object.keys(map[kind]||{}).forEach(function(rep){map[kind][rep].forEach(function(f){out.push((kind==='relacionados'?'(rel.) ':'')+rep+' · '+f);});});});return out;}
+function c2inList(group,e){return ((group||{})[e.report]||[]).some(function(f){return c2campo(f)===c2campo(e.field);});}
+/* Tipo de un evento SICUN frente a un validador: 'obs' (observado), 'rel' (relacionado) u 'otro'. */
+function c2eventKind(map,e,sameLot){
+  if(!map)return 'obs';
+  var crc=(map.observados||{}).CRC;
+  if(e.type==='crcmatch')return crc?'obs':'otro';
+  if(crc && e.key.length===24){
+    if(e.type==='eliminados'||(e.type==='nuevos'&&sameLot(e.key)))return 'obs';
+    if(e.type==='rename'){var names=crc.map(c2campo);if(CRC_PARTS.some(function(p){return names.indexOf(c2campo(p[2]))>=0&&e.before.slice(p[0],p[1])!==e.after.slice(p[0],p[1]);}))return 'obs';}
+  }
+  if(['add','rem','nuevos','eliminados'].indexOf(e.type)>=0)return !crc&&Object.prototype.hasOwnProperty.call(map.observados||{},e.report)?'obs':'otro';
+  if(e.type==='cell'){if(c2inList(map.observados,e))return 'obs';if(c2inList(map.relacionados,e))return 'rel';}
+  return 'otro';
+}
+/* Clasificación del cruce: estado del revisor × cambio en SICUN. Las sugerencias solo se muestran; nunca cambian el estado. */
+function c2classify(state,hits,otros){
+  if(state==='APLICA')return hits?{result:'✔ VERIFICADO',extra:otros>0}:otros?{result:'◐ CAMBIÓ OTRO CAMPO',suggestion:'posible OTRO CAMBIO'}:{result:'⚠ SIN CAMBIO EN SICUN'};
+  if(state==='OTRO CAMBIO')return hits?{result:'✔ CAMBIÓ',suggestion:'debería ser APLICA'}:otros?{result:'✔ CAMBIÓ'}:{result:'⚠ SIN CAMBIO EN SICUN'};
+  if(state==='NO APLICA')return hits?{result:'ℹ NO APLICA pero SICUN cambió',suggestion:'debería ser APLICA'}:otros?{result:'ℹ NO APLICA pero SICUN cambió'}:{result:'✔ NO APLICA CONFIRMADO',omit:true};
+  return {result:'ESTADO INVÁLIDO'};
+}
+/* Emparejamiento por huella cuando cambia el CRC. Nunca adivina: empate o sin candidato → revisar a mano. */
+/* HUELLA_CAMPOS: componentes de la huella por unidad; se usan solo los que existan en Antes y Después. */
+var HUELLA_CAMPOS = [
+  {rep:'TIT', nombre:'titular', tipo:'conjunto', campos:[/^nrodocumentoidentidad$/,/^ruc$/], alterno:[/^apellidopaterno$/,/^apellidomaterno$/,/^nombres$/,/^razonsocial$/]},
+  {rep:'UA',  nombre:'área terreno', tipo:'numero', campos:[/^areadeterrenoverificada/]},
+  {rep:'CON', nombre:'área construida', tipo:'suma', campos:[/^areaverificada$/]},
+  {rep:'UA',  nombre:'uso', tipo:'texto', campos:[/^codigodeuso$/]},
+  {rep:'UA',  nombre:'N° municipal / interior', tipo:'texto', campos:[/^(numero|nro|n)municipal$/,/^tipodeinterior$/,/^numerodeinterior$/]}
+];
+function c2huellaTxt(v){return stripAccents(txt(v)).toUpperCase().replace(/\s+/g,' ').trim();}
+/* Huella por unidad (CRC de 24) en cada fecha. Devuelve {A:Map, B:Map, campos:[nombres usados]}. */
+function c2huellas(board){
+  var out={A:new Map(),B:new Map(),campos:[]}, ok=function(c){return c&&c.A&&c.B&&c.A.headers&&c.B.headers;};
+  function ctxOf(id){return board.find(function(c){return c.preset.id===id&&ok(c);});}
+  var ua=ctxOf('UA'), base=ua?[ua]:['TIT','CON','OBR'].map(ctxOf).filter(Boolean), vals={A:new Map(),B:new Map()};
+  ['A','B'].forEach(function(side){base.forEach(function(c){c[side].rows.forEach(function(r){var k=normKey(r[c.preset.key]);if(/^\d{24}$/.test(k)&&!vals[side].has(k))vals[side].set(k,{});});});});
+  HUELLA_CAMPOS.forEach(function(h){
+    var c=ctxOf(h.rep);if(!c)return;
+    function heads(side,list){return (list||[]).map(function(re){return c[side].headers.find(function(x){return re.test(c2campo(x));});}).filter(Boolean);}
+    var hs={A:heads('A',h.campos),B:heads('B',h.campos)}, alt={A:heads('A',h.alterno),B:heads('B',h.alterno)};
+    if(!hs.A.length||hs.A.length!==hs.B.length)return;
+    out.campos.push(h.nombre);
+    ['A','B'].forEach(function(side){
+      var acc=new Map();
+      c[side].rows.forEach(function(r){var k=normKey(r[c.preset.key]);if(!vals[side].has(k))return;
+        var v;
+        if(h.tipo==='numero'||h.tipo==='suma'){v=toNum(r[hs[side][0]]);if(isNaN(v))return;acc.set(k,(h.tipo==='suma'?(acc.get(k)||0):0)+v);return;}
+        v=hs[side].map(function(x){return c2huellaTxt(r[x]);}).filter(Boolean).join(h.tipo==='conjunto'?'':'/');
+        if(!v&&h.tipo==='conjunto')v=alt[side].map(function(x){return c2huellaTxt(r[x]);}).filter(Boolean).join(' ');
+        if(!v)return;
+        if(h.tipo==='conjunto'){if(!acc.has(k))acc.set(k,[]);if(acc.get(k).indexOf(v)<0)acc.get(k).push(v);}else acc.set(k,v);
+      });
+      acc.forEach(function(v,k){var t=typeof v==='number'?(Math.abs(v)<0.005?'':v.toFixed(2)):Array.isArray(v)?v.sort().join('+'):v;if(t)vals[side].get(k)[h.nombre]=t;});
+    });
+  });
+  ['A','B'].forEach(function(side){vals[side].forEach(function(o,k){var any=false,fp=out.campos.map(function(n){if(o[n])any=true;return n+'='+(o[n]||'');}).join('|');out[side].set(k,any?fp:'');});});
+  return out;
+}
+/* Empareja las unidades de un lote (CRC[0:14]) entre Antes (A) y Después (B). A y B: Map CRC → huella ('' = sin huella).
+   Devuelve {lot,nA,nB,items}; item.type: 'cambio' (a→b), 'swap' (a↔b), 'revisar' (a, motivo) o 'nueva' (b). */
+function c2matchUnits(A,B,lot){
+  var block=lot.slice(0,11);
+  function inLot(k){return k.slice(0,14)===lot;} function inBlock(k){return k.slice(0,11)===block;}
+  var keysA=Array.from(A.keys()).filter(inBlock), keysB=Array.from(B.keys()).filter(inBlock);
+  var src=keysA.filter(function(k){return !B.has(k)||B.get(k)!==A.get(k);}), dst=keysB.filter(function(k){return !A.has(k)||A.get(k)!==B.get(k);});
+  function find(x,scope){var fp=A.get(x);if(!fp)return null;
+    var ys=dst.filter(function(y){return y!==x&&scope(y)&&B.get(y)===fp;});if(!ys.length)return null;
+    var xs=src.filter(function(k){return scope(k)&&A.get(k)===fp;});
+    return ys.length>1||xs.length>1?{tie:true}:{y:ys[0]};}
+  var map={}, items=[], used={};
+  src.filter(inLot).sort().forEach(function(x){
+    var gone=!B.has(x), r=find(x,inLot), other=false;
+    if(!r&&gone){r=find(x,inBlock);other=!!r;}
+    if(r&&r.tie)items.push({type:'revisar',a:x,reason:'empate de huella'});
+    else if(r){map[x]={y:r.y,other:other&&!inLot(r.y)};used[r.y]=true;}
+    else if(gone)items.push({type:'revisar',a:x,reason:A.get(x)?'sin candidato':'sin huella'});
+  });
+  Object.keys(map).sort().forEach(function(x){var y=map[x].y;
+    if(map[y]&&map[y].y===x&&B.has(x)&&A.has(y)){if(x<y)items.push({type:'swap',a:x,b:y});}
+    else items.push({type:'cambio',a:x,b:y,otroLote:map[x].other});});
+  keysB.filter(function(k){return inLot(k)&&!A.has(k)&&!used[k];}).sort().forEach(function(y){items.push({type:'nueva',b:y});});
+  return {lot:lot,nA:keysA.filter(inLot).length,nB:keysB.filter(inLot).length,items:items};
+}
+function c2unit(crc,lot){var u=crc.slice(14,16)+'-'+crc.slice(16,18)+'-'+crc.slice(18,20)+'-'+crc.slice(20,23);return crc.slice(0,14)===lot?u:'lote '+crc.slice(11,14)+' · '+u;}
+/* Resumen legible del lote para "Qué cambió". */
+function c2lotSummary(m,items,withCount){
+  var out=[];if(withCount&&m.nA!==m.nB)out.push('Lote: '+m.nA+' → '+m.nB+' unidades');
+  (items||m.items).forEach(function(it){
+    if(it.type==='cambio')out.push('✔ CRC cambió: '+c2unit(it.a,m.lot)+' → '+c2unit(it.b,m.lot));
+    else if(it.type==='swap')out.push('✔ CRC intercambiados '+c2unit(it.a,m.lot)+' ↔ '+c2unit(it.b,m.lot));
+    else if(it.type==='revisar')out.push('⚠ revisar a mano: '+c2unit(it.a,m.lot)+' ('+it.reason+')');
+    else if(it.type==='nueva')out.push('unidad nueva: '+c2unit(it.b,m.lot));
+  });
+  return out.join(' · ');
+}
+/* Diferencias reales entre la unidad x (Antes) y la unidad y (Después) de un reporte, cuando el CRC cambió. */
+function c2rediff(ctx,x,y){
+  var res=ctx.RES,k=ctx.preset.key,out=[];if(!res||!ctx.A||!ctx.B)return out;
+  var cols=res.diffCols.filter(function(c){return c!==k;});
+  var a=ctx.A.rows.filter(function(r){return normKey(r[k])===x;}).map(function(r){return {row:r};}), b=ctx.B.rows.filter(function(r){return normKey(r[k])===y;}).map(function(r){return {row:r};});
+  if(!a.length&&!b.length)return out;
+  function detail(r){return cols.map(function(f){var v=txt(r[f]);return v?f+'='+v:'';}).filter(Boolean).join(' | ');}
+  var m=matchBlock(a,b,cols);
+  m.pairs.forEach(function(p){cols.forEach(function(c){if(!eqVal(p[0].row[c],p[1].row[c]))out.push({key:x,report:ctx.preset.id,field:c,before:txt(p[0].row[c]),after:txt(p[1].row[c]),rowA:p[0].row,rowB:p[1].row,type:'cell'});});});
+  m.soloA.forEach(function(r){out.push({key:x,report:ctx.preset.id,field:'(renglón retirado)',before:detail(r.row),after:'',rowA:r.row,rowB:r.row,type:'rem'});});
+  m.soloB.forEach(function(r){out.push({key:x,report:ctx.preset.id,field:'(renglón agregado)',before:'',after:detail(r.row),rowA:r.row,rowB:r.row,type:'add'});});
+  return out;
+}
 function c2rows(){
   var files=c2files(), keys=c2keys(), events=[];BOARD_().forEach(function(c){events=events.concat(c2events(c));});
+  var huellas=null, lotCache={};function lotMatch(l){if(!huellas)huellas=c2huellas(BOARD_());return lotCache[l]||(lotCache[l]=c2matchUnits(huellas.A,huellas.B,l));}
   var all=[];files.forEach(function(file){file.rows.forEach(function(row){
     if(row.noState||(!row.state||row.state==='PENDIENTE'))return;
     var invalid=['APLICA','NO APLICA','OTRO CAMBIO'].indexOf(row.state)<0, code=c2resolve(row,keys), map=c2map(row.validator), level=map?map.level:(code.length===8?'LOTE':'CRC');
@@ -2212,22 +2347,45 @@ function c2rows(){
     if(filterActive('l') && !filterKeys.some(function(k){return filterPass(k,'l');}))return;
     if(filterActive('f') && !filterKeys.some(function(k){return filterPass(k,'f');}))return;
     var relevant=events.filter(function(e){return level==='LOTE'||code.length===8||(row.validator==='VAL_CRC'&&e.type==='nuevos')?sameLot(e.key):(e.key===code || (e.key.length===14&&e.key===code.slice(0,14)));});
-    var missing=BOARD_().filter(function(c){return !c.RES;}).map(function(c){return c.preset.id;}), note=missing.length?'Sin comparar: '+missing.join(', '):'', expected=[], fi=(row.message.match(/F[IB]\.\d{2}\.\d{2}/i)||[map?map.fi:''])[0];
-    if(map)Object.keys(map.fields).forEach(function(rep){map.fields[rep].forEach(function(f){expected.push(rep+' · '+f);});});
-    var selected=relevant.filter(function(e){if(!map)return true;if(row.validator==='VAL_CRC')return e.key.length===24&&(e.type==='rename'||e.type==='eliminados'||(e.type==='nuevos'&&sameLot(e.key)));if(map.reports.indexOf(e.report)<0)return false;
-      if(e.report==='CON'&&row.validator==='VAL_USO_PISO')return ['add','rem','nuevos','eliminados'].indexOf(e.type)>=0;
-      if(['add','rem','nuevos','eliminados'].indexOf(e.type)>=0)return true;
-      return (map.fields[e.report]||[]).some(function(f){return c2norm(f)===c2norm(e.field);});});
-    if(level==='CRC+PISO' && selected.length){selected=selected.filter(function(e){var ctx=BOARD_().find(function(c){return c.preset.id===e.report;}), header=ctx && ctx.A.headers.find(function(h){return /^n.?\s*piso$/i.test(c2header(h));}), vals=header?[e.rowA,e.rowB].filter(Boolean).map(function(r){return c2floor(r[header]);}).filter(Boolean):[];if(!row.piso||!vals.length){note+=(note?' · ':'')+'cruzado sin piso';return true;}return vals.indexOf(c2floor(row.piso))>=0;});}
-    if(row.validator==='VAL_AREA_TERR_PISO')selected=selected.filter(function(e){if(e.report!=='CON')return true;var ctx=BOARD_().find(function(c){return c.preset.id==='CON';}), h=ctx&&ctx.A.headers.find(function(x){return /^n.?\s*piso$/i.test(c2header(x));}), floors=h?[e.rowA,e.rowB].filter(Boolean).map(function(r){return c2floor(r[h]);}).filter(Boolean):[];if(!floors.length){note+=(note?' · ':'')+'cruzado sin piso';return true;}return floors.indexOf('1')>=0;});
-    var sector=code.length===8?code.slice(0,2):code.slice(6,8), sectorLoaded=keys.some(function(k){return k.slice(6,8)===sector;}), status;
+    var missing=BOARD_().filter(function(c){return !c.RES;}).map(function(c){return c.preset.id;}), note=missing.length?'Sin comparar: '+missing.join(', '):'', expected=map?c2expected(map):[], fi=(row.message.match(/F[IB]\.\d{2}\.\d{2}/i)||[map?map.fi:''])[0];
+    function addNote(t){if(t&&(' · '+note+' · ').indexOf(' · '+t+' · ')<0)note+=(note?' · ':'')+t;}
+    function floors(e){var ctx=BOARD_().find(function(c){return c.preset.id===e.report;}), header=ctx && ctx.A && ctx.A.headers.find(function(h){return /^n.?\s*piso$/i.test(c2header(h));});return header?[e.rowA,e.rowB].filter(Boolean).map(function(r){return c2floor(r[header]);}).filter(Boolean):null;}
+    if(row.state==='NO APLICA'&&code.length===24)relevant=relevant.filter(function(e){return e.key===code||(e.key.length===14&&e.key===code.slice(0,14));});
+    var lotKey=code.length===24?code.slice(0,14):lotCode, lm=/^\d{14}$/.test(lotKey||'')&&BOARD_().some(function(c){return !!c.RES;})?lotMatch(lotKey):null, wholeLot=level==='LOTE'||code.length===8;
+    var mine=lm?lm.items.filter(function(it){return wholeLot||it.a===code||it.b===code;}):[];
+    if(relevant.some(function(e){return e.type==='rename';}))mine=mine.filter(function(it){return it.type!=='revisar';});
+    mine.forEach(function(it){
+      if(it.type!=='cambio'&&it.type!=='swap')return;
+      var swap=it.type==='swap', dirs=!swap?[[it.a,it.b]]:wholeLot?[[it.a,it.b],[it.b,it.a]]:[[code,code===it.a?it.b:it.a]];
+      relevant=relevant.filter(function(e){return !(e.key.length===24&&(e.key===it.a||e.key===it.b)&&(swap||['nuevos','eliminados','rename'].indexOf(e.type)>=0));});
+      dirs.forEach(function(d){BOARD_().forEach(function(c){if(c.RES&&c.preset.id!=='ING')relevant=relevant.concat(c2rediff(c,d[0],d[1]));});});
+      relevant.push({key:code,report:'CRC',field:swap?'CRC intercambiados':'CRC cambió',before:it.a,after:it.b,type:'crcmatch'});
+    });
+    var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC);
+    var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
+    var hits=[], otros=[];
+    relevant.forEach(function(e){
+      var kind=c2eventKind(map,e,sameLot), ok=kind!=='otro', vals;
+      if(ok&&map&&level==='CRC+PISO'){vals=floors(e);if(vals){if(!row.piso||!vals.length)addNote('cruzado sin piso');else ok=vals.indexOf(c2floor(row.piso))>=0;}}
+      if(ok&&row.validator==='VAL_AREA_TERR_PISO'&&e.report==='CON'){vals=floors(e)||[];if(!vals.length)addNote('cruzado sin piso');else ok=vals.indexOf('1')>=0;}
+      (ok?hits:otros).push(e);
+    });
+    if(!map&&row.state!=='APLICA'){otros=hits.concat(otros);hits=[];}
+    function names(list){var u=Array.from(new Set(list.map(function(e){return e.report+' · '+e.field;})));return u.slice(0,5).join(', ')+(u.length>5?' y '+(u.length-5)+' más':'');}
+    var sector=code.length===8?code.slice(0,2):code.slice(6,8), sectorLoaded=keys.some(function(k){return k.slice(6,8)===sector;}), status, cls=null;
     if(row.state==='NO APLICA'&&(!code||(!matching.length && !(lotUbigeos && lotUbigeos.size>1))||!sectorLoaded||!$('c2NoAplica').checked))return;
-    if(invalid)status='ESTADO INVÁLIDO';else if(!code)status='CRC INCOMPLETO';else if(!sectorLoaded)status='SECTOR NO CARGADO';else if(lotUbigeos && lotUbigeos.size>1)status='LOTE AMBIGUO (varios ubigeos)';else if(!matching.length)status='? NO ENCONTRADO';else if(!BOARD_().some(function(c){return !!c.RES;}))status='PENDIENTE DE COMPARACIÓN';else if(row.state==='NO APLICA'){if(code.length===24)relevant=relevant.filter(function(e){return e.key===code||(e.key.length===14&&e.key===code.slice(0,14));});if(!relevant.length || !$('c2NoAplica').checked)return;status='ℹ NO APLICA pero SICUN cambió';}else if(row.state==='OTRO CAMBIO')status=relevant.length?'✔ CAMBIÓ':'⚠ SIN CAMBIO EN SICUN';else if(map && !selected.length && map.reports.some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';else status=selected.length?'✔ VERIFICADO':relevant.length?'◐ CAMBIÓ OTRO CAMPO':'⚠ SIN CAMBIO EN SICUN';
-    var changes=relevant.map(function(e){return e.report+' · '+e.field+': '+e.before+' → '+e.after;});
-    all.push(Object.assign({},row,{code:code||row.rawCode,fi:fi,report:map?map.reports.join(', '):'Todos',expected:expected.join(' | '),result:status,change:changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':''),note:note}));
+    if(invalid)status='ESTADO INVÁLIDO';else if(!code)status='CRC INCOMPLETO';else if(!sectorLoaded)status='SECTOR NO CARGADO';else if(lotUbigeos && lotUbigeos.size>1)status='LOTE AMBIGUO (varios ubigeos)';else if(!matching.length)status='? NO ENCONTRADO';else if(!BOARD_().some(function(c){return !!c.RES;}))status='PENDIENTE DE COMPARACIÓN';
+    else if(row.state==='APLICA' && isCrc && revisar.length){status='⚠ REVISAR A MANO';addNote('CRC: '+revisar[0].reason+'; no se pudo emparejar la unidad');}
+    else if(row.state==='APLICA' && map && !hits.length && c2reports(map).some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';
+    else {cls=c2classify(row.state,hits.length,otros.length);if(cls.omit)return;status=cls.result;
+      if(cls.extra)addNote('Además cambió: '+names(otros));
+      if(cls.suggestion)addNote('Sugerencia: '+cls.suggestion+(hits.length?' (cambió '+names(hits)+')':''));
+      if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
+    var changes=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}).map(function(e){return e.report+' · '+e.field+': '+e.before+' → '+e.after;});
+    all.push(Object.assign({},row,{code:code||row.rawCode,fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,change:(resumen?resumen+(changes.length?' | ':''):'')+changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':''),note:note}));
   });});return all;
 }
-function c2bucket(s){if(/VERIFICADO|✔ CAMBIÓ/.test(s))return 0;if(/OTRO CAMPO/.test(s))return 1;if(/SIN CAMBIO/.test(s))return 2;if(/NO ENCONTRADO|SECTOR NO CARGADO/.test(s))return 3;if(/INVÁLIDO|INCOMPLETO|PENDIENTE|LOTE AMBIGUO/.test(s))return 4;return 5;}
+function c2bucket(s){if(/VERIFICADO|✔ CAMBIÓ/.test(s))return 0;if(/OTRO CAMPO/.test(s))return 1;if(/SIN CAMBIO/.test(s))return 2;if(/NO ENCONTRADO|SECTOR NO CARGADO/.test(s))return 3;if(/INVÁLIDO|INCOMPLETO|PENDIENTE|LOTE AMBIGUO|REVISAR A MANO/.test(s))return 4;return 5;}
 function c2summary(rows){var result={};rows.forEach(function(r){var a=result[r.validator]||(result[r.validator]=[0,0,0,0,0,0,0]);a[0]++;a[c2bucket(r.result)+1]++;});return result;}
 /* Asignaciones locales por polígono y validador; nunca se editan filas fuente. */
 function asgRead(polygon){
@@ -2310,7 +2468,7 @@ function pubPayload(polygon,rows,key,includeObs){
   BOARD_().forEach(function(c){if(!c.RES)return;events=events.concat(c2events(c));['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))dates[side].add(day);});});});
   if(!dates.A.size||!dates.B.size)throw new Error('Se necesita al menos una fecha de descarga ANTES y DESPUÉS en los reportes comparados.');
   function range(side){var days=Array.from(dates[side]).sort(),format=function(d){return d.split('-').reverse().join('/');};return format(days[0])+(days.length>1?' – '+format(days[days.length-1]):'');}
-  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:range('A'),despues:range('B'),totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.filter(function(r){var bucket=c2bucket(r.result);return bucket===2||bucket===5;}).map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);var fila={poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:r.result,campos:pubFields(r,events)};if(includeObs)fila.obs=txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500);return fila;})};
+  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:range('A'),despues:range('B'),totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.filter(function(r){var bucket=c2bucket(r.result);return bucket===2||bucket===5;}).map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);var fila={poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:r.result,campos:pubFields(r,events)};if(includeObs)fila.obs=txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500);fila.nota=txt(r.note);return fila;})};
 }
 async function pubPost(url,payload){
   var response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
