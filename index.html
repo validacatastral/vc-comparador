@@ -473,6 +473,28 @@ input, select, textarea, button {max-width:100%;}
     </div>
   </header>
 
+
+  <section>
+    <button type="button" id="drvSettings">⚙ Publicación / URL de Drive</button><div id="drvConfig"></div>
+    <button type="button" class="rbtn" id="drvOpen">☁ Cargar desde Drive</button>
+    <label>Clave de lectura <input id="drvKey" type="password" autocomplete="off"></label>
+    <label><input id="drvRemember" type="checkbox"> Recordar clave de lectura en este navegador</label>
+    <p>Configura la URL /exec en ⚙ Publicación. La carga manual sigue disponible.</p>
+  </section>
+  <dialog id="drvDialog" aria-labelledby="drvTitle" style="width:min(760px,90vw);max-height:85vh;overflow:auto;background:var(--bg-panel);color:var(--text-prime);border:1px solid var(--border)">
+    <h2 id="drvTitle">☁ Cargar desde Drive</h2><p id="drvTarget"></p>
+    <p>A · Polígono</p><label>Polígono <select id="drvPolygon"></select></label>
+    <button type="button" id="drvReviewer">Cargar Excel del revisor y continuar</button>
+    <div id="drvStepB" hidden><p>B · Sectores y distrito de Drive</p>
+      <div id="drvSectors"></div><label>Añadir sector (SS o UBIGEO+SS) <input id="drvSector" maxlength="8" inputmode="numeric"></label><button type="button" id="drvAddSector">Añadir</button>
+      <label>Carpeta DISTRITO <select id="drvDistrict"></select></label><button type="button" id="drvDates">Buscar fechas</button>
+    </div>
+    <div id="drvStepC" hidden><p>C · Fechas</p><label>ANTES <select id="drvBefore"></select></label><label>DESPUÉS <select id="drvAfter"></select></label>
+      <p>D · Se crea un distrito de trabajo nuevo con la selección para conservar tus cargas previas.</p><button type="button" id="drvLoad">Cargar y comparar</button>
+    </div>
+    <p role="status" id="drvProgressText" aria-live="polite"></p><progress id="drvProgress" max="1" value="0" style="width:100%"></progress>
+    <p id="drvError" role="alert" style="color:var(--danger,#e66)"></p><button type="button" id="drvClose">Cerrar</button>
+  </dialog>
   <section>
     <p class="sec-label">Universo de polígonos</p>
     <div class="bulkdrop" id="polyDrop" tabindex="0" role="button"><div class="bd-txt"><b>Cargar Excel de polígonos</b><span>Haz clic o arrastra el archivo aquí. Cada hoja representa un polígono.</span></div><input type="file" id="polyFile" accept=".xlsx,.xls" class="hidden"></div>
@@ -1040,7 +1062,7 @@ function slotEmpty(i,s){
   slot.classList.remove("has"); drop.classList.remove("filled"); var details=slot.querySelector(".file-list"); if(details) details.remove();
   drop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="ph">soltar .xlsx</span>';
 }
-function loadInto(i,s,files){
+function loadInto(i,s,files,done){
   showErr("");
   var ctx=BOARD_()[i], list=Array.prototype.slice.call(files), existing=ctx[s]?(ctx[s].files||[ctx[s]]).slice():[], errors=[], pending=list.length, results=new Array(list.length);
   list.forEach(function(file,n){ readWorkbook(file,function(err,data){
@@ -1054,7 +1076,7 @@ function loadInto(i,s,files){
     });
     ctx[s]=mergeFiles(existing); orderSlots(ctx); ctx.RES=null;
     if(ACTIVE===i){$("detailSection").classList.add("hidden"); ACTIVE=null;}
-    buildRows(); if(errors.length) showErr(errors.join(" "));
+    buildRows(); if(errors.length) showErr(errors.join(" ")); if(done)done(errors);
   }); });
 }
 function clearSlot(i,s){
@@ -2213,7 +2235,17 @@ function c2render(){asgRender();var files=c2files(), section=$('c2Section');$('c
 function c2sheets(){var rows=c2rows(),head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,r.result,r.change,r.note]);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);c2files().forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=c2files().reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
 (function(){var original=c2sheets;c2sheets=function(){var sheets=original();sheets.forEach(function(sheet){if(sheet.name!=='CRUCE_REVISOR')return;var head=sheet.aoa[sheet.headerRow],tech=head.indexOf('Técnico'),polygon=head.indexOf('Polígono'),validator=head.indexOf('Validador');sheet.aoa.slice(sheet.headerRow+1).forEach(function(row){row[tech]=c2assign([{polygon:row[polygon],validator:row[validator],tecnico:row[tech]}])[0].tecnico;});});return sheets;};})();
 (function(){var original=writeStyledWorkbook;writeStyledWorkbook=function(sheets,filename){if(c2files().length)sheets=sheets.concat(c2sheets());return original(sheets,filename);};})();
-$('c2Files').addEventListener('change',function(){var files=Array.from(this.files),district=DISTRICTS[CUR];this.value='';files.forEach(function(file){var fr=new FileReader();fr.onload=function(e){try{var parsed=c2read(XLSX.read(new Uint8Array(e.target.result),{type:'array',cellText:true}),file.name);district.c2=(district.c2||[]).filter(function(f){return f.name!==file.name;});district.c2.push(parsed);c2render();}catch(err){showErr('No se pudo leer '+file.name+': '+err.message);}};fr.onerror=function(){showErr('No se pudo leer '+file.name);};fr.readAsArrayBuffer(file);});});
+function loadReviewerFiles(files){
+  var district=DISTRICTS[CUR];
+  return Promise.all(Array.from(files).map(function(file){return new Promise(function(resolve,reject){
+    var fr=new FileReader();fr.onload=function(e){try{
+      var parsed=c2read(XLSX.read(new Uint8Array(e.target.result),{type:'array',cellText:true}),file.name);
+      district.c2=(district.c2||[]).filter(function(f){return f.name!==file.name;});district.c2.push(parsed);c2render();resolve(parsed);
+    }catch(err){reject(new Error('No se pudo leer '+file.name+': '+err.message));}};
+    fr.onerror=function(){reject(new Error('No se pudo leer '+file.name));};fr.readAsArrayBuffer(file);
+  });}));
+}
+$('c2Files').addEventListener('change',function(){var files=Array.from(this.files);this.value='';loadReviewerFiles(files).catch(function(err){showErr(err.message);});});
 $('c2Clear').addEventListener('click',function(){if(CUR>=0)DISTRICTS[CUR].c2=[];c2render();});
 ['c2Validator','c2Technician','c2Result','c2NoAplica'].forEach(function(id){$(id).addEventListener('change',c2render);});
 /* Las vistas y filtros existentes siguen siendo la fuente de actualización. */
@@ -2434,7 +2466,112 @@ $("mzBulkApply").addEventListener("click", mzApplyBulk);
 $("mzFile").addEventListener("change", function(){ if(this.files[0]) mzLoadFile(this.files[0]); this.value=""; });
 $("mzExport").addEventListener("click", exportMz);
 
+/* Drive: transporte y asistente; los lectores manuales siguen siendo compartidos. */
+$('drvConfig').appendChild($('pubPanel'));
+$('drvSettings').addEventListener('click',function(){$('pubSettings').click();});
+var DRV_LIMIT=25*1024*1024, DRV_TOTAL=150*1024*1024;
+async function drvGet(api,params){
+  var raw=$('pubUrl').value.trim(),key=$('drvKey').value.trim(),url;
+  try{url=new URL(raw);}catch(e){throw new Error('Configura la URL /exec en ⚙ Publicación.');}
+  if(url.protocol!=='https:'||url.hostname!=='script.google.com'||!/^\/macros\/s\/[^/]+\/exec$/.test(url.pathname))throw new Error('Usa una URL HTTPS /exec de Apps Script.');
+  if(!key)throw new Error('Introduce la clave de lectura.');
+  url.search='';url.searchParams.set('api',api);url.searchParams.set('k',key);
+  Object.keys(params).forEach(function(k){url.searchParams.set(k,params[k]);});
+  var response;try{response=await fetch(url.href,{method:'GET',credentials:'omit',referrerPolicy:'no-referrer',signal:AbortSignal.timeout(60000)});}catch(e){throw new Error('No se pudo conectar con Drive. Revisa URL, permisos y conexión (o tiempo agotado).');}
+  if(response.status===401||response.status===403)throw new Error('Clave de lectura inválida o acceso denegado.');
+  if(!response.ok)throw new Error('Drive respondió con error HTTP '+response.status+'.');
+  var body=await response.text();if(body.length>Math.ceil(DRV_LIMIT*4/3)+65536)throw new Error('Archivo demasiado grande (máximo 25 MiB).');
+  var data;try{data=JSON.parse(body);}catch(e){throw new Error('Respuesta no válida. Comprueba el despliegue público del Apps Script.');}
+  if(data.error||data.ok===false||data.success===false){var msg=String(data.error||data.message||'');throw new Error(/clave|key|unauthor|deneg|forbidden/i.test(msg)?'Clave de lectura inválida o acceso denegado.':'Drive no pudo completar la solicitud. Revisa la carpeta y sus permisos.');}
+  return data;
+}
+async function drvList(root,folder){
+  var p={raiz:root};if(folder)p.carpeta=folder;var data=await drvGet('listar',p);
+  // Acepta listas mixtas o las dos colecciones del servicio.
+  var list=Array.isArray(data)?data:Array.isArray(data.items)?data.items:null;
+  if(!list){if(!Array.isArray(data.carpetas)&&!Array.isArray(data.archivos))throw new Error('Formato de listado no reconocido (items o carpetas/archivos).');list=(data.carpetas||[]).map(function(x){return Object.assign({},x,{folder:true});}).concat(data.archivos||[]);}
+  return list.map(function(x){return {id:String(x.id||''),name:String(x.nombre||x.name||''),folder:x.folder===true||x.esCarpeta===true||x.tipo==='carpeta'||x.mimeType==='application/vnd.google-apps.folder',mime:x.mimeType||'',size:Number(x.size||x.tamano||0)};}).filter(function(x){return x.id&&x.name;});
+}
+function drvExcel(x){return !x.folder&&(/\.xlsx$/i.test(x.name)||x.mime==='application/vnd.google-apps.spreadsheet');}
+async function drvFile(item){
+  if(item.size>DRV_LIMIT)throw new Error(item.name+': tamaño superior a 25 MiB.');
+  var data=await drvGet('archivo',{id:item.id});
+  if(typeof data.base64!=='string'||!data.base64.length)throw new Error(item.name+': archivo vacío o sin base64.');
+  if(data.base64.length>Math.ceil(DRV_LIMIT*4/3))throw new Error(item.name+': tamaño superior a 25 MiB.');
+  var bytes;try{var raw=atob(data.base64);bytes=Uint8Array.from(raw,function(c){return c.charCodeAt(0);});}catch(e){throw new Error(item.name+': base64 inválido.');}
+  if(!bytes.length||bytes.length>DRV_LIMIT)throw new Error(item.name+': tamaño inválido (máximo 25 MiB).');
+  var name=String(data.nombre||item.name);if(!/\.xlsx$/i.test(name))name+='.xlsx';
+  return new File([bytes],name,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',lastModified:0});
+}
+function drvDate(name){var m=name.match(/_(\d{2})(\d{2})(\d{2})(?:\.xlsx)?$/i);if(!m)return '';var y=2000+Number(m[1]),mo=Number(m[2]),d=Number(m[3]),date=new Date(Date.UTC(y,mo-1,d));return date.getUTCFullYear()===y&&date.getUTCMonth()===mo-1&&date.getUTCDate()===d?'20'+m[1]+'-'+m[2]+'-'+m[3]:'';}
+async function drvPool(items,fn){var next=0,results=new Array(items.length),failure;await Promise.all(Array.from({length:Math.min(3,items.length)},async function(){while(next<items.length&&!failure){var i=next++;try{results[i]=await fn(items[i],i);}catch(e){failure=e;}}}));if(failure)throw failure;return results;}
+var DRV={busy:false,files:[],sectors:[],district:-1};
+function drvOptions(id,items,last){$(id).innerHTML='<option value="">Elegir…</option>'+items.map(function(x){return '<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>';}).join('');if(items.some(function(x){return x.id===last;}))$(id).value=last;}
+function drvLast(){try{return JSON.parse(localStorage.getItem('vc-cmp-drv-last')||'{}')||{};}catch(e){return {};}}
+function drvSaveLast(){try{localStorage.setItem('vc-cmp-drv-last',JSON.stringify({polygon:$('drvPolygon').value,district:$('drvDistrict').value}));}catch(e){}}
+function drvSectors(){var set=new Set();c2files().forEach(function(f){if(f.name!==DRV.reviewer)return;f.rows.forEach(function(r){if(/^\d{24}$/.test(r.rawCode))set.add(r.rawCode.slice(0,8));else if(/^\d{8}$/.test(r.rawCode))set.add(r.rawCode.slice(0,2));else if(r.partial)set.add(r.partial.slice(0,2));});});return Array.from(set).sort();}
+function drvSelected(){return Array.from($('drvSectors').querySelectorAll('input:checked')).map(function(x){return x.value;});}
+function drvRenderSectors(){ $('drvSectors').innerHTML=DRV.sectors.map(function(s){return '<label style="display:inline-block;margin:6px"><input type="checkbox" value="'+esc(s)+'" checked> '+(s.length===8?esc(s.slice(0,6))+' · S'+esc(s.slice(6)):'S'+esc(s))+'</label>';}).join('');}
+async function drvAction(fn){if(DRV.busy)return;DRV.busy=true;$('drvError').textContent='';$('drvProgressText').textContent='Consultando Drive…';$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=true;});try{await fn();}catch(e){$('drvError').textContent=e.message;}finally{DRV.busy=false;$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=false;});}}
+function drvRead(file){return new Promise(function(resolve,reject){readWorkbook(file,function(err,data){if(err)reject(new Error(file.name+': '+err.message));else resolve(data);});});}
+$('drvOpen').addEventListener('click',function(){
+  if(CUR<0){showErr('Crea o selecciona un distrito antes de cargar desde Drive.');return;}
+  DRV={busy:false,files:[],sectors:[],district:CUR};$('drvTarget').textContent='Distrito de trabajo: '+DISTRICTS[CUR].name;$('drvStepB').hidden=true;$('drvStepC').hidden=true;$('drvProgress').value=0;$('drvProgressText').textContent='';$('drvDialog').showModal();
+  drvAction(async function(){var items=(await drvList('validaciones')).filter(function(x){return x.folder;});if(!items.length)throw new Error('La carpeta de validaciones está vacía.');drvOptions('drvPolygon',items,drvLast().polygon);});
+});
+$('drvClose').addEventListener('click',function(){$('drvDialog').close();DRV.files=[];});
+$('drvDialog').addEventListener('cancel',function(e){if(DRV.busy)e.preventDefault();});
+$('drvReviewer').addEventListener('click',function(){drvAction(async function(){
+  $('drvStepB').hidden=true;$('drvStepC').hidden=true;DRV.files=[];
+  var id=$('drvPolygon').value;if(!id)throw new Error('Elige un polígono.');
+  var files=(await drvList('validaciones',id)).filter(drvExcel);if(!files.length)throw new Error('Carpeta vacía: no hay Excel ni Google Sheet.');
+  var label=$('drvPolygon').selectedOptions[0].textContent;
+  var exact=files.filter(function(x){return x.name.replace(/\.xlsx$/i,'')===label;});if(exact.length===1)files=exact;
+  if(files.length!==1)throw new Error('Hay varios Excel. Deja un único archivo con el nombre del polígono.');
+  var file=await drvFile(files[0]);DRV.reviewer=file.name;
+  await loadReviewerFiles([file]);DRV.sectors=drvSectors();drvRenderSectors();
+  var districts=(await drvList('reportes')).filter(function(x){return x.folder;});if(!districts.length)throw new Error('La carpeta de reportes está vacía.');drvOptions('drvDistrict',districts,drvLast().district);$('drvStepB').hidden=false;drvSaveLast();
+});});
+$('drvAddSector').addEventListener('click',function(){var value=$('drvSector').value.trim();if(!/^\d{2}$|^\d{8}$/.test(value)){$('drvError').textContent='Sector: escribe 2 dígitos o ubigeo+sector (8 dígitos).';return;}if(DRV.sectors.indexOf(value)<0){DRV.sectors.push(value);var label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=value;input.checked=true;label.append(input,document.createTextNode(' '+value+' '));$('drvSectors').appendChild(label);}$('drvSector').value='';});
+['drvPolygon','drvDistrict'].forEach(function(id){$(id).addEventListener('change',function(){$('drvStepC').hidden=true;DRV.files=[];if(id==='drvPolygon')$('drvStepB').hidden=true;});});
+$('drvDates').addEventListener('click',function(){drvAction(async function(){
+  $('drvStepC').hidden=true;DRV.files=[];var id=$('drvDistrict').value,selected=drvSelected();if(!id||!selected.length)throw new Error('Elige distrito y al menos un sector.');
+  var folders=(await drvList('reportes',id)).filter(function(x){return x.folder&&/^S\d{2}$/i.test(x.name);});
+  var wanted=Array.from(new Set(selected.map(function(s){return s.slice(-2);}))),missing=wanted.filter(function(s){return !folders.some(function(f){return f.name.slice(1)===s;});});if(missing.length)throw new Error('Faltan carpetas: '+missing.map(function(s){return 'S'+s;}).join(', '));
+  var groups=await drvPool(folders.filter(function(f){return wanted.indexOf(f.name.slice(1))>=0;}),async function(f){var list=(await drvList('reportes',f.id)).filter(drvExcel);if(!list.length)throw new Error(f.name+': carpeta vacía.');return list.map(function(x){x.sector=f.name.slice(1);x.day=drvDate(x.name);return x;});});
+  var files=groups.flat(),undated=files.filter(function(x){return !x.day;});if(undated.length)throw new Error('Archivos sin fecha AAMMDD válida: '+undated.map(function(x){return x.name;}).join(', '));
+  var days=Array.from(new Set(files.map(function(x){return x.day;}))).sort();if(days.length<2)throw new Error('Se necesitan al menos dos fechas de descarga.');DRV.files=files;DRV.selected=selected;
+  ['drvBefore','drvAfter'].forEach(function(id){drvOptions(id,days.map(function(d){return {id:d,name:d};}));});$('drvBefore').value=days[days.length-2];$('drvAfter').value=days[days.length-1];$('drvStepC').hidden=false;drvSaveLast();
+});});
+$('drvLoad').addEventListener('click',function(){drvAction(async function(){
+  var a=$('drvBefore').value,b=$('drvAfter').value;if(!a||!b||a>=b)throw new Error('ANTES debe ser anterior a DESPUÉS.');
+  if(JSON.stringify(DRV.selected)!==JSON.stringify(drvSelected()))throw new Error('Los sectores cambiaron. Vuelve a buscar fechas.');
+  var files=DRV.files.filter(function(x){return x.day===a||x.day===b;}),pairs={};
+  files.forEach(function(x){var m=x.name.match(/^rep_(.+)_\d{8}_\d{6}(?:\.xlsx)?$/i);if(!m)throw new Error('Nombre de reporte no válido: '+x.name);if(x.name.match(/_(\d{8})_\d{6}(?:\.xlsx)?$/i)[1].slice(-2)!==x.sector)throw new Error(x.name+': el sector del nombre no coincide con su carpeta.');var k=x.sector+'|'+m[1].toUpperCase();(pairs[k]||(pairs[k]=new Set())).add(x.day);});
+  if(!files.length||Object.keys(pairs).some(function(k){return pairs[k].size!==2;}))throw new Error('Faltan reportes equivalentes para ambas fechas en los sectores elegidos.');
+  var sectors=new Set(files.map(function(x){return x.sector;}));if(DRV.selected.some(function(s){return !sectors.has(s.slice(-2));}))throw new Error('Faltan sectores para las fechas elegidas.');
+  var done=0,total=0;$('drvProgress').max=files.length;$('drvProgress').value=0;$('drvProgressText').textContent='0 de '+files.length;
+  var loaded=await drvPool(files,async function(item){var file=await drvFile(item);total+=file.size;if(total>DRV_TOTAL)throw new Error('La selección supera 150 MiB. Carga menos sectores.');var data=await drvRead(file),preset=detectPreset(data.headers);if(!preset)throw new Error(file.name+': tipo de reporte no reconocido.');
+    var wanted=DRV.selected.filter(function(s){return s.length===8&&s.slice(-2)===item.sector;});if(wanted.length&&data.rows.some(function(r){var crc=txt(r[preset.key]);return /^\d{14}$|^\d{24}$/.test(crc)&&wanted.indexOf(crc.slice(0,8))<0;}))throw new Error(file.name+': el ubigeo/sector no coincide con la selección.');
+    $('drvProgress').value=++done;$('drvProgressText').textContent=done+' de '+files.length;return {file:file,data:data,preset:preset,side:item.day===a?'A':'B'};
+  });
+  var grouped={};loaded.forEach(function(x){var k=x.preset.id+'|'+x.side;(grouped[k]||(grouped[k]=[])).push(x);});
+  Object.keys(grouped).forEach(function(k){var group=grouped[k],h=JSON.stringify(group[0].data.headers);if(group.some(function(x){return JSON.stringify(x.data.headers)!==h;}))throw new Error('Encabezados incompatibles: '+k);});
+  // Se incorpora a un distrito nuevo para conservar cualquier carga manual previa.
+  var source=DISTRICTS[DRV.district],name=$('drvDistrict').selectedOptions[0].textContent+' · Drive '+a+' → '+b;
+  DISTRICTS.push({name:name,board:newBoard(),tec:{},c2:(source.c2||[]).slice()});switchDist(DISTRICTS.length-1);
+  for(var k of Object.keys(grouped)){var group=grouped[k],i=BOARD_().findIndex(function(c){return c.preset.id===group[0].preset.id;});await new Promise(function(resolve,reject){loadInto(i,group[0].side,group.map(function(x){return x.file;}),function(errors){if(errors.length)reject(new Error(errors.join(' ')));else resolve();});});}
+  runAll();renderDistTabs();$('drvProgressText').textContent=done+' de '+files.length+' · Carga y comparación completadas.';DRV.files=[];
+});});
+(function(){
+  try{$('drvRemember').checked=!!localStorage.getItem('vc-cmp-drv-key');$('drvKey').value=sessionStorage.getItem('vc-cmp-drv-key')||localStorage.getItem('vc-cmp-drv-key')||'';}catch(e){}
+  function save(){try{var key=$('drvKey').value.trim();if($('drvRemember').checked){localStorage.setItem('vc-cmp-drv-key',key);sessionStorage.removeItem('vc-cmp-drv-key');}else{sessionStorage.setItem('vc-cmp-drv-key',key);localStorage.removeItem('vc-cmp-drv-key');}}catch(e){}}
+  save();$('drvKey').addEventListener('input',save);$('drvRemember').addEventListener('change',save);
+})();
+
+
 })();
 </script>
+
 </body>
 </html>
