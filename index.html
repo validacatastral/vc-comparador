@@ -2118,8 +2118,12 @@ function c2state(s){s=c2clean(s).toUpperCase().replace(/\s+/g,' ');return s==='O
 function c2technician(value,sheet){
   var name=txt(value).replace(/\s+/g,'').toUpperCase();
   if(name)return name;
-  var suffix=sheet.indexOf('-')>=0?sheet.slice(sheet.lastIndexOf('-')+1).replace(/\s+/g,'').toUpperCase():'';
-  return suffix && !/^VAL_/.test(suffix) && suffix!=='TODOS'?suffix:'SIN ASIGNAR';
+  var split=sheet.lastIndexOf('-'), validator=c2val(sheet);
+  var prefix=split>=0?sheet.slice(0,split).trim().toUpperCase().replace(/\s+/g,' '):'';
+  var suffix=split>=0?sheet.slice(split+1).replace(/\s+/g,'').toUpperCase():'';
+  var knownPrefix=Object.prototype.hasOwnProperty.call(C2_MAP,prefix) || prefix===validator;
+  var knownSuffix=Object.prototype.hasOwnProperty.call(C2_MAP,suffix) || suffix===validator;
+  return knownPrefix && suffix && !knownSuffix && !/^VAL_/.test(suffix) && suffix!=='TODOS'?suffix:'SIN ASIGNAR';
 }
 function c2read(wb,name){
   var file={name:name,polygon:(name.match(/\d{9}/)||[''])[0],sheets:[],rows:[],totals:{valid:0,reviewed:0,aplica:0,no:0,otro:0,empty:0,invalid:0,noState:0}};
