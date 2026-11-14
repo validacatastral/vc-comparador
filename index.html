@@ -2559,7 +2559,10 @@ function drvRead(file){return new Promise(function(resolve,reject){readWorkbook(
 $('drvOpen').addEventListener('click',function(){
   if(CUR<0){showErr('Crea o selecciona un distrito antes de cargar desde Drive.');return;}
   DRV={busy:false,files:[],sectors:[],district:CUR};$('drvTarget').textContent='Distrito de trabajo: '+DISTRICTS[CUR].name;$('drvStepB').hidden=true;$('drvStepC').hidden=true;$('drvProgress').value=0;$('drvProgressText').textContent='';$('drvDialog').showModal();
-  drvAction(async function(){var items=(await drvList('validaciones')).filter(function(x){return x.folder;});if(!items.length)throw new Error('La carpeta de validaciones está vacía.');drvOptions('drvPolygon',items,drvLast().polygon);});
+  drvAction(async function(){var items=(await drvList('validaciones')).filter(function(x){return x.folder;});
+    // Comas: segunda raíz de validaciones. Si el Apps Script aún no la admite, se sigue solo con la principal.
+    try{var comas=(await drvList('validacionesComas')).filter(function(x){return x.folder;});items=items.concat(comas.filter(function(x){return !items.some(function(y){return y.id===x.id;});})).sort(function(a,b){return a.name.localeCompare(b.name);});}catch(e){}
+    if(!items.length)throw new Error('La carpeta de validaciones está vacía.');drvOptions('drvPolygon',items,drvLast().polygon);});
 });
 $('drvClose').addEventListener('click',function(){$('drvDialog').close();DRV.files=[];});
 $('drvDialog').addEventListener('cancel',function(e){if(DRV.busy)e.preventDefault();});
