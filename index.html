@@ -529,6 +529,7 @@ input, select, textarea, button {max-width:100%;}
 
     <div class="rlist" id="rlist"></div>
     <div id="loadError" class="err hidden"></div>
+    <div id="gapPanel" class="hidden" role="status" style="margin-top:14px;font-size:13px;font-family:var(--font-mono)"></div>
     <div class="runall">
       <button class="btn btn-primary" id="runAll" type="button" disabled>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3l14 9-14 9V3z"/></svg>
@@ -550,7 +551,7 @@ input, select, textarea, button {max-width:100%;}
     <p class="sec-label">Cruce revisor</p>
     <div id="c2Stats" class="panel stats"></div>
     <p class="bulkmsg">El cruce utiliza solo reportes comparados. Las hojas sin columna de estado se informan en la carga.</p>
-    <div class="board"><table><thead><tr><th>Validador</th><th>Filas</th><th>Verificado / cambió</th><th>Otro campo</th><th>Sin cambio</th><th>No encontrado</th><th>Inválido / incompleto</th><th>NO APLICA con cambio</th></tr></thead><tbody id="c2Summary"></tbody></table></div>
+    <div class="board"><table><thead><tr><th>Validador</th><th>Filas</th><th>Verificado / cambió</th><th>Otro campo</th><th>Sin cambio</th><th>No encontrado</th><th>Inválido / incompleto</th><th>NO APLICA con cambio</th><th>Sin comparar</th></tr></thead><tbody id="c2Summary"></tbody></table></div>
     <div class="actions"><label>Validador <select id="c2Validator"><option value="">Todos</option></select></label><label>Técnico <select id="c2Technician"><option value="">Todos</option></select></label><label>Resultado <select id="c2Result"><option value="">Todos</option></select></label><label><input type="checkbox" id="c2NoAplica" checked> Avisar NO APLICA con cambio</label><button type="button" class="rbtn" id="pubStart">Publicar pendientes</button><a href="#pubPanel" class="rbtn" id="pubSettings" aria-expanded="false">⚙ Publicación</a><button type="button" class="rbtn" id="asgToggle" aria-controls="asgPanel" aria-expanded="false">👤 Asignar técnicos</button></div>
     <div id="asgPanel" class="panel hidden"><label>Polígono <select id="asgPolygon"></select></label><div id="asgRows"></div><datalist id="asgTechnicians"></datalist><button type="button" class="rbtn" id="asgClear">Limpiar asignación</button><p id="asgStatus" role="status"></p></div>
     <div id="pubPanel" class="panel hidden"><label>URL del Apps Script (/exec) <input id="pubUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label><label>Clave de escritura <input id="pubKey" type="password" autocomplete="off"></label><label><input type="checkbox" id="pubRemember"> Recordar clave en este navegador</label><label><input type="checkbox" id="pubObs"> Incluir observación del revisor (puede contener nombres)</label></div>
@@ -2160,6 +2161,81 @@ writeStyledWorkbook=function(sheets,filename){
   return originalWriteStyledWorkbook(sheets,filename);
 };
 
+/* ============ Reportes faltantes, registro de descargas y polígonos completos ============ */
+var REP_NOMBRE={UA:'UA',TIT:'TIT',CON:'CONS',OBR:'OBC',REC:'RECAP',ING:'ING'};
+function gapDia(day){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(day||'');return m?m[3]+'/'+m[2]:'';}
+function regFecha(v){var s=txt(v).trim(),m;
+  if((m=/^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s)))return m[1]+'-'+m[2].padStart(2,'0')+'-'+m[3].padStart(2,'0');
+  if((m=/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(s)))return (m[3].length===2?'20'+m[3]:m[3])+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+  return '';}
+/* Registro CONTROL_DESCARGAS: con varios intentos por código+reporte+fecha vale la ÚLTIMA fila. */
+function regIndex(list){var idx={};(list||[]).forEach(function(r){if(!r)return;idx[[txt(r.codigo).trim(),txt(r.reporte).trim().toUpperCase(),regFecha(r.fecha)].join('|')]={estado:txt(r.estado).trim().toUpperCase(),registros:r.registros,nota:txt(r.nota).trim()};});return idx;}
+/* Analiza qué reportes faltan por sector.
+   present: {REP:{A:[ubigeo+sector],B:[...]}} · fechas: {A:'AAAA-MM-DD',B:...} · registro: filas del registro, o null si no hay respuesta.
+   Devuelve {sectores, bloquea, gaps:[{sector,rep,falta:'A'|'B'|'AB',tipo:'parcial'|'info',motivo,texto}], avisos:[texto]}. */
+function gapAnalyze(present,fechas,registro){
+  var reps=Object.keys(REP_NOMBRE), has={}, any={A:false,B:false}, set=new Set(), idx=registro?regIndex(registro):null;
+  reps.forEach(function(rep){has[rep]={};['A','B'].forEach(function(side){has[rep][side]=new Set(((present||{})[rep]||{})[side]||[]);has[rep][side].forEach(function(c){set.add(c);any[side]=true;});});});
+  var out={sectores:Array.from(set).sort(),bloquea:!any.A||!any.B,gaps:[],avisos:[]};
+  if(out.bloquea)return out;
+  function reg(sec,rep,side){return idx&&fechas&&fechas[side]?(idx[sec+'|'+REP_NOMBRE[rep]+'|'+fechas[side]]||{estado:''}):null;}
+  out.sectores.forEach(function(sec){reps.forEach(function(rep){
+    var a=has[rep].A.has(sec), b=has[rep].B.has(sec), nombre=REP_NOMBRE[rep], S='S'+sec.slice(-2);
+    if(a&&b){['A','B'].forEach(function(side){var r=reg(sec,rep,side);if(r&&r.estado==='SOSPECHOSO')out.avisos.push('⚠ '+S+' · '+nombre+' · '+gapDia(fechas[side])+': descarga SOSPECHOSA, se comparó igual'+(r.nota?' ('+r.nota+')':''));});return;}
+    var g={sector:sec,rep:rep,falta:a?'B':b?'A':'AB'}, ra=reg(sec,rep,'A'), rb=reg(sec,rep,'B');
+    if(g.falta==='AB'){
+      if((ra&&ra.estado==='FALLO')||(rb&&rb.estado==='FALLO')){g.tipo='parcial';g.motivo='falló la descarga de '+nombre;g.texto='⚠ '+S+' · '+nombre+': falló la descarga, vuelve a bajarlo';}
+      else if((ra&&ra.estado==='VACIO')||(rb&&rb.estado==='VACIO')){g.tipo='info';g.motivo='sector sin '+nombre;g.texto='ℹ '+S+' sin '+nombre+' en ambas fechas (vacío en SICUN)';}
+      else {g.tipo='info';g.motivo='sector sin '+nombre;g.texto='ℹ '+S+' sin '+nombre+' en ambas fechas (el sector no lo tiene)';}
+    }else{
+      var r=g.falta==='A'?ra:rb, d=gapDia((fechas||{})[g.falta])||(g.falta==='A'?'ANTES':'DESPUÉS'), base=S+' · '+nombre+' · '+d;
+      if(r&&r.estado==='VACIO'){g.tipo='info';g.motivo=nombre+' vacío en SICUN '+d;g.texto='ℹ '+base+': vacío en SICUN';}
+      else {g.tipo='parcial';g.motivo='falta '+nombre+' '+d;
+        g.texto='⚠ '+base+': '+(!r?'falta en esta fecha':r.estado==='FALLO'?'falló la descarga, vuelve a bajarlo':!r.estado?'no se descargó':'falta en esta fecha (el registro dice '+r.estado+'; revisa la carga)');}
+    }
+    out.gaps.push(g);
+  });});
+  return out;
+}
+/* Publicación: un polígono solo se sobrescribe si TODOS sus sectores están cargados en ambas fechas.
+   polys: [{code,sectors:['25','27']}] · loaded: {A:Set(SS),B:Set(SS)}. */
+function pubPlan(polys,loaded){
+  var out={publicar:[],omitir:[]};
+  polys.forEach(function(p){var sectors=Array.from(p.sectors||[]).sort(), faltan=sectors.filter(function(x){return !loaded.A.has(x)||!loaded.B.has(x);});
+    if(!sectors.length)out.omitir.push({code:p.code,faltan:[],motivo:'sin sectores conocidos'});else if(faltan.length)out.omitir.push({code:p.code,faltan:faltan});else out.publicar.push(p.code);});
+  out.texto='Se publicarán: '+(out.publicar.join(', ')||'ninguno')+(out.omitir.length?' · Se omiten (sectores incompletos): '+out.omitir.map(function(o){return o.code+' ('+(o.motivo||'faltan '+o.faltan.map(function(x){return 'S'+x;}).join(', '))+')';}).join(', '):'');
+  return out;
+}
+function gapCodes(d){if(!d)return new Set();if(!d._codes){var set=new Set();(d.allRows||d.rows||[]).forEach(function(r){var k=txt(r[d._key]).trim();if(/^\d{14}$|^\d{24}$/.test(k))set.add(k.slice(0,8));});d._codes=set;}return d._codes;}
+function gapPresent(board){var out={};board.forEach(function(c){out[c.preset.id]={};['A','B'].forEach(function(side){if(c[side])c[side]._key=c.preset.key;out[c.preset.id][side]=Array.from(gapCodes(c[side]));});});return out;}
+function gapFechas(board){var days={A:new Set(),B:new Set()};board.forEach(function(c){['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))days[side].add(day);});});});
+  var a=Array.from(days.A).sort(), b=Array.from(days.B).sort();return {A:a[0]||'',B:b[b.length-1]||''};}
+function gapNow(){var d=CUR>=0?DISTRICTS[CUR]:null;if(!d||!d.board.some(function(c){return c.A||c.B;}))return null;return gapAnalyze(gapPresent(d.board),gapFechas(d.board),Array.isArray(d.registro)?d.registro:null);}
+/* Un sector presente en una sola fecha no se compara: evita "todo eliminado / todo nuevo". */
+(function(){var base=compareCtx;compareCtx=function(ctx){
+  if(ctx.A&&ctx.B){ctx.A._key=ctx.B._key=ctx.preset.key;var a=gapCodes(ctx.A), b=gapCodes(ctx.B), skip=new Set();
+    a.forEach(function(c){if(!b.has(c))skip.add(c);});b.forEach(function(c){if(!a.has(c))skip.add(c);});
+    if(skip.size)['A','B'].forEach(function(side){var d=ctx[side];ctx[side]=Object.assign({},d,{rows:d.rows.filter(function(r){return !skip.has(txt(r[ctx.preset.key]).trim().slice(0,8));})});});}
+  return base(ctx);};})();
+function gapRender(){
+  var host=$('gapPanel'), gap=gapNow(), d=CUR>=0?DISTRICTS[CUR]:null;
+  if(!gap||(!gap.bloquea&&!gap.gaps.length&&!gap.avisos.length&&!(d&&d.registroError))){host.classList.add('hidden');host.innerHTML='';return;}
+  function line(text,color){return '<div style="color:var(--'+color+')">'+esc(text)+'</div>';}
+  var html='';
+  if(gap.bloquea)html+=line('No hay ningún reporte cargado en una de las dos fechas: no se puede comparar.','amber');
+  else{
+    var parcial=gap.gaps.filter(function(g){return g.tipo==='parcial';}), info=gap.gaps.filter(function(g){return g.tipo==='info';});
+    if(parcial.length)html+=line('Cruce parcial: faltan reportes en una fecha. Se compara el resto.','amber')+parcial.map(function(g){return line(g.texto,'amber');}).join('');
+    html+=gap.avisos.map(function(t){return line(t,'amber');}).join('');
+    var solo=info.filter(function(g){return g.falta!=='AB';}), both={};
+    html+=solo.map(function(g){return line(g.texto,'text-mute');}).join('');
+    info.filter(function(g){return g.falta==='AB';}).forEach(function(g){(both[g.rep]||(both[g.rep]=[])).push('S'+g.sector.slice(-2));});
+    html+=Object.keys(both).map(function(rep){return line('ℹ '+both[rep].join(', ')+' sin '+REP_NOMBRE[rep]+' en ambas fechas (el sector no lo tiene)','text-mute');}).join('');
+  }
+  if(d&&d.registroError)html+=line('ℹ Registro de descargas no disponible: se usa solo lo cargado.','text-mute');
+  host.innerHTML=html;host.classList.remove('hidden');
+}
+
 /* ============ C2: lectura y cruce sobre resultados existentes ============ */
 function c2norm(s){return stripAccents(txt(s)).toLowerCase().replace(/[–—]/g,'-').replace(/\s+/g,' ').trim();}
 function c2header(s){return c2norm(s).replace(/\}+\s*$/,'').trim();}
@@ -2334,6 +2410,7 @@ function c2rediff(ctx,x,y){
 }
 function c2rows(){
   var files=c2files(), keys=c2keys(), events=[];BOARD_().forEach(function(c){events=events.concat(c2events(c));});
+  var gapState=gapNow(), gapIdx={};if(gapState&&!gapState.bloquea)gapState.gaps.forEach(function(g){gapIdx[g.sector+'|'+g.rep]=g;});
   var huellas=null, lotCache={};function lotMatch(l){if(!huellas)huellas=c2huellas(BOARD_());return lotCache[l]||(lotCache[l]=c2matchUnits(huellas.A,huellas.B,l));}
   var all=[];files.forEach(function(file){file.rows.forEach(function(row){
     if(row.noState||(!row.state||row.state==='PENDIENTE'))return;
@@ -2372,9 +2449,11 @@ function c2rows(){
     });
     if(!map&&row.state!=='APLICA'){otros=hits.concat(otros);hits=[];}
     function names(list){var u=Array.from(new Set(list.map(function(e){return e.report+' · '+e.field;})));return u.slice(0,5).join(', ')+(u.length>5?' y '+(u.length-5)+' más':'');}
+    var sec8=code.length===24?code.slice(0,8):(lotCode||'').slice(0,8), rowGaps=map&&sec8.length===8?c2reports(map).map(function(id){return gapIdx[sec8+'|'+id];}).filter(Boolean):[];
     var sector=code.length===8?code.slice(0,2):code.slice(6,8), sectorLoaded=keys.some(function(k){return k.slice(6,8)===sector;}), status, cls=null;
     if(row.state==='NO APLICA'&&(!code||(!matching.length && !(lotUbigeos && lotUbigeos.size>1))||!sectorLoaded||!$('c2NoAplica').checked))return;
     if(invalid)status='ESTADO INVÁLIDO';else if(!code)status='CRC INCOMPLETO';else if(!sectorLoaded)status='SECTOR NO CARGADO';else if(lotUbigeos && lotUbigeos.size>1)status='LOTE AMBIGUO (varios ubigeos)';else if(!matching.length)status='? NO ENCONTRADO';else if(!BOARD_().some(function(c){return !!c.RES;}))status='PENDIENTE DE COMPARACIÓN';
+    else if(rowGaps.length && row.state!=='NO APLICA' && !hits.length && (row.state==='APLICA'||!otros.length))status='⏸ Sin comparar ('+Array.from(new Set(rowGaps.map(function(g){return g.motivo;}))).join('; ')+')';
     else if(row.state==='APLICA' && isCrc && revisar.length){status='⚠ REVISAR A MANO';addNote('CRC: '+revisar[0].reason+'; no se pudo emparejar la unidad');}
     else if(row.state==='APLICA' && map && !hits.length && c2reports(map).some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';
     else {cls=c2classify(row.state,hits.length,otros.length);if(cls.omit)return;status=cls.result;
@@ -2385,8 +2464,8 @@ function c2rows(){
     all.push(Object.assign({},row,{code:code||row.rawCode,fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,change:(resumen?resumen+(changes.length?' | ':''):'')+changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':''),note:note}));
   });});return all;
 }
-function c2bucket(s){if(/VERIFICADO|✔ CAMBIÓ/.test(s))return 0;if(/OTRO CAMPO/.test(s))return 1;if(/SIN CAMBIO/.test(s))return 2;if(/NO ENCONTRADO|SECTOR NO CARGADO/.test(s))return 3;if(/INVÁLIDO|INCOMPLETO|PENDIENTE|LOTE AMBIGUO|REVISAR A MANO/.test(s))return 4;return 5;}
-function c2summary(rows){var result={};rows.forEach(function(r){var a=result[r.validator]||(result[r.validator]=[0,0,0,0,0,0,0]);a[0]++;a[c2bucket(r.result)+1]++;});return result;}
+function c2bucket(s){if(/VERIFICADO|✔ CAMBIÓ/.test(s))return 0;if(/OTRO CAMPO/.test(s))return 1;if(/SIN CAMBIO/.test(s))return 2;if(/NO ENCONTRADO|SECTOR NO CARGADO/.test(s))return 3;if(/INVÁLIDO|INCOMPLETO|PENDIENTE|LOTE AMBIGUO|REVISAR A MANO/.test(s))return 4;if(/^⏸/.test(s))return 6;return 5;}
+function c2summary(rows){var result={};rows.forEach(function(r){var a=result[r.validator]||(result[r.validator]=[0,0,0,0,0,0,0,0]);a[0]++;a[c2bucket(r.result)+1]++;});return result;}
 /* Asignaciones locales por polígono y validador; nunca se editan filas fuente. */
 function asgRead(polygon){
   try{var value=JSON.parse(localStorage.getItem('vc-cmp-asig-'+polygon)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch(e){return {};}
@@ -2423,16 +2502,16 @@ function c2codeCells(code){
   var smz=parts?parts.slice(2,5).join('-'):/^\d{8}$/.test(full)?full.slice(0,2)+'-'+full.slice(2,5)+'-'+full.slice(5):'';
   return '<td title="'+esc(full)+'">'+esc(parts?parts.slice(1).join(' · '):full)+'</td><td>'+esc(smz)+'</td>';
 }
-function c2render(){asgRender();var files=c2files(), section=$('c2Section');$('c2Load').classList.toggle('hidden',CUR<0);section.classList.toggle('hidden',!files.length);if(!files.length){$('c2FilesSummary').textContent='Ningún archivo cargado.';return;}
+function c2render(){gapRender();asgRender();var files=c2files(), section=$('c2Section');$('c2Load').classList.toggle('hidden',CUR<0);section.classList.toggle('hidden',!files.length);if(!files.length){$('c2FilesSummary').textContent='Ningún archivo cargado.';return;}
   $('c2FilesSummary').innerHTML=files.map(function(f){var t=f.totals;return esc(f.name)+' · Polígono '+esc(f.polygon||'no identificado')+' · '+f.sheets.length+' hojas VAL_ · '+t.valid+' filas · '+t.reviewed+' revisadas · APLICA '+t.aplica+' · NO APLICA '+t.no+' · OTRO CAMBIO '+t.otro+' · vacías / pendientes '+t.empty+' · inválidas '+t.invalid+(t.noState?' · '+t.noState+' SIN COLUMNA DE ESTADO: '+esc(f.sheets.filter(function(s){return s.noState;}).map(function(s){return s.name+' ('+s.rows+' filas)';}).join(', ')):'');}).join('<br>');
-  var rows=c2assign(c2rows()), summary=c2summary(rows), totals=[0,0,0,0,0,0];rows.forEach(function(r){totals[c2bucket(r.result)]++;});var labels=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio'];$('c2Stats').innerHTML=labels.map(function(l,i){return '<div class="stat '+(['new','mod','del','same','del','same'][i])+'"><div class="k">'+l+'</div><div class="v">'+totals[i]+'</div></div>';}).join('');
+  var rows=c2assign(c2rows()), summary=c2summary(rows), totals=[0,0,0,0,0,0,0];rows.forEach(function(r){totals[c2bucket(r.result)]++;});var labels=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio','⏸ Sin comparar'];$('c2Stats').innerHTML=labels.map(function(l,i){return '<div class="stat '+(['new','mod','del','same','del','same','same'][i])+'"><div class="k">'+l+'</div><div class="v">'+totals[i]+'</div></div>';}).join('');
   $('c2Summary').innerHTML=Object.keys(summary).sort().map(function(k){return '<tr><td>'+esc(k)+'</td>'+summary[k].map(function(n){return '<td>'+n+'</td>';}).join('')+'</tr>';}).join('');
   function options(id,values){var el=$(id),old=el.value;el.innerHTML='<option value="">Todos</option>'+values.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');el.value=old;}
   options('c2Technician',Array.from(new Set(rows.map(function(r){return r.tecnico;}))).sort());options('c2Validator',Array.from(new Set(rows.map(function(r){return r.validator;}))).sort());options('c2Result',Array.from(new Set(rows.map(function(r){return r.result;}))).sort());
   rows=rows.filter(function(r){return (!$('c2Technician').value||r.tecnico===$('c2Technician').value)&&(!$('c2Validator').value||r.validator===$('c2Validator').value)&&(!$('c2Result').value||r.result===$('c2Result').value);});
   $('c2Body').innerHTML=rows.map(function(r){return '<tr>'+[r.polygon,r.sheet,r.tecnico,r.validator+' · '+r.fi].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+c2codeCells(r.code)+[r.piso,r.state,r.message,r.result,r.change,r.observation,r.note].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+'</tr>';}).join('');
 }
-function c2sheets(){var rows=c2rows(),head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,r.result,r.change,r.note]);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);c2files().forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=c2files().reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
+function c2sheets(){var rows=c2rows(),head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,r.result,r.change,r.note]);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k].slice(0,7)));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);c2files().forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=c2files().reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
 (function(){var original=c2sheets;c2sheets=function(){var sheets=original();sheets.forEach(function(sheet){if(sheet.name!=='CRUCE_REVISOR')return;var head=sheet.aoa[sheet.headerRow],tech=head.indexOf('Técnico'),polygon=head.indexOf('Polígono'),validator=head.indexOf('Validador');sheet.aoa.slice(sheet.headerRow+1).forEach(function(row){row[tech]=c2assign([{polygon:row[polygon],validator:row[validator],tecnico:row[tech]}])[0].tecnico;});});return sheets;};})();
 (function(){var original=writeStyledWorkbook;writeStyledWorkbook=function(sheets,filename){if(c2files().length)sheets=sheets.concat(c2sheets());return original(sheets,filename);};})();
 function loadReviewerFiles(files){
@@ -2453,7 +2532,7 @@ $('c2Clear').addEventListener('click',function(){if(CUR>=0)DISTRICTS[CUR].c2=[];
 /* Publicación: proyección explícita de datos, sin valores SICUN ni mensaje del validador. */
 var PUB_LABELS=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio'];
 var PUB_COUNTS=['verificado','otroCampo','sinCambio','noEncontrado','invalido','noAplicaConCambio'];
-function pubCounts(rows){var out={filas:rows.length};PUB_COUNTS.forEach(function(k){out[k]=0;});rows.forEach(function(r){out[PUB_COUNTS[c2bucket(r.result)]]++;});return out;}
+function pubCounts(rows){rows=rows.filter(function(r){return c2bucket(r.result)!==6;});var out={filas:rows.length};PUB_COUNTS.forEach(function(k){out[k]=0;});rows.forEach(function(r){out[PUB_COUNTS[c2bucket(r.result)]]++;});return out;}
 function pubGroup(rows,key){var groups=Object.create(null);rows.forEach(function(r){var k=r[key]||'SIN ASIGNAR';(groups[k]||(groups[k]=[])).push(r);});Object.keys(groups).forEach(function(k){groups[k]=pubCounts(groups[k]);});return groups;}
 function pubFields(row,events){
   var code=c2resolve(row,c2keys()), map=c2map(row.validator), lot=code.length===8||map&&map.level==='LOTE';
@@ -2462,13 +2541,15 @@ function pubFields(row,events){
     return code && (lot||row.validator==='VAL_CRC'&&e.type==='nuevos'?sameLot:e.key===code||e.key.length===14&&e.key===code.slice(0,14));
   }).map(function(e){return e.report+' · '+e.field;}))).join(' | ');
 }
-function pubPayload(polygon,rows,key,includeObs){
-  rows=c2assign(rows);
+function pubPayload(polygon,rows,key,includeObs,extra){
+  rows=c2assign(rows);var sinComparar=rows.filter(function(r){return c2bucket(r.result)===6;}).length;
   var dates={A:new Set(),B:new Set()},events=[];
   BOARD_().forEach(function(c){if(!c.RES)return;events=events.concat(c2events(c));['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))dates[side].add(day);});});});
   if(!dates.A.size||!dates.B.size)throw new Error('Se necesita al menos una fecha de descarga ANTES y DESPUÉS en los reportes comparados.');
   function range(side){var days=Array.from(dates[side]).sort(),format=function(d){return d.split('-').reverse().join('/');};return format(days[0])+(days.length>1?' – '+format(days[days.length-1]):'');}
-  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:range('A'),despues:range('B'),totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.filter(function(r){var bucket=c2bucket(r.result);return bucket===2||bucket===5;}).map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);var fila={poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:r.result,campos:pubFields(r,events)};if(includeObs)fila.obs=txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500);fila.nota=txt(r.note);return fila;})};
+  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:range('A'),despues:range('B'),totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.filter(function(r){var bucket=c2bucket(r.result);return bucket===2||bucket===5;}).map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);var fila={poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:r.result,campos:pubFields(r,events)};if(includeObs)fila.obs=txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500);fila.nota=txt(r.note);return fila;}),
+    /* Campos nuevos al final: cruce parcial (faltó un reporte en una fecha) y filas sin comparar, fuera de los conteos. */
+    parcial:!!(extra&&extra.parcial),parcialDetalle:extra&&extra.parcialDetalle||[],sinComparar:sinComparar};
 }
 async function pubPost(url,payload){
   var response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
@@ -2477,7 +2558,7 @@ async function pubPost(url,payload){
   return data;
 }
 (function(){
-  var queue=[],url='',busy=false,warnings='';
+  var queue=[],url='',busy=false,warnings='',plan=null;
   function panel(){ $('pubPanel').classList.remove('hidden');$('pubSettings').setAttribute('aria-expanded','true'); }
   // Recuperar la preferencia antes de guardar la clave en el almacenamiento elegido.
   try{$('pubRemember').checked=!!(localStorage.getItem('vc-cmp-pub-key')||'').trim();$('pubUrl').value=localStorage.getItem('vc-cmp-pub-url')||'';$('pubKey').value=sessionStorage.getItem('vc-cmp-pub-key')||localStorage.getItem('vc-cmp-pub-key')||'';}catch(e){}
@@ -2486,7 +2567,7 @@ async function pubPost(url,payload){
   $('pubUrl').addEventListener('input',function(){try{localStorage.setItem('vc-cmp-pub-url',this.value.trim());}catch(e){}});
   $('pubKey').addEventListener('input',saveKey);$('pubRemember').addEventListener('change',saveKey);
   $('pubSettings').addEventListener('click',function(e){e.preventDefault();var open=$('pubPanel').classList.toggle('hidden');this.setAttribute('aria-expanded',String(!open));});
-  function next(){if(!queue.length)return;var p=queue[0];$('pubPreview').textContent='Polígono '+p.poligono+' · '+p.filas.length+' filas pendientes de '+p.totales.filas+' · '+p.antes+' → '+p.despues+(warnings?' · '+warnings:'')+'\n'+PUB_COUNTS.map(function(k,i){return PUB_LABELS[i]+': '+p.totales[k];}).join(' · ');$('pubDialog').showModal();}
+  function next(){if(!queue.length)return;var p=queue[0];$('pubPreview').textContent='Polígono '+p.poligono+' · '+p.filas.length+' filas pendientes de '+p.totales.filas+' · '+p.antes+' → '+p.despues+(warnings?' · '+warnings:'')+'\n'+PUB_COUNTS.map(function(k,i){return PUB_LABELS[i]+': '+p.totales[k];}).join(' · ')+(p.sinComparar?' · ⏸ Sin comparar: '+p.sinComparar+' (no cuentan)':'')+(p.parcial?'\n⚠ Cruce parcial: '+p.parcialDetalle.join(' | '):'')+(plan?'\n'+plan.texto:'');$('pubDialog').showModal();}
   $('pubStart').addEventListener('click',function(){
     if(busy)return;url=$('pubUrl').value.trim();var key=$('pubKey').value.trim();
     if(!url||!key){panel();$('pubStatus').textContent='Configura la URL y la clave de escritura.';return;}
@@ -2494,7 +2575,7 @@ async function pubPost(url,payload){
     var filterNodes=CF_SEGS.concat(LOC_SEGS).map(function(s){return $(s.id);}).concat([$('fPaste'),$('lPaste')]);
     var values=filterNodes.map(function(el){return el.value;}), filters=FILTER_STATE;
     var ids=['polySelect','c2Validator','c2Technician','c2Result'], selections=ids.map(function(id){return $(id).value;});
-    queue=[];warnings='';
+    queue=[];warnings='';plan=null;
     try{
       var parsed=new URL(url);if(parsed.protocol!=='https:'||!parsed.pathname.endsWith('/exec'))throw new Error('La URL debe usar HTTPS y terminar en /exec.');
       // Comparar copias completas, sin reconstruir controles ni los reportes de la vista.
@@ -2506,7 +2587,16 @@ async function pubPost(url,payload){
       BOARD_().forEach(function(c){if(c.RES)['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){dates[side].add(fileDate(f).day);});});});
       warnings=['A','B'].filter(function(side){return dates[side].size>1;}).map(function(side){return (side==='A'?'ANTES':'DESPUÉS')+' con '+dates[side].size+' fechas distintas';}).join(' · ');
       if(polygons.some(function(p){return !p;}))throw new Error('Hay archivos sin polígono identificado; revisa el nombre del Excel.');
-      queue=polygons.map(function(p){return pubPayload(p,rows.filter(function(r){return r.polygon===p;}),key,$('pubObs').checked);});
+      var gap=gapNow();if(!gap||gap.bloquea)throw new Error('No hay ningún reporte cargado en una de las dos fechas: no se publica nada.');
+      // Solo se sobrescriben polígonos con TODOS sus sectores cargados en ambas fechas; los demás no se tocan.
+      var present=gapPresent(BOARD_()),loaded={A:new Set(),B:new Set()};Object.keys(present).forEach(function(id){['A','B'].forEach(function(side){present[id][side].forEach(function(c){loaded[side].add(c.slice(-2));});});});
+      var sectorsOf={};polygons.forEach(function(p){var u=POLYGONS.find(function(x){return x.code===p;}),set=new Set(u?Array.from(u.sectors):[]);
+        if(!u)c2files().forEach(function(f){if(f.polygon!==p)return;f.rows.forEach(function(r){if(/^\d{24}$/.test(r.rawCode))set.add(r.rawCode.slice(6,8));else if(/^\d{8}$/.test(r.rawCode))set.add(r.rawCode.slice(0,2));else if(r.partial)set.add(r.partial.slice(0,2));});});
+        sectorsOf[p]=set;});
+      plan=pubPlan(polygons.map(function(p){return {code:p,sectors:sectorsOf[p]};}),loaded);
+      queue=plan.publicar.map(function(p){var detalle=gap.gaps.filter(function(g){return g.tipo==='parcial'&&sectorsOf[p].has(g.sector.slice(-2));}).map(function(g){return g.texto.replace(/^⚠ /,'');});
+        return pubPayload(p,rows.filter(function(r){return r.polygon===p;}),key,$('pubObs').checked,{parcial:detalle.length>0,parcialDetalle:detalle});});
+      var planLine=document.createElement('div');planLine.textContent=plan.texto;$('pubStatus').appendChild(planLine);
     }catch(e){queue=[];$('pubStatus').textContent=e.message;}
     finally{
       if(district)district.board=board;POLY_ACTIVE=active;FILTER_STATE=filters;
@@ -2751,8 +2841,9 @@ $('drvLoad').addEventListener('click',function(){drvAction(async function(){
   if(JSON.stringify(DRV.selected)!==JSON.stringify(drvSelected()))throw new Error('Los sectores cambiaron. Vuelve a buscar fechas.');
   var files=DRV.files.filter(function(x){return x.day===a||x.day===b;}),pairs={};
   files.forEach(function(x){var m=x.name.match(/^rep_(.+)_\d{8}_\d{6}(?:\.xlsx)?$/i);if(!m)throw new Error('Nombre de reporte no válido: '+x.name);if(x.name.match(/_(\d{8})_\d{6}(?:\.xlsx)?$/i)[1].slice(-2)!==x.sector)throw new Error(x.name+': el sector del nombre no coincide con su carpeta.');var k=x.sector+'|'+m[1].toUpperCase();(pairs[k]||(pairs[k]=new Set())).add(x.day);});
-  if(!files.length||Object.keys(pairs).some(function(k){return pairs[k].size!==2;}))throw new Error('Faltan reportes equivalentes para ambas fechas en los sectores elegidos.');
-  var sectors=new Set(files.map(function(x){return x.sector;}));if(DRV.selected.some(function(s){return !sectors.has(s.slice(-2));}))throw new Error('Faltan sectores para las fechas elegidas.');
+  // Solo bloquea si una de las dos fechas no tiene NINGÚN reporte; lo demás se avisa sin bloquear.
+  if(!files.some(function(x){return x.day===a;})||!files.some(function(x){return x.day===b;}))throw new Error('No hay ningún reporte en una de las dos fechas para los sectores elegidos.');
+  var sectors=new Set(files.map(function(x){return x.sector;})),sinArchivos=Array.from(new Set(DRV.selected.map(function(s){return s.slice(-2);}))).filter(function(s){return !sectors.has(s);});
   var done=0,total=0;$('drvProgress').max=files.length;$('drvProgress').value=0;$('drvProgressText').textContent='0 de '+files.length;
   var loaded=await drvPool(files,async function(item){var file=await drvFile(item);total+=file.size;if(total>DRV_TOTAL)throw new Error('La selección supera 150 MiB. Carga menos sectores.');var data=await drvRead(file),preset=detectPreset(data.headers);if(!preset)throw new Error(file.name+': tipo de reporte no reconocido.');
     var wanted=DRV.selected.filter(function(s){return s.length===8&&s.slice(-2)===item.sector;});if(wanted.length&&data.rows.some(function(r){var crc=txt(r[preset.key]);return /^\d{14}$|^\d{24}$/.test(crc)&&wanted.indexOf(crc.slice(0,8))<0;}))throw new Error(file.name+': el ubigeo/sector no coincide con la selección.');
@@ -2765,7 +2856,12 @@ $('drvLoad').addEventListener('click',function(){drvAction(async function(){
   var source=DISTRICTS[DRV.district],name=$('drvDistrict').selectedOptions[0].textContent+' · Drive '+a+' → '+b;
   DISTRICTS.push({name:name,board:newBoard(),tec:{},c2:(source.c2||[]).slice()});switchDist(DISTRICTS.length-1);
   for(var k of Object.keys(grouped)){var group=grouped[k],i=BOARD_().findIndex(function(c){return c.preset.id===group[0].preset.id;});await new Promise(function(resolve,reject){loadInto(i,group[0].side,group.map(function(x){return x.file;}),function(errors){if(errors.length)reject(new Error(errors.join(' ')));else resolve();});});}
-  runAll();renderDistTabs();$('drvProgressText').textContent=done+' de '+files.length+' · Carga y comparación completadas.';DRV.files=[];
+  runAll();renderDistTabs();
+  // Registro del descargador (solo lectura): explica los reportes faltantes. Si no responde, se sigue sin él.
+  var district=DISTRICTS[CUR];district.registro=null;district.registroError=false;
+  try{var codes=(gapNow()||{sectores:[]}).sectores,reg=await drvGet('registro',{fechas:a+','+b,codigos:codes.join(',')});if(!Array.isArray(reg.registro))throw new Error('formato');district.registro=reg.registro;}catch(e){district.registroError=true;}
+  c2render();
+  $('drvProgressText').textContent=done+' de '+files.length+' · Carga y comparación completadas.'+(sinArchivos.length?' · Sin archivos en esas fechas: '+sinArchivos.map(function(s){return 'S'+s;}).join(', '):'')+($('gapPanel').classList.contains('hidden')?'':' · Revisa los avisos de reportes faltantes.');DRV.files=[];
 });});
 (function(){
   try{$('drvRemember').checked=!!localStorage.getItem('vc-cmp-drv-key');$('drvKey').value=sessionStorage.getItem('vc-cmp-drv-key')||localStorage.getItem('vc-cmp-drv-key')||'';}catch(e){}
