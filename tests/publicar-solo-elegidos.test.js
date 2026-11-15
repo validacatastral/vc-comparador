@@ -90,3 +90,9 @@ assert.strictEqual(T.pubUltimaTexto('260710148',null,local),'Última publicació
 assert.throws(function(){T.pubUltimasApi({error:'x'});});
 console.log('ok última publicación desde api=pendientes, navegador como respaldo');
 console.log('ok publicar solo elegidos');
+
+// 4) UNIVERSO VACÍO: polígono presente en api=universo pero con lista vacía (pestaña sin UBIGEO/SECTOR/MANZANA) → bloqueado "sin universo".
+(function(){var S2=function(a){return new Set(a);};var full2={A:S2(['30','38','39']),B:S2(['30','38','39'])};
+var op=T.pubOpciones([{code:'260410068',sectors:S2([]),ilegibles:0,sinUniverso:true,totales:tot(10,0,0)}],full2,'260410068')[0];
+assert.strictEqual(op.habilitado,false);assert.strictEqual(op.marcado,false);assert(/^sin universo/.test(op.motivo),'motivo sin universo');
+console.log('ok universo vacío = bloqueado (sin universo)');})();

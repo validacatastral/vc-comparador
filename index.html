@@ -2220,7 +2220,7 @@ function pubSeguro(t){var malas=((t||{}).noEncontrado||0)+((t||{}).invalido||0);
 function pubOpciones(items,loaded,activo){
   var omit={};pubPlan(items.map(function(i){return {code:i.code,sectors:i.sectors||[]};}),loaded).omitir.forEach(function(o){omit[o.code]=o;});
   var defecto=activo||(items.length===1?items[0].code:'');
-  return items.map(function(i){var o=omit[i.code],motivo=i.ilegibles?'no está en el universo y '+i.ilegibles+' códigos del Excel no se pueden leer':o?(o.motivo||'faltan '+o.faltan.map(function(x){return 'S'+x;}).join(', ')):pubSeguro(i.totales);
+  return items.map(function(i){var o=omit[i.code],motivo=i.sinUniverso?'sin universo (la pestaña del polígono no tiene UBIGEO/SECTOR/MANZANA)':i.ilegibles?'no está en el universo y '+i.ilegibles+' códigos del Excel no se pueden leer':o?(o.motivo||'faltan '+o.faltan.map(function(x){return 'S'+x;}).join(', ')):pubSeguro(i.totales);
     return {code:i.code,habilitado:!motivo,marcado:!motivo&&i.code===defecto,motivo:motivo};});
 }
 /* Solo se envía lo marcado Y habilitado; un polígono no marcado nunca se publica. */
@@ -2645,7 +2645,7 @@ async function pubPost(url,payload){
       var loaded=pubLoaded(gapPresent(BOARD_()));
       var items=polygons.map(function(p){var u=POLYGONS.find(function(x){return x.code===p;}),excel=u?null:pubSectoresExcel(c2files().filter(function(f){return f.polygon===p;}));
         totales[p]=pubCounts(rows.filter(function(r){return r.polygon===p;}));
-        return {code:p,sectors:u?u.sectors:excel.sectors,ilegibles:u?0:excel.ilegibles,totales:totales[p]};});
+        return {code:p,sectors:u?u.sectors:excel.sectors,ilegibles:u?0:excel.ilegibles,sinUniverso:!!u&&!u.keys.size,totales:totales[p]};});
       opciones=pubOpciones(items,loaded,active?active.code:'');
       opciones.forEach(function(o,i){if(!o.habilitado)return;var sectors=items[i].sectors,detalle=gap.gaps.filter(function(g){return g.tipo==='parcial'&&sectors.has(g.sector.slice(-2));}).map(function(g){return g.texto.replace(/^⚠ /,'');});
         payloads[o.code]=pubPayload(o.code,rows.filter(function(r){return r.polygon===o.code;}),key,$('pubObs').checked,{parcial:detalle.length>0,parcialDetalle:detalle});});
