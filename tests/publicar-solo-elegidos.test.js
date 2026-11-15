@@ -6,7 +6,7 @@ var fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('asser
 var html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 function cut(from,to){var i=html.indexOf(from),j=html.indexOf(to,i);assert(i>=0&&j>i,'no se halló: '+from);return html.slice(i,j);}
 var src=[cut('function txt(v){','function normVal'),cut('/* ============ Reportes faltantes','function gapCodes')].join('\n');
-var T=vm.runInNewContext(src+'\n({pubLoaded:pubLoaded,pubSectoresExcel:pubSectoresExcel,pubSeguro:pubSeguro,pubOpciones:pubOpciones,pubElegidos:pubElegidos});');
+var T=vm.runInNewContext(src+'\n({pubLoaded:pubLoaded,pubSectoresExcel:pubSectoresExcel,pubSeguro:pubSeguro,pubOpciones:pubOpciones,pubElegidos:pubElegidos,pubUltimasApi:pubUltimasApi,pubUltimaTexto:pubUltimaTexto});');
 function tot(filas,noEncontrado,invalido){return {filas:filas,verificado:filas-noEncontrado-invalido,otroCampo:0,sinCambio:0,noEncontrado:noEncontrado,invalido:invalido,noAplicaConCambio:0};}
 function by(list,code){return list.filter(function(o){return o.code===code;})[0];}
 function S(list){return new Set(list);}
@@ -74,4 +74,19 @@ op=T.pubOpciones(ok3,full,'');assert(op.every(function(x){return !x.marcado;}),'
 op=T.pubOpciones(ok3.slice(0,1),full,'');assert.strictEqual(op[0].marcado,true,'un único polígono cargado viene marcado');
 op=T.pubOpciones(items,loaded,'260410068');assert(op.every(function(x){return !x.marcado;}),'un activo incompleto no se marca');
 console.log('ok activo marcado por defecto');
+
+// 6) ÚLTIMA PUBLICACIÓN: se lee de GET ?api=pendientes; el navegador es solo respaldo si el servidor no responde.
+var api=T.pubUltimasApi([
+  {poligono:'260410068',publicado:'14/11/2026 16:35',antes:'10/11/2026',despues:'14/11/2026',totales:{filas:285,verificado:59,otroCampo:1,sinCambio:17,noEncontrado:206,invalido:0,noAplicaConCambio:2}},
+  {poligono:'260710148',publicado:'14/11/2026 16:29',antes:'10/11/2026',despues:'14/11/2026',totales:{verificado:838,sinCambio:7,noAplica:213}},
+  {poligono:'260110002',publicado:'',totales:{pendientes:4}},null,{publicado:'x'}]);
+var local={'260410068':{fecha:'13/11/2026, 9:00:00',pendientes:23,filas:300,antes:'08/11/2026',despues:'12/11/2026'},'260210019':{fecha:'14/11/2026, 16:10:00',pendientes:5,filas:120,antes:'10/11/2026',despues:'14/11/2026'}};
+assert.strictEqual(T.pubUltimaTexto('260410068',api,local),'Última publicación: 14/11/2026 16:35 · 19 pendientes de 285 · 10/11/2026 → 14/11/2026','manda el servidor, no el navegador');
+assert.strictEqual(T.pubUltimaTexto('260710148',api,local),'Última publicación: 14/11/2026 16:29 · 220 pendientes · 10/11/2026 → 14/11/2026');
+assert.strictEqual(T.pubUltimaTexto('260110002',api,local),'Última publicación: sin fecha · 4 pendientes');
+assert.strictEqual(T.pubUltimaTexto('260210019',api,local),'Última publicación: nunca publicado','si el servidor responde y no lo trae, no se usa el navegador');
+assert.strictEqual(T.pubUltimaTexto('260410068',null,local),'Última publicación: 13/11/2026, 9:00:00 · 23 pendientes de 300 · 08/11/2026 → 12/11/2026 (respaldo de este navegador: el servidor no respondió)');
+assert.strictEqual(T.pubUltimaTexto('260710148',null,local),'Última publicación: sin registro (respaldo de este navegador: el servidor no respondió)');
+assert.throws(function(){T.pubUltimasApi({error:'x'});});
+console.log('ok última publicación desde api=pendientes, navegador como respaldo');
 console.log('ok publicar solo elegidos');

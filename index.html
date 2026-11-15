@@ -2225,6 +2225,14 @@ function pubOpciones(items,loaded,activo){
 }
 /* Solo se envía lo marcado Y habilitado; un polígono no marcado nunca se publica. */
 function pubElegidos(opciones,marcados){var set=new Set(marcados||[]);return (opciones||[]).filter(function(o){return o.habilitado&&set.has(o.code);}).map(function(o){return o.code;});}
+/* Última publicación por polígono. lista: respuesta de GET ?api=pendientes → [{poligono,publicado,antes,despues,totales}].
+   Pendientes = totales.pendientes, o sinCambio + noAplicaConCambio (igual que vc-pendientes). Devuelve {código:{fecha,pendientes,filas,antes,despues}}. */
+function pubUltimasApi(lista){if(!Array.isArray(lista))throw new Error('Formato de pendientes no reconocido.');var out={};function n(v){v=Number(v);return isFinite(v)&&v>=0?v:0;}
+  lista.forEach(function(x){if(!x||!txt(x.poligono).trim())return;var t=x.totales||{};out[txt(x.poligono).trim()]={fecha:txt(x.publicado).trim()||'sin fecha',pendientes:t.pendientes!=null?n(t.pendientes):n(t.sinCambio)+n(t.noAplicaConCambio!=null?t.noAplicaConCambio:t.noAplica),filas:t.filas!=null?n(t.filas):null,antes:txt(x.antes).trim(),despues:txt(x.despues).trim()};});return out;}
+/* Texto de la última publicación: manda el servidor (api); si no respondió (api=null) se usa lo guardado en este navegador como respaldo. */
+function pubUltimaTexto(code,api,local){var u=api?api[code]:(local||{})[code],nota=api?'':' (respaldo de este navegador: el servidor no respondió)';
+  if(!u)return 'Última publicación: '+(api?'nunca publicado':'sin registro'+nota);
+  return 'Última publicación: '+u.fecha+' · '+u.pendientes+' pendientes'+(u.filas!=null?' de '+u.filas:'')+(u.antes||u.despues?' · '+(u.antes||'—')+' → '+(u.despues||'—'):'')+nota;}
 function gapCodes(d){if(!d)return new Set();if(!d._codes){var set=new Set();(d.allRows||d.rows||[]).forEach(function(r){var k=txt(r[d._key]).trim();if(/^\d{14}$|^\d{24}$/.test(k))set.add(k.slice(0,8));});d._codes=set;}return d._codes;}
 function gapPresent(board){var out={};board.forEach(function(c){out[c.preset.id]={};['A','B'].forEach(function(side){if(c[side])c[side]._key=c.preset.key;out[c.preset.id][side]=Array.from(gapCodes(c[side]));});});return out;}
 function gapFechas(board){var days={A:new Set(),B:new Set()};board.forEach(function(c){['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))days[side].add(day);});});});
@@ -2577,7 +2585,7 @@ async function pubPost(url,payload){
   return data;
 }
 (function(){
-  var opciones=[],payloads={},totales={},url='',busy=false,warnings='';
+  var opciones=[],payloads={},totales={},url='',busy=false,warnings='',consulta=0;
   function panel(){ $('pubPanel').classList.remove('hidden');$('pubSettings').setAttribute('aria-expanded','true'); }
   // Recuperar la preferencia antes de guardar la clave en el almacenamiento elegido.
   try{$('pubRemember').checked=!!(localStorage.getItem('vc-cmp-pub-key')||'').trim();$('pubUrl').value=localStorage.getItem('vc-cmp-pub-url')||'';$('pubKey').value=sessionStorage.getItem('vc-cmp-pub-key')||localStorage.getItem('vc-cmp-pub-key')||'';}catch(e){}
@@ -2586,7 +2594,9 @@ async function pubPost(url,payload){
   $('pubUrl').addEventListener('input',function(){try{localStorage.setItem('vc-cmp-pub-url',this.value.trim());}catch(e){}});
   $('pubKey').addEventListener('input',saveKey);$('pubRemember').addEventListener('change',saveKey);
   $('pubSettings').addEventListener('click',function(e){e.preventDefault();var open=$('pubPanel').classList.toggle('hidden');this.setAttribute('aria-expanded',String(!open));});
-  /* Última publicación por polígono hecha desde este navegador (para comparar antes de sobrescribir). */
+  /* Última publicación: se lee del servidor (GET ?api=pendientes, lo mismo que muestra vc-pendientes); lo guardado en este navegador es solo respaldo. */
+  async function ultimasServidor(){var u=new URL(url);u.search='';u.searchParams.set('api','pendientes');
+    var res=await fetch(u.href,{method:'GET',cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(20000)});if(!res.ok)throw new Error('HTTP '+res.status);return pubUltimasApi(await res.json());}
   function ultimas(){try{var v=JSON.parse(localStorage.getItem('vc-cmp-pub-last')||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch(e){return {};}}
   function guardarUltima(p){var all=ultimas();all[p.poligono]={fecha:new Date().toLocaleString('es-PE'),pendientes:p.filas.length,filas:p.totales.filas,antes:p.antes,despues:p.despues};try{localStorage.setItem('vc-cmp-pub-last',JSON.stringify(all));}catch(e){}}
   function status(text){var line=document.createElement('div');line.textContent=text;$('pubStatus').appendChild(line);}
@@ -2594,18 +2604,20 @@ async function pubPost(url,payload){
   function syncSend(){$('pubSend').disabled=busy||!pubElegidos(opciones,marcados()).length;}
   /* Lista con casillas: solo viene marcado el polígono activo; lo incompleto o inválido queda deshabilitado con su motivo. */
   function render(){
-    var last=ultimas(),host=$('pubList');host.textContent='';
+    var host=$('pubList'),turno=++consulta;host.textContent='';
     $('pubPreview').textContent='Marca los polígonos a publicar. Solo se envían los marcados.'+(warnings?' · '+warnings:'');
     opciones.forEach(function(o){
-      var t=totales[o.code],p=payloads[o.code],u=last[o.code],label=document.createElement('label'),input=document.createElement('input'),info=document.createElement('div');
+      var t=totales[o.code],p=payloads[o.code],label=document.createElement('label'),input=document.createElement('input'),info=document.createElement('div'),ultima=document.createElement('div');
       label.style.cssText='display:block;margin:10px 0';info.className='sub';info.style.whiteSpace='pre-line';
       input.type='checkbox';input.value=o.code;input.checked=o.marcado;input.disabled=!o.habilitado;
       label.append(input,document.createTextNode(' Polígono '+o.code+(o.habilitado?' · '+p.filas.length+' pendientes de '+t.filas+' · '+p.antes+' → '+p.despues:' · NO se puede publicar: '+o.motivo)));
-      info.textContent=PUB_COUNTS.map(function(k,i){return PUB_LABELS[i]+': '+t[k];}).join(' · ')+(p&&p.sinComparar?' · ⏸ Sin comparar: '+p.sinComparar+' (no cuentan)':'')+(p&&p.parcial?'\n⚠ Cruce parcial: '+p.parcialDetalle.join(' | '):'')
-        +'\nÚltima publicación: '+(u?u.fecha+' · '+u.pendientes+' pendientes de '+u.filas+' · '+u.antes+' → '+u.despues:'sin registro en este navegador');
-      label.appendChild(info);host.appendChild(label);
+      info.textContent=PUB_COUNTS.map(function(k,i){return PUB_LABELS[i]+': '+t[k];}).join(' · ')+(p&&p.sinComparar?' · ⏸ Sin comparar: '+p.sinComparar+' (no cuentan)':'')+(p&&p.parcial?'\n⚠ Cruce parcial: '+p.parcialDetalle.join(' | '):'');
+      ultima.className='sub';ultima.dataset.ultima=o.code;ultima.textContent='Última publicación: consultando…';
+      label.append(info,ultima);host.appendChild(label);
     });
     syncSend();
+    function pintar(api){if(turno!==consulta)return;var local=ultimas();host.querySelectorAll('[data-ultima]').forEach(function(el){el.textContent=pubUltimaTexto(el.dataset.ultima,api,local);});}
+    ultimasServidor().then(pintar,function(){pintar(null);});
   }
   $('pubList').addEventListener('change',syncSend);
   $('pubStart').addEventListener('click',function(){
