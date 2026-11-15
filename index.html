@@ -555,9 +555,9 @@ input, select, textarea, button {max-width:100%;}
     <div class="actions"><label>Validador <select id="c2Validator"><option value="">Todos</option></select></label><label>Técnico <select id="c2Technician"><option value="">Todos</option></select></label><label>Resultado <select id="c2Result"><option value="">Todos</option></select></label><label><input type="checkbox" id="c2NoAplica" checked> Avisar NO APLICA con cambio</label><button type="button" class="rbtn" id="pubStart">Publicar pendientes</button><a href="#pubPanel" class="rbtn" id="pubSettings" aria-expanded="false">⚙ Publicación</a><button type="button" class="rbtn" id="asgToggle" aria-controls="asgPanel" aria-expanded="false">👤 Asignar técnicos</button></div>
     <div id="asgPanel" class="panel hidden"><label>Polígono <select id="asgPolygon"></select></label><div id="asgRows"></div><datalist id="asgTechnicians"></datalist><button type="button" class="rbtn" id="asgClear">Limpiar asignación</button><p id="asgStatus" role="status"></p></div>
     <div id="pubPanel" class="panel hidden"><label>URL del Apps Script (/exec) <input id="pubUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label><label>Clave de escritura <input id="pubKey" type="password" autocomplete="off"></label><label><input type="checkbox" id="pubRemember"> Recordar clave en este navegador</label><label><input type="checkbox" id="pubObs"> Incluir observación del revisor (puede contener nombres)</label></div>
-    <p class="sub">Publicar envía todos los polígonos cargados; tu vista no cambia.</p>
+    <p class="sub">Publicar envía solo los polígonos que marques; tu vista no cambia.</p>
     <div id="pubStatus" role="status" aria-live="polite"></div>
-    <dialog id="pubDialog" aria-labelledby="pubTitle"><h3 id="pubTitle">Publicar pendientes</h3><div id="pubPreview"></div><button type="button" id="pubCancel">Cancelar restantes</button> <button type="button" id="pubSend">Confirmar publicación</button></dialog>
+    <dialog id="pubDialog" aria-labelledby="pubTitle"><h3 id="pubTitle">Publicar pendientes</h3><div id="pubPreview"></div><div id="pubList"></div><button type="button" id="pubCancel">Cancelar</button> <button type="button" id="pubSend">Publicar marcados</button></dialog>
     <div class="tablecard" style="border-radius:12px;margin-top:12px"><div class="scroll"><table><thead><tr><th>Polígono</th><th>Hoja</th><th>Técnico</th><th>Validador · FI</th><th>Código</th><th>Sec-Mz-Lt</th><th>Piso</th><th>Estado</th><th>Mensaje validador</th><th>Verificación SICUN</th><th>Qué cambió</th><th>Observación</th><th>Nota</th></tr></thead><tbody id="c2Body"></tbody></table></div></div>
   </section>
 
@@ -2206,6 +2206,25 @@ function pubPlan(polys,loaded){
   out.texto='Se publicarán: '+(out.publicar.join(', ')||'ninguno')+(out.omitir.length?' · Se omiten (sectores incompletos): '+out.omitir.map(function(o){return o.code+' ('+(o.motivo||'faltan '+o.faltan.map(function(x){return 'S'+x;}).join(', '))+')';}).join(', '):'');
   return out;
 }
+/* Un sector solo cuenta como cargado si está en ANTES y DESPUÉS dentro de un MISMO reporte (es decir, se comparó).
+   present: salida de gapPresent → {REP:{A:[ubigeo+sector],B:[...]}}. */
+function pubLoaded(present){var ok=new Set();Object.keys(present||{}).forEach(function(id){var a=new Set((present[id]||{}).A||[]);((present[id]||{}).B||[]).forEach(function(c){if(a.has(c))ok.add(c.slice(-2));});});return {A:ok,B:ok};}
+/* Sectores de un polígono que NO está en el universo, leídos del Excel del revisor (todas las filas, revisadas o no).
+   Si hay códigos ilegibles no se puede saber si está completo: se informa cuántos. */
+function pubSectoresExcel(files){var sectors=new Set(),ilegibles=0;(files||[]).forEach(function(f){f.rows.forEach(function(r){
+  if(!r.numeric&&/^\d{24}$/.test(r.rawCode))sectors.add(r.rawCode.slice(6,8));else if(!r.numeric&&/^\d{8}$/.test(r.rawCode))sectors.add(r.rawCode.slice(0,2));else if(r.partial)sectors.add(r.partial.slice(0,2));else ilegibles++;});});return {sectors:sectors,ilegibles:ilegibles};}
+/* Seguro: nunca se publica un polígono si más del 50% de sus filas quedó "Inválido/incompleto" o "No encontrado". Devuelve el motivo o ''. */
+function pubSeguro(t){var malas=((t||{}).noEncontrado||0)+((t||{}).invalido||0);return t&&t.filas>0&&malas*2>t.filas?malas+' de '+t.filas+' inválidas o no encontradas':'';}
+/* Selector de publicación. items: [{code,sectors:Set,ilegibles,totales}] · loaded: pubLoaded() · activo: código del polígono activo.
+   Devuelve [{code,habilitado,marcado,motivo}]: por defecto solo se marca el activo (o el único cargado); lo bloqueado no se puede marcar. */
+function pubOpciones(items,loaded,activo){
+  var omit={};pubPlan(items.map(function(i){return {code:i.code,sectors:i.sectors||[]};}),loaded).omitir.forEach(function(o){omit[o.code]=o;});
+  var defecto=activo||(items.length===1?items[0].code:'');
+  return items.map(function(i){var o=omit[i.code],motivo=i.ilegibles?'no está en el universo y '+i.ilegibles+' códigos del Excel no se pueden leer':o?(o.motivo||'faltan '+o.faltan.map(function(x){return 'S'+x;}).join(', ')):pubSeguro(i.totales);
+    return {code:i.code,habilitado:!motivo,marcado:!motivo&&i.code===defecto,motivo:motivo};});
+}
+/* Solo se envía lo marcado Y habilitado; un polígono no marcado nunca se publica. */
+function pubElegidos(opciones,marcados){var set=new Set(marcados||[]);return (opciones||[]).filter(function(o){return o.habilitado&&set.has(o.code);}).map(function(o){return o.code;});}
 function gapCodes(d){if(!d)return new Set();if(!d._codes){var set=new Set();(d.allRows||d.rows||[]).forEach(function(r){var k=txt(r[d._key]).trim();if(/^\d{14}$|^\d{24}$/.test(k))set.add(k.slice(0,8));});d._codes=set;}return d._codes;}
 function gapPresent(board){var out={};board.forEach(function(c){out[c.preset.id]={};['A','B'].forEach(function(side){if(c[side])c[side]._key=c.preset.key;out[c.preset.id][side]=Array.from(gapCodes(c[side]));});});return out;}
 function gapFechas(board){var days={A:new Set(),B:new Set()};board.forEach(function(c){['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))days[side].add(day);});});});
@@ -2558,7 +2577,7 @@ async function pubPost(url,payload){
   return data;
 }
 (function(){
-  var queue=[],url='',busy=false,warnings='',plan=null;
+  var opciones=[],payloads={},totales={},url='',busy=false,warnings='';
   function panel(){ $('pubPanel').classList.remove('hidden');$('pubSettings').setAttribute('aria-expanded','true'); }
   // Recuperar la preferencia antes de guardar la clave en el almacenamiento elegido.
   try{$('pubRemember').checked=!!(localStorage.getItem('vc-cmp-pub-key')||'').trim();$('pubUrl').value=localStorage.getItem('vc-cmp-pub-url')||'';$('pubKey').value=sessionStorage.getItem('vc-cmp-pub-key')||localStorage.getItem('vc-cmp-pub-key')||'';}catch(e){}
@@ -2567,7 +2586,28 @@ async function pubPost(url,payload){
   $('pubUrl').addEventListener('input',function(){try{localStorage.setItem('vc-cmp-pub-url',this.value.trim());}catch(e){}});
   $('pubKey').addEventListener('input',saveKey);$('pubRemember').addEventListener('change',saveKey);
   $('pubSettings').addEventListener('click',function(e){e.preventDefault();var open=$('pubPanel').classList.toggle('hidden');this.setAttribute('aria-expanded',String(!open));});
-  function next(){if(!queue.length)return;var p=queue[0];$('pubPreview').textContent='Polígono '+p.poligono+' · '+p.filas.length+' filas pendientes de '+p.totales.filas+' · '+p.antes+' → '+p.despues+(warnings?' · '+warnings:'')+'\n'+PUB_COUNTS.map(function(k,i){return PUB_LABELS[i]+': '+p.totales[k];}).join(' · ')+(p.sinComparar?' · ⏸ Sin comparar: '+p.sinComparar+' (no cuentan)':'')+(p.parcial?'\n⚠ Cruce parcial: '+p.parcialDetalle.join(' | '):'')+(plan?'\n'+plan.texto:'');$('pubDialog').showModal();}
+  /* Última publicación por polígono hecha desde este navegador (para comparar antes de sobrescribir). */
+  function ultimas(){try{var v=JSON.parse(localStorage.getItem('vc-cmp-pub-last')||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch(e){return {};}}
+  function guardarUltima(p){var all=ultimas();all[p.poligono]={fecha:new Date().toLocaleString('es-PE'),pendientes:p.filas.length,filas:p.totales.filas,antes:p.antes,despues:p.despues};try{localStorage.setItem('vc-cmp-pub-last',JSON.stringify(all));}catch(e){}}
+  function status(text){var line=document.createElement('div');line.textContent=text;$('pubStatus').appendChild(line);}
+  function marcados(){return Array.from($('pubList').querySelectorAll('input:checked')).map(function(x){return x.value;});}
+  function syncSend(){$('pubSend').disabled=busy||!pubElegidos(opciones,marcados()).length;}
+  /* Lista con casillas: solo viene marcado el polígono activo; lo incompleto o inválido queda deshabilitado con su motivo. */
+  function render(){
+    var last=ultimas(),host=$('pubList');host.textContent='';
+    $('pubPreview').textContent='Marca los polígonos a publicar. Solo se envían los marcados.'+(warnings?' · '+warnings:'');
+    opciones.forEach(function(o){
+      var t=totales[o.code],p=payloads[o.code],u=last[o.code],label=document.createElement('label'),input=document.createElement('input'),info=document.createElement('div');
+      label.style.cssText='display:block;margin:10px 0';info.className='sub';info.style.whiteSpace='pre-line';
+      input.type='checkbox';input.value=o.code;input.checked=o.marcado;input.disabled=!o.habilitado;
+      label.append(input,document.createTextNode(' Polígono '+o.code+(o.habilitado?' · '+p.filas.length+' pendientes de '+t.filas+' · '+p.antes+' → '+p.despues:' · NO se puede publicar: '+o.motivo)));
+      info.textContent=PUB_COUNTS.map(function(k,i){return PUB_LABELS[i]+': '+t[k];}).join(' · ')+(p&&p.sinComparar?' · ⏸ Sin comparar: '+p.sinComparar+' (no cuentan)':'')+(p&&p.parcial?'\n⚠ Cruce parcial: '+p.parcialDetalle.join(' | '):'')
+        +'\nÚltima publicación: '+(u?u.fecha+' · '+u.pendientes+' pendientes de '+u.filas+' · '+u.antes+' → '+u.despues:'sin registro en este navegador');
+      label.appendChild(info);host.appendChild(label);
+    });
+    syncSend();
+  }
+  $('pubList').addEventListener('change',syncSend);
   $('pubStart').addEventListener('click',function(){
     if(busy)return;url=$('pubUrl').value.trim();var key=$('pubKey').value.trim();
     if(!url||!key){panel();$('pubStatus').textContent='Configura la URL y la clave de escritura.';return;}
@@ -2575,7 +2615,7 @@ async function pubPost(url,payload){
     var filterNodes=CF_SEGS.concat(LOC_SEGS).map(function(s){return $(s.id);}).concat([$('fPaste'),$('lPaste')]);
     var values=filterNodes.map(function(el){return el.value;}), filters=FILTER_STATE;
     var ids=['polySelect','c2Validator','c2Technician','c2Result'], selections=ids.map(function(id){return $(id).value;});
-    queue=[];warnings='';plan=null;
+    opciones=[];payloads={};totales={};warnings='';
     try{
       var parsed=new URL(url);if(parsed.protocol!=='https:'||!parsed.pathname.endsWith('/exec'))throw new Error('La URL debe usar HTTPS y terminar en /exec.');
       // Comparar copias completas, sin reconstruir controles ni los reportes de la vista.
@@ -2586,32 +2626,35 @@ async function pubPost(url,payload){
       var polygons=Array.from(new Set(c2files().map(function(f){return f.polygon;}))),rows=c2assign(c2rows()),dates={A:new Set(),B:new Set()};
       BOARD_().forEach(function(c){if(c.RES)['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){dates[side].add(fileDate(f).day);});});});
       warnings=['A','B'].filter(function(side){return dates[side].size>1;}).map(function(side){return (side==='A'?'ANTES':'DESPUÉS')+' con '+dates[side].size+' fechas distintas';}).join(' · ');
+      if(!polygons.length)throw new Error('No hay Excel del revisor cargado.');
       if(polygons.some(function(p){return !p;}))throw new Error('Hay archivos sin polígono identificado; revisa el nombre del Excel.');
       var gap=gapNow();if(!gap||gap.bloquea)throw new Error('No hay ningún reporte cargado en una de las dos fechas: no se publica nada.');
-      // Solo se sobrescriben polígonos con TODOS sus sectores cargados en ambas fechas; los demás no se tocan.
-      var present=gapPresent(BOARD_()),loaded={A:new Set(),B:new Set()};Object.keys(present).forEach(function(id){['A','B'].forEach(function(side){present[id][side].forEach(function(c){loaded[side].add(c.slice(-2));});});});
-      var sectorsOf={};polygons.forEach(function(p){var u=POLYGONS.find(function(x){return x.code===p;}),set=new Set(u?Array.from(u.sectors):[]);
-        if(!u)c2files().forEach(function(f){if(f.polygon!==p)return;f.rows.forEach(function(r){if(/^\d{24}$/.test(r.rawCode))set.add(r.rawCode.slice(6,8));else if(/^\d{8}$/.test(r.rawCode))set.add(r.rawCode.slice(0,2));else if(r.partial)set.add(r.partial.slice(0,2));});});
-        sectorsOf[p]=set;});
-      plan=pubPlan(polygons.map(function(p){return {code:p,sectors:sectorsOf[p]};}),loaded);
-      queue=plan.publicar.map(function(p){var detalle=gap.gaps.filter(function(g){return g.tipo==='parcial'&&sectorsOf[p].has(g.sector.slice(-2));}).map(function(g){return g.texto.replace(/^⚠ /,'');});
-        return pubPayload(p,rows.filter(function(r){return r.polygon===p;}),key,$('pubObs').checked,{parcial:detalle.length>0,parcialDetalle:detalle});});
-      var planLine=document.createElement('div');planLine.textContent=plan.texto;$('pubStatus').appendChild(planLine);
-    }catch(e){queue=[];$('pubStatus').textContent=e.message;}
+      // Solo se puede publicar un polígono con TODOS sus sectores comparados (ambas fechas en un mismo reporte) y que pase el seguro del 50%.
+      var loaded=pubLoaded(gapPresent(BOARD_()));
+      var items=polygons.map(function(p){var u=POLYGONS.find(function(x){return x.code===p;}),excel=u?null:pubSectoresExcel(c2files().filter(function(f){return f.polygon===p;}));
+        totales[p]=pubCounts(rows.filter(function(r){return r.polygon===p;}));
+        return {code:p,sectors:u?u.sectors:excel.sectors,ilegibles:u?0:excel.ilegibles,totales:totales[p]};});
+      opciones=pubOpciones(items,loaded,active?active.code:'');
+      opciones.forEach(function(o,i){if(!o.habilitado)return;var sectors=items[i].sectors,detalle=gap.gaps.filter(function(g){return g.tipo==='parcial'&&sectors.has(g.sector.slice(-2));}).map(function(g){return g.texto.replace(/^⚠ /,'');});
+        payloads[o.code]=pubPayload(o.code,rows.filter(function(r){return r.polygon===o.code;}),key,$('pubObs').checked,{parcial:detalle.length>0,parcialDetalle:detalle});});
+    }catch(e){opciones=[];$('pubStatus').textContent=e.message;}
     finally{
       if(district)district.board=board;POLY_ACTIVE=active;FILTER_STATE=filters;
       filterNodes.forEach(function(el,i){el.value=values[i];});$('c2NoAplica').checked=noAplica;
       ids.forEach(function(id,i){$(id).value=selections[i];});c2render();
     }
-    next();
+    if(opciones.length){render();$('pubDialog').showModal();}
   });
-  $('pubCancel').addEventListener('click',function(){queue=[];$('pubDialog').close();});
-  $('pubDialog').addEventListener('cancel',function(e){if(busy)e.preventDefault();else queue=[];});
+  $('pubCancel').addEventListener('click',function(){if(!busy)$('pubDialog').close();});
+  $('pubDialog').addEventListener('cancel',function(e){if(busy)e.preventDefault();});
   $('pubSend').addEventListener('click',async function(){
-    if(busy||!queue.length)return;busy=true;this.disabled=true;$('pubCancel').disabled=true;
-    var p=queue[0];try{await pubPost(url,p);var line=document.createElement('div');line.textContent='Publicado: '+p.poligono+' · '+p.filas.length+' filas · '+new Date().toLocaleString('es-PE');$('pubStatus').appendChild(line);queue.shift();$('pubDialog').close();}
-    catch(e){var err=document.createElement('div');err.textContent='Error: '+p.poligono+' · '+e.message;$('pubStatus').appendChild(err);queue=[];$('pubDialog').close();}
-    finally{busy=false;this.disabled=false;$('pubCancel').disabled=false;next();}
+    // Nunca se envía un polígono no marcado, deshabilitado o que no pase el seguro.
+    var elegidos=pubElegidos(opciones,marcados()).filter(function(code){return payloads[code]&&!pubSeguro(payloads[code].totales);});
+    if(busy||!elegidos.length)return;busy=true;this.disabled=true;$('pubCancel').disabled=true;$('pubList').querySelectorAll('input').forEach(function(x){x.disabled=true;});
+    try{for(var n=0;n<elegidos.length;n++){var p=payloads[elegidos[n]];
+      try{await pubPost(url,p);guardarUltima(p);status('Publicado: '+p.poligono+' · '+p.filas.length+' filas · '+new Date().toLocaleString('es-PE'));}
+      catch(e){status('Error: '+p.poligono+' · '+e.message+(n<elegidos.length-1?' · No se enviaron: '+elegidos.slice(n+1).join(', '):''));break;}}}
+    finally{busy=false;$('pubCancel').disabled=false;opciones=[];$('pubDialog').close();}
   });
 })();
 
