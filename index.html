@@ -2462,6 +2462,16 @@ function c2cambios(hits,otros,max){var esperado=c2cambiosTxt(hits,max),resto=c2c
   return [esperado?'Esperado: '+esperado:'',resto?(esperado?'También cambió: ':'Otro campo: ')+resto:''].filter(Boolean).join(' ‖ ');}
 function c2obsCambios(observation,hits,otros){var obs=txt(observation).trim();
   return ('Observación: '+(obs||'(sin observación)')+' ‖ '+(c2cambios(hits,otros,20)||'Sin cambio en SICUN')).slice(0,5000);}
+/* Validadores CRC+PISO: un evento cuyo renglón (Antes o Después) trae N° Piso distinto al de la fila del revisor va a otroPiso
+   (solo nota, no cambia el estado). Si el piso cambió entre Antes y Después, cuenta para ambos pisos. Sin piso en la fila: comportamiento previo. */
+function c2pisoSplit(events,piso,floorsOf,kindOf){
+  var out={hits:[],otros:[],otroPiso:[],sinPiso:false}, p=piso?c2floor(piso):'';
+  events.forEach(function(e){var ok=kindOf(e)!=='otro', vals=piso===null?null:floorsOf(e);
+    if(vals&&p&&vals.length&&vals.indexOf(p)<0){out.otroPiso.push(e);return;}
+    if(ok&&vals&&(!p||!vals.length))out.sinPiso=true;
+    (ok?out.hits:out.otros).push(e);});
+  return out;
+}
 function c2rows(){
   var files=c2files(), keys=c2keys(), events=[];BOARD_().forEach(function(c){events=events.concat(c2events(c));});
   var gapState=gapNow(), gapIdx={};if(gapState&&!gapState.bloquea)gapState.gaps.forEach(function(g){gapIdx[g.sector+'|'+g.rep]=g;});
@@ -2494,11 +2504,11 @@ function c2rows(){
     });
     var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC);
     var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
-    var hits=[], otros=[];
-    relevant.forEach(function(e){
-      var kind=c2eventKind(map,e,sameLot), ok=kind!=='otro', vals;
-      if(ok&&map&&level==='CRC+PISO'){vals=floors(e);if(vals){if(!row.piso||!vals.length)addNote('cruzado sin piso');else ok=vals.indexOf(c2floor(row.piso))>=0;}}
-      if(ok&&row.validator==='VAL_AREA_TERR_PISO'&&e.report==='CON'){vals=floors(e)||[];if(!vals.length)addNote('cruzado sin piso');else ok=vals.indexOf('1')>=0;}
+    var split=c2pisoSplit(relevant,map&&level==='CRC+PISO'?(row.piso||''):null,floors,function(e){return c2eventKind(map,e,sameLot);}), hits=[], otros=split.otros;
+    if(split.sinPiso)addNote('cruzado sin piso');
+    if(split.otroPiso.length)addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
+    split.hits.forEach(function(e){var ok=true, vals;
+      if(row.validator==='VAL_AREA_TERR_PISO'&&e.report==='CON'){vals=floors(e)||[];if(!vals.length)addNote('cruzado sin piso');else ok=vals.indexOf('1')>=0;}
       (ok?hits:otros).push(e);
     });
     if(!map&&row.state!=='APLICA'){otros=hits.concat(otros);hits=[];}
