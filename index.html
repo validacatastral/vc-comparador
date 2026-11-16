@@ -2463,11 +2463,13 @@ function c2cambios(hits,otros,max){var esperado=c2cambiosTxt(hits,max),resto=c2c
 function c2obsCambios(observation,hits,otros){var obs=txt(observation).trim();
   return ('Observación: '+(obs||'(sin observación)')+' ‖ '+(c2cambios(hits,otros,20)||'Sin cambio en SICUN')).slice(0,5000);}
 /* Validadores CRC+PISO: un evento cuyo renglón (Antes o Después) trae N° Piso distinto al de la fila del revisor va a otroPiso
-   (solo nota, no cambia el estado). Si el piso cambió entre Antes y Después, cuenta para ambos pisos. Sin piso en la fila: comportamiento previo. */
-function c2pisoSplit(events,piso,floorsOf,kindOf){
+   (solo nota, no cambia el estado). Si el piso cambió entre Antes y Después, cuenta para ambos pisos. Sin piso en la fila: comportamiento previo.
+   anyFloor (OTRO CAMBIO): los de otro piso SÍ cuentan, con el campo marcado con su piso, p. ej. "CIIU (P1)". */
+function c2pisoSplit(events,piso,floorsOf,kindOf,anyFloor){
   var out={hits:[],otros:[],otroPiso:[],sinPiso:false}, p=piso?c2floor(piso):'';
   events.forEach(function(e){var ok=kindOf(e)!=='otro', vals=piso===null?null:floorsOf(e);
-    if(vals&&p&&vals.length&&vals.indexOf(p)<0){out.otroPiso.push(e);return;}
+    if(vals&&p&&vals.length&&vals.indexOf(p)<0){if(!anyFloor){out.otroPiso.push(e);return;}
+      e=Object.assign({},e,{field:e.field+' (P'+Array.from(new Set(vals)).join('/')+')'});}
     if(ok&&vals&&(!p||!vals.length))out.sinPiso=true;
     (ok?out.hits:out.otros).push(e);});
   return out;
@@ -2504,7 +2506,7 @@ function c2rows(){
     });
     var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC);
     var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
-    var split=c2pisoSplit(relevant,map&&level==='CRC+PISO'?(row.piso||''):null,floors,function(e){return c2eventKind(map,e,sameLot);}), hits=[], otros=split.otros;
+    var split=c2pisoSplit(relevant,map&&level==='CRC+PISO'?(row.piso||''):null,floors,function(e){return c2eventKind(map,e,sameLot);},row.state==='OTRO CAMBIO'), hits=[], otros=split.otros;
     if(split.sinPiso)addNote('cruzado sin piso');
     if(split.otroPiso.length)addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
     split.hits.forEach(function(e){var ok=true, vals;
@@ -2524,8 +2526,9 @@ function c2rows(){
       if(cls.extra)addNote('También cambió: '+names(otros));
       if(cls.suggestion)addNote('Sugerencia: '+cls.suggestion+(hits.length?' (cambió '+names(hits)+')':''));
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
+    var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
     var changes=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}).map(function(e){return e.report+' · '+e.field+': '+e.before+' → '+e.after;});
-    all.push(Object.assign({},row,{code:code||row.rawCode,fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,change:(resumen?resumen+(changes.length?' | ':''):'')+changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':''),note:note,
+    all.push(Object.assign({},row,{code:code||row.rawCode,fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,campos:campos,change:(resumen?resumen+(changes.length?' | ':''):'')+changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':''),note:note,
       changeView:[resumen,c2cambios(hits,otros,5)].filter(Boolean).join(' | '),obsChange:c2obsCambios(row.observation,hits,otros)}));
   });});return all;
 }
@@ -2600,6 +2603,7 @@ var PUB_COUNTS=['verificado','otroCampo','sinCambio','noEncontrado','invalido','
 function pubCounts(rows){rows=rows.filter(function(r){return c2bucket(r.result)!==6;});var out={filas:rows.length};PUB_COUNTS.forEach(function(k){out[k]=0;});rows.forEach(function(r){out[PUB_COUNTS[c2bucket(r.result)]]++;});return out;}
 function pubGroup(rows,key){var groups=Object.create(null);rows.forEach(function(r){var k=r[key]||'SIN ASIGNAR';(groups[k]||(groups[k]=[])).push(r);});Object.keys(groups).forEach(function(k){groups[k]=pubCounts(groups[k]);});return groups;}
 function pubFields(row,events){
+  if(typeof row.campos==='string')return row.campos; /* mismos campos que decidieron el estado (filtrados por piso) */
   var code=c2resolve(row,c2keys()), map=c2map(row.validator), lot=code.length===8||map&&map.level==='LOTE';
   return Array.from(new Set(events.filter(function(e){
     var sameLot=code.length===8?e.key.slice(6,14)===code:e.key.slice(0,14)===code.slice(0,14);
