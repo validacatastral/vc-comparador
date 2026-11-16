@@ -62,7 +62,7 @@ var CAIDA='No se pudo conectar con Drive. Revisa URL, permisos y conexión (o ti
   var hechos=0;await assert.rejects(T.drvPoolParcial(items,async function(){hechos++;throw new Error('Clave de lectura inválida o acceso denegado.');}),/Clave/);assert(hechos<=3);
 
   // 6) Comparar todos (procesarDrive): el mismo reintento por archivo; el polígono queda parcial con la lista y el lote sigue
-  var L=vm.runInNewContext(src+'\n'+cut('/* ============ Comparar todos','/* Ejecuta fn con un distrito temporal')+'\n({loteFaltanteTxt:loteFaltanteTxt,loteConFaltantes:loteConFaltantes,loteResumen:loteResumen,loteCorrer:loteCorrer});',{setTimeout:setTimeout,Promise:Promise});
+  var L=vm.runInNewContext(src+'\n'+cut('function pubPlan(polys,loaded){','/* Última publicación por polígono')+'\n'+cut('/* ============ Comparar todos','/* Ejecuta fn con un distrito temporal')+'\n({loteFaltanteTxt:loteFaltanteTxt,loteConFaltantes:loteConFaltantes,loteResumen:loteResumen,loteCorrer:loteCorrer});',{setTimeout:setTimeout,Promise:Promise});
   var it={name:'rep_CONS_15011237_261110.xlsx',tipo:'CONS',ubigeo:'150112',sector:'37',day:'2026-11-10'};
   var ft=L.loteFaltanteTxt(it,'A',CAIDA);assert.match(ft,/^S37 · CONS · ANTES 10\/11: no se pudo descargar \(No se pudo conectar.*tiempo agotado\)\)$/);
   assert.match(L.loteFaltanteTxt({name:it.name,sector:'37',day:'2026-11-15'},'B','x'),/^S37 · CONS · DESPUÉS 15\/11/);
@@ -71,11 +71,28 @@ var CAIDA='No se pudo conectar con Drive. Revisa URL, permisos y conexión (o ti
   var par=L.loteConFaltantes(listo('B'),[ft]);assert.strictEqual(par.parcial,true);eq(par.detalle,[ft]);assert.strictEqual(par.payload.parcial,true);eq(par.payload.parcialDetalle,[ft]);
   var om=L.loteConFaltantes({code:'C',estado:'omitido',motivo:'falta Antes: no se pudo descargar ningún reporte de la primera descarga'},[ft]);
   assert.strictEqual(om.estado,'omitido');assert.match(om.motivo,/^falta Antes.* · no se pudieron descargar: S37 · CONS · ANTES/);
-  // Lote de 3 polígonos: el del archivo caído queda parcial (y se publica como parcial), los otros dos siguen normales
-  var enviados=[],res=await L.loteCorrer(['P1','P2','P3'],async function(code){return L.loteConFaltantes(listo(code),code==='P2'?[ft]:[]);},async function(p){enviados.push(p.parcial);});
-  eq(enviados,[false,true,false]);eq(res.map(function(r){return [r.code,r.estado,r.parcial,r.publicado];}),[['P1','listo',false,true],['P2','listo',true,true],['P3','listo',false,true]]);
+  assert.deepStrictEqual(JSON.parse(JSON.stringify(par.sinDescargar)),[ft]);
+  // Lote de 3 polígonos con "Publicar pendientes" marcado: el del archivo caído queda parcial y NO se publica; los otros dos sí
+  var enviados=[],res=await L.loteCorrer(['P1','P2','P3'],async function(code){var r=listo(code);r.payload.code=code;return L.loteConFaltantes(r,code==='P2'?[ft]:[]);},async function(p){enviados.push(p.code);});
+  eq(enviados,['P1','P3']);eq(res.map(function(r){return [r.code,r.estado,r.parcial,r.publicado];}),[['P1','listo',false,true],['P2','listo',true,false],['P3','listo',false,true]]);
   var g=L.loteResumen(res);assert.match(g.lineas[0],/^Publicados: 2 · Parciales: 1 · Omitidos: 0/);
-  assert(g.lineas.some(function(l){return /^◐ P2 .* · parcial: S37 · CONS · ANTES 10\/11: no se pudo descargar/.test(l);}));
+  assert(g.lineas.some(function(l){return /^◐ P2 .* · parcial – no publicado: faltan S37 · CONS · ANTES 10\/11: no se pudo descargar/.test(l);}));
+  // Un parcial por reportes faltantes SIN fallo de descarga se sigue publicando como antes
+  var gp=listo('P4');gp.parcial=true;gp.detalle=['S35 · RECAP · 14/11: falta en esta fecha'];enviados=[];
+  res=await L.loteCorrer(['P4'],async function(){return gp;},async function(){enviados.push('P4');});eq(enviados,['P4']);
+  assert(L.loteResumen(res).lineas.some(function(l){return /^◐ P4 .* · parcial: S35 · RECAP/.test(l);}));
+
+  // 7) Diálogo de publicar normal: un polígono con faltantes de descarga sale deshabilitado con ese motivo
+  var P=vm.runInNewContext(cut('function pubPlan(polys,loaded){','/* Última publicación por polígono')+'\n({pubOpciones:pubOpciones,pubFaltantes:pubFaltantes,pubElegidos:pubElegidos,pubMotivoFaltantes:pubMotivoFaltantes});',{});
+  var descarga=[{sector:'37',texto:'S37 · CONS · ANTES 2026-11-10'},{sector:'35',texto:'S35 · UA · DESPUÉS 2026-11-15'}],ok6={A:new Set(ss),B:new Set(ss)},tot={filas:60,noEncontrado:0,invalido:0};
+  eq(P.pubFaltantes(descarga,new Set(['37','38'])),['S37 · CONS · ANTES 2026-11-10']);eq(P.pubFaltantes(descarga,new Set(['40'])),[]);eq(P.pubFaltantes(undefined,new Set(['37'])),[]);
+  var ops=P.pubOpciones([{code:'260710148',sectors:new Set(['37','38']),ilegibles:0,totales:tot,faltantes:P.pubFaltantes(descarga,new Set(['37','38']))},
+    {code:'260710149',sectors:new Set(['40']),ilegibles:0,totales:tot,faltantes:P.pubFaltantes(descarga,new Set(['40']))}],ok6,'260710148');
+  eq(ops,[{code:'260710148',habilitado:false,marcado:false,motivo:'parcial – no publicado: faltan S37 · CONS · ANTES 2026-11-10'},{code:'260710149',habilitado:true,marcado:false,motivo:''}]);
+  eq(P.pubElegidos(ops,['260710148','260710149']),['260710149']);
+  // Tras "Reintentar faltantes" sin fallos (lista vacía) vuelve a habilitarse
+  eq(P.pubOpciones([{code:'260710148',sectors:new Set(['37','38']),ilegibles:0,totales:tot,faltantes:[]}],ok6,'260710148'),[{code:'260710148',habilitado:true,marcado:true,motivo:''}]);
+  assert(/plan\.target\.descarga=faltantes\.map/.test(html)&&/faltantes:pubFaltantes\(district\.descarga,sectors\)/.test(html));
   // procesarDrive usa el reintento por archivo sin tocar el transporte compartido
   var pd=cut('async function procesarDrive(code){','$(\'loteOpen\')');
   assert(/drvConReintento\(function\(\)\{return drvFile\(item\);\}\)/.test(pd)&&/loteConFaltantes\(r,faltantes\)/.test(pd)&&/drvFatal\(msg\)\)throw e/.test(pd));
