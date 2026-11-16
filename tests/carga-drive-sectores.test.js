@@ -60,5 +60,25 @@ var CAIDA='No se pudo conectar con Drive. Revisa URL, permisos y conexión (o ti
   // 5) Un error fatal (clave, 150 MiB) sí corta: no tiene sentido seguir archivo por archivo
   assert(T.drvFatal('Clave de lectura inválida o acceso denegado.'));assert(T.drvFatal('La selección supera 150 MiB. Carga menos sectores.'));assert(!T.drvFatal(CAIDA));
   var hechos=0;await assert.rejects(T.drvPoolParcial(items,async function(){hechos++;throw new Error('Clave de lectura inválida o acceso denegado.');}),/Clave/);assert(hechos<=3);
+
+  // 6) Comparar todos (procesarDrive): el mismo reintento por archivo; el polígono queda parcial con la lista y el lote sigue
+  var L=vm.runInNewContext(src+'\n'+cut('/* ============ Comparar todos','/* Ejecuta fn con un distrito temporal')+'\n({loteFaltanteTxt:loteFaltanteTxt,loteConFaltantes:loteConFaltantes,loteResumen:loteResumen,loteCorrer:loteCorrer});',{setTimeout:setTimeout,Promise:Promise});
+  var it={name:'rep_CONS_15011237_261110.xlsx',tipo:'CONS',ubigeo:'150112',sector:'37',day:'2026-11-10'};
+  var ft=L.loteFaltanteTxt(it,'A',CAIDA);assert.match(ft,/^S37 · CONS · ANTES 10\/11: no se pudo descargar \(No se pudo conectar.*tiempo agotado\)\)$/);
+  assert.match(L.loteFaltanteTxt({name:it.name,sector:'37',day:'2026-11-15'},'B','x'),/^S37 · CONS · DESPUÉS 15\/11/);
+  function listo(code){return {code:code,estado:'listo',parcial:false,detalle:[],pendientes:2,filas:10,antes:'10/11/2026',despues:'15/11/2026',publicado:false,intentos:0,payload:{parcial:false,parcialDetalle:[]}};}
+  var sin=listo('A');assert.strictEqual(L.loteConFaltantes(sin,[]),sin);assert.strictEqual(sin.parcial,false);
+  var par=L.loteConFaltantes(listo('B'),[ft]);assert.strictEqual(par.parcial,true);eq(par.detalle,[ft]);assert.strictEqual(par.payload.parcial,true);eq(par.payload.parcialDetalle,[ft]);
+  var om=L.loteConFaltantes({code:'C',estado:'omitido',motivo:'falta Antes: no se pudo descargar ningún reporte de la primera descarga'},[ft]);
+  assert.strictEqual(om.estado,'omitido');assert.match(om.motivo,/^falta Antes.* · no se pudieron descargar: S37 · CONS · ANTES/);
+  // Lote de 3 polígonos: el del archivo caído queda parcial (y se publica como parcial), los otros dos siguen normales
+  var enviados=[],res=await L.loteCorrer(['P1','P2','P3'],async function(code){return L.loteConFaltantes(listo(code),code==='P2'?[ft]:[]);},async function(p){enviados.push(p.parcial);});
+  eq(enviados,[false,true,false]);eq(res.map(function(r){return [r.code,r.estado,r.parcial,r.publicado];}),[['P1','listo',false,true],['P2','listo',true,true],['P3','listo',false,true]]);
+  var g=L.loteResumen(res);assert.match(g.lineas[0],/^Publicados: 2 · Parciales: 1 · Omitidos: 0/);
+  assert(g.lineas.some(function(l){return /^◐ P2 .* · parcial: S37 · CONS · ANTES 10\/11: no se pudo descargar/.test(l);}));
+  // procesarDrive usa el reintento por archivo sin tocar el transporte compartido
+  var pd=cut('async function procesarDrive(code){','$(\'loteOpen\')');
+  assert(/drvConReintento\(function\(\)\{return drvFile\(item\);\}\)/.test(pd)&&/loteConFaltantes\(r,faltantes\)/.test(pd)&&/drvFatal\(msg\)\)throw e/.test(pd));
+  assert(T.drvFatal('los reportes del polígono superan 150 MiB'));
   console.log('carga-drive-sectores: OK');
 })().catch(function(e){console.error(e);process.exit(1);});

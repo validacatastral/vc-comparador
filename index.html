@@ -2904,7 +2904,7 @@ function drvNormSectors(list,ubigeo){var out=new Set(),full=(list||[]).filter(fu
 function drvSectorLabel(s){return s.length===8?s.slice(0,6)+' · S'+s.slice(6):'S'+s;}
 /* Reintento por archivo: 2 reintentos con espera creciente, solo ante fallos transitorios (conexión, tiempo agotado, 429/5xx, respuesta cortada). */
 var DRV_ESPERAS=[3000,8000];
-function drvFatal(msg){return /clave|denegad|Configura la URL|Usa una URL HTTPS|supera 150 MiB/i.test(msg);}
+function drvFatal(msg){return /clave|denegad|Configura la URL|Usa una URL HTTPS|superan? 150 MiB/i.test(msg);}
 function drvReintentable(msg){return /No se pudo conectar|error HTTP (?:429|5\d\d)|Respuesta no válida|no pudo completar|sin base64|base64 inválido/i.test(msg);}
 async function drvConReintento(fn,opciones){
   var esperas=(opciones&&opciones.esperas)||DRV_ESPERAS,dormir=(opciones&&opciones.dormir)||function(ms){return new Promise(function(r){setTimeout(r,ms);});},aviso=opciones&&opciones.aviso;
@@ -3116,6 +3116,16 @@ function loteResumen(resultados){
   g.omitidos.forEach(function(r){g.lineas.push('✗ '+r.code+' · omitido: '+r.motivo);});
   return g;
 }
+/* Archivo de Drive que no se pudo bajar tras los reintentos: 'S37 · CONS · ANTES 10/11: no se pudo descargar (motivo)'. */
+function loteFaltanteTxt(item,lado,error){var n=loteNombre(item.name);return 'S'+item.sector+' · '+(item.tipo||(n?n.tipo:'?'))+' · '+(lado==='A'?'ANTES':'DESPUÉS')+' '+loteDia(item.day).slice(0,5)+': no se pudo descargar ('+txt(error).replace(/\.$/,'')+')';}
+/* Suma los faltantes de descarga al resultado del polígono: 'listo' pasa a parcial (también en lo que se publica); 'omitido' los añade a su motivo. */
+function loteConFaltantes(r,textos){
+  if(!textos||!textos.length)return r;
+  if(r.estado==='omitido'){r.motivo+=' · no se pudieron descargar: '+textos.join(' | ');return r;}
+  r.parcial=true;r.detalle=(r.detalle||[]).concat(textos);
+  if(r.payload){r.payload.parcial=true;r.payload.parcialDetalle=(r.payload.parcialDetalle||[]).concat(textos);}
+  return r;
+}
 /* Ejecuta fn con un distrito temporal como activo (un polígono del lote) y lo retira al terminar, sin repintar la vista. */
 function loteEnDistrito(temp,fn){var cur=CUR;DISTRICTS.push(temp);CUR=DISTRICTS.length-1;try{return fn();}finally{DISTRICTS.pop();CUR=cur;}}
 /* Índice de BASE_REPORTES_MASIVOS / DISTRITO / Sxx: solo nombres e identificadores, sin bajar archivos. */
@@ -3191,11 +3201,17 @@ async function loteIndice(folder){
     var files=loteArchivos(L.indice.files,L.ubigeo,ps),dias=Array.from(new Set(files.map(function(x){return x.day;}))).sort();
     if(!files.some(function(x){return lado(x)==='A';}))return {code:code,estado:'omitido',motivo:'falta Antes: no hay reportes de la primera descarga'};
     if(!files.some(function(x){return lado(x)==='B';}))return {code:code,estado:'omitido',motivo:'falta Después: no hay reportes de la última descarga'};
-    var total=0,leidos=await drvPool(files,async function(item){
-      var file=await drvFile(item);total+=file.size;if(total>DRV_TOTAL)throw new Error('los reportes del polígono superan 150 MiB');
+    // Un archivo que no baja se reintenta (2 veces, espera creciente); si sigue fallando no corta el polígono: queda parcial con su lista.
+    var faltantes=[],total=0,leidos=await drvPool(files,async function(item){
+      var file;try{file=await drvConReintento(function(){return drvFile(item);});}
+      catch(e){var msg=txt(e&&e.message)||'error desconocido';if(drvFatal(msg))throw e;faltantes.push(loteFaltanteTxt(item,lado(item),msg.replace(item.name+': ','')));return null;}
+      total+=file.size;if(total>DRV_TOTAL)throw new Error('los reportes del polígono superan 150 MiB');
       var data=await drvRead(file),preset=detectPreset(data.headers);file=null;if(!preset)throw new Error(item.name+': tipo de reporte no reconocido');
       var esperado=L.ubigeo+item.sector;if(data.rows.some(function(r){var crc=txt(r[preset.key]);return /^\d{14}$|^\d{24}$/.test(crc)&&crc.slice(0,8)!==esperado;}))throw new Error(item.name+': trae CRC de otro UBIGEO/sector; no se mezcla');
       return {data:data,preset:preset,side:lado(item)};});
+    leidos=leidos.filter(Boolean);faltantes.sort();
+    if(!leidos.some(function(x){return x.side==='A';}))return loteConFaltantes({code:code,estado:'omitido',motivo:'falta Antes: no se pudo descargar ningún reporte de la primera descarga'},faltantes);
+    if(!leidos.some(function(x){return x.side==='B';}))return loteConFaltantes({code:code,estado:'omitido',motivo:'falta Después: no se pudo descargar ningún reporte de la última descarga'},faltantes);
     var grouped={};leidos.forEach(function(x){var k=x.preset.id+'|'+x.side;(grouped[k]||(grouped[k]=[])).push(x.data);});leidos=null;
     Object.keys(grouped).forEach(function(k){var h=JSON.stringify(grouped[k][0].headers);if(grouped[k].some(function(d){return JSON.stringify(d.headers)!==h;}))throw new Error('encabezados incompatibles: '+k);});
     // pubPreparar une los archivos y compara una sola vez: aquí solo se dejan listos (RES marca "hay que comparar").
@@ -3206,7 +3222,7 @@ async function loteIndice(folder){
     var r;try{r=loteResultado(code,loteEnDistrito(temp,function(){return pubPreparar('',code,$('pubObs').checked);}));}
     finally{temp.board=temp.c2=temp.registro=null;board=c2=null;}
     r.sectores=loteFechasTxt(ps);r.aviso=loteAviso(ps);
-    return r;
+    return loteConFaltantes(r,faltantes);
   }
   $('loteOpen').addEventListener('click',function(){
     if(CUR<0){showErr('Crea o selecciona un distrito antes de comparar todos.');return;}
