@@ -275,6 +275,20 @@ Se verificó en Chromium con `fetch` interceptado, SheetJS y XLSX generados dura
 
 Las pruebas se mantienen fuera del commit para limitar el PR a `index.html` y este README. No se usaron archivos ni credenciales reales. Los pasos para Rodrigo figuran en el PR; la comprobación contra un despliegue real de InformeSICUN queda como validación de integración del servicio.
 
+## Comparar todos (revisión final)
+
+Botón **▶ Comparar todos (revisión final)**, junto a **☁ Cargar desde Drive**. Recorre los polígonos del distrito de trabajo **uno por uno** con el mismo flujo de **Publicar pendientes** (`pubPreparar` → `pubOpciones`/`pubSeguro` → `pubPayload` → `pubPost`); no es un camino paralelo.
+
+- **Solo el distrito activo.** El universo guarda ahora el UBIGEO de cada polígono (columna `UBIGEO` del Excel, o los 6 primeros dígitos de las manzanas de `api=universo`). El UBIGEO del distrito se deduce de los reportes: de los nombres `rep_TIPO_UBIGEO+SECTOR_AAMMDD.xlsx` de la carpeta DISTRITO elegida (Drive) o de los CRC ya cargados (carga manual). Si aparecen dos UBIGEO se detiene sin recorrer nada. Los polígonos de otro UBIGEO nunca se recorren; uno sin UBIGEO claro va a **omitidos** con su motivo.
+- **Drive** (distrito sin reportes cargados): elegir carpeta DISTRITO → **Buscar polígonos del distrito**. Por polígono se baja su Excel de `Validaciones_alfanuméricas / <pol> / <pol>.xlsx` (solo lectura) y los reportes de `DISTRITO / Sxx` de su UBIGEO, sus sectores y sus dos fechas; se cruza, se publica si corresponde y **se suelta todo** antes del siguiente (solo queda una línea de resumen). Un archivo con CRC de otro UBIGEO/sector se rechaza.
+- **Fechas por sector:** cada sector del polígono usa **su** Antes (su descarga más antigua en Drive: la original, nunca la del día anterior) y **su** Después (su descarga más reciente); no hay una fecha única por polígono que deje sectores sin reporte. La lista previa y el resumen muestran las fechas por sector; si no coinciden se avisa sin bloquear (`Después mixto: 5 del 16/11, 1 del 17/11`). El Antes de cada sector se puede corregir en la lista antes de lanzar. Un sector sin reportes o con una sola descarga deja el polígono en omitidos con su motivo.
+- **Carga manual** (distrito con reportes y Excel del revisor ya cargados): se usa lo cargado, sin Drive.
+- **Publicar** es opcional: casilla *Publicar pendientes al terminar cada polígono* (desmarcada = solo compara). Al publicar, cada polígono reintenta con espera creciente (5 s, 15 s, 35 s) por el bloqueo de 30 s del Apps Script; un error de clave no se reintenta. Un polígono con error queda en el resumen y **no detiene** a los demás.
+- **Resumen del distrito:** publicados / parciales / omitidos, con motivo (falta Antes, falta Después, sin cruce, sectores incompletos, seguro del 50 %, error).
+- No escribe en los Sheets de revisores ni usa `localStorage`/`IndexedDB`.
+
+Pruebas con datos sintéticos: `node tests/comparar-todos.test.js` (dos distritos sin mezclar, Antes por polígono, error que no corta el lote, reintento, resumen, 40 polígonos seguidos).
+
 ## Universo Drive y tabla C2
 
 El botón **☁ Cargar universo desde Drive** usa la URL `/exec` configurada y la clave de lectura (`drvKey`): `GET ?api=universo&k=…`. Se espera `{"poligonos":{"150112001":["15011219057"]}}`, con manzanas de 11 dígitos (ubigeo + sector + manzana). Comparte estructura, resumen y selección con el Excel manual. El asistente obtiene el universo si aún no está cargado y activa el polígono elegido en A; si falta en el universo, muestra un error.
