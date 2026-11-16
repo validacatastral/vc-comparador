@@ -2240,11 +2240,14 @@ function pubElegidos(opciones,marcados){var set=new Set(marcados||[]);return (op
 /* Última publicación por polígono. lista: respuesta de GET ?api=pendientes → [{poligono,publicado,antes,despues,totales}].
    Pendientes = totales.pendientes, o sinCambio + noAplicaConCambio (igual que vc-pendientes). Devuelve {código:{fecha,pendientes,filas,antes,despues}}. */
 function pubUltimasApi(lista){if(!Array.isArray(lista))throw new Error('Formato de pendientes no reconocido.');var out={};function n(v){v=Number(v);return isFinite(v)&&v>=0?v:0;}
-  lista.forEach(function(x){if(!x||!txt(x.poligono).trim())return;var t=x.totales||{};out[txt(x.poligono).trim()]={fecha:txt(x.publicado).trim()||'sin fecha',pendientes:t.pendientes!=null?n(t.pendientes):n(t.sinCambio)+n(t.noAplicaConCambio!=null?t.noAplicaConCambio:t.noAplica),filas:t.filas!=null?n(t.filas):null,antes:txt(x.antes).trim(),despues:txt(x.despues).trim()};});return out;}
+  lista.forEach(function(x){if(!x||!txt(x.poligono).trim())return;var t=x.totales||{};out[txt(x.poligono).trim()]={fecha:txt(x.publicado).trim()||'sin fecha',pendientes:t.pendientes!=null?n(t.pendientes):n(t.sinCambio)+n(t.noAplicaConCambio!=null?t.noAplicaConCambio:t.noAplica),filas:t.filas!=null?n(t.filas):null,antes:txt(x.antes).trim(),despues:txt(x.despues).trim(),desglose:t.sinCambio!=null?pubDesglose(t):''};});return out;}
+/* Mismo criterio en lo nuevo y en la última publicación: pendientes = ⚠ + ℹ; los avisos ◐ se muestran aparte en el desglose. */
+function pubDesglose(t){function n(v){v=Number(v);return isFinite(v)&&v>=0?v:0;}t=t||{};return '⚠ '+n(t.sinCambio)+' · ℹ '+n(t.noAplicaConCambio!=null?t.noAplicaConCambio:t.noAplica)+' · ◐ '+n(t.otroCampo);}
+function pubPendientes(t){function n(v){v=Number(v);return isFinite(v)&&v>=0?v:0;}t=t||{};return n(t.sinCambio)+n(t.noAplicaConCambio);}
 /* Texto de la última publicación: manda el servidor (api); si no respondió (api=null) se usa lo guardado en este navegador como respaldo. */
 function pubUltimaTexto(code,api,local){var u=api?api[code]:(local||{})[code],nota=api?'':' (respaldo de este navegador: el servidor no respondió)';
   if(!u)return 'Última publicación: '+(api?'nunca publicado':'sin registro'+nota);
-  return 'Última publicación: '+u.fecha+' · '+u.pendientes+' pendientes'+(u.filas!=null?' de '+u.filas:'')+(u.antes||u.despues?' · '+(u.antes||'—')+' → '+(u.despues||'—'):'')+nota;}
+  return 'Última publicación: '+u.fecha+' · '+u.pendientes+' pendientes'+(u.filas!=null?' de '+u.filas:'')+(u.antes||u.despues?' · '+(u.antes||'—')+' → '+(u.despues||'—'):'')+(u.desglose?' · '+u.desglose:'')+nota;}
 function gapCodes(d){if(!d)return new Set();if(!d._codes){var set=new Set();(d.allRows||d.rows||[]).forEach(function(r){var k=txt(r[d._key]).trim();if(/^\d{14}$|^\d{24}$/.test(k))set.add(k.slice(0,8));});d._codes=set;}return d._codes;}
 function gapPresent(board){var out={};board.forEach(function(c){out[c.preset.id]={};['A','B'].forEach(function(side){if(c[side])c[side]._key=c.preset.key;out[c.preset.id][side]=Array.from(gapCodes(c[side]));});});return out;}
 function gapFechas(board){var days={A:new Set(),B:new Set()};board.forEach(function(c){['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))days[side].add(day);});});});
@@ -2660,7 +2663,7 @@ async function pubPost(url,payload){
   async function ultimasServidor(){var u=new URL(url);u.search='';u.searchParams.set('api','pendientes');
     var res=await fetch(u.href,{method:'GET',cache:'no-store',credentials:'omit',signal:AbortSignal.timeout(20000)});if(!res.ok)throw new Error('HTTP '+res.status);return pubUltimasApi(await res.json());}
   function ultimas(){try{var v=JSON.parse(localStorage.getItem('vc-cmp-pub-last')||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch(e){return {};}}
-  function guardarUltima(p){var all=ultimas();all[p.poligono]={fecha:new Date().toLocaleString('es-PE'),pendientes:p.filas.length,filas:p.totales.filas,antes:p.antes,despues:p.despues};try{localStorage.setItem('vc-cmp-pub-last',JSON.stringify(all));}catch(e){}}
+  function guardarUltima(p){var all=ultimas();all[p.poligono]={fecha:new Date().toLocaleString('es-PE'),pendientes:pubPendientes(p.totales),filas:p.totales.filas,antes:p.antes,despues:p.despues,desglose:pubDesglose(p.totales)};try{localStorage.setItem('vc-cmp-pub-last',JSON.stringify(all));}catch(e){}}
   function status(text){var line=document.createElement('div');line.textContent=text;$('pubStatus').appendChild(line);}
   function marcados(){return Array.from($('pubList').querySelectorAll('input:checked')).map(function(x){return x.value;});}
   function syncSend(){$('pubSend').disabled=busy||!pubElegidos(opciones,marcados()).length;}
@@ -2672,7 +2675,7 @@ async function pubPost(url,payload){
       var t=totales[o.code],p=payloads[o.code],label=document.createElement('label'),input=document.createElement('input'),info=document.createElement('div'),ultima=document.createElement('div');
       label.style.cssText='display:block;margin:10px 0';info.className='sub';info.style.whiteSpace='pre-line';
       input.type='checkbox';input.value=o.code;input.checked=o.marcado;input.disabled=!o.habilitado;
-      label.append(input,document.createTextNode(' Polígono '+o.code+(o.habilitado?' · '+p.filas.length+' pendientes de '+t.filas+' · '+p.antes+' → '+p.despues:' · NO se puede publicar: '+o.motivo)));
+      label.append(input,document.createTextNode(' Polígono '+o.code+(o.habilitado?' · '+pubPendientes(p.totales)+' pendientes de '+t.filas+' · '+p.antes+' → '+p.despues+' · '+pubDesglose(p.totales):' · NO se puede publicar: '+o.motivo)));
       info.textContent=PUB_COUNTS.map(function(k,i){return PUB_LABELS[i]+': '+t[k];}).join(' · ')+(p&&p.sinComparar?' · ⏸ Sin comparar: '+p.sinComparar+' (no cuentan)':'')+(p&&p.parcial?'\n⚠ Cruce parcial: '+p.parcialDetalle.join(' | '):'');
       ultima.className='sub';ultima.dataset.ultima=o.code;ultima.textContent='Última publicación: consultando…';
       label.append(info,ultima);host.appendChild(label);

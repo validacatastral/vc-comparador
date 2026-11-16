@@ -50,4 +50,12 @@ var sinObs=T.pubPayload('260210019',rows,'clave',false);assert(!sinObs.filas.som
 
 // 4) Los conteos no cambian: las seis categorías de siempre
 assert.deepStrictEqual(JSON.parse(JSON.stringify(p.totales)),{filas:6,verificado:2,otroCampo:1,sinCambio:1,noEncontrado:1,invalido:0,noAplicaConCambio:1});
+
+// 5) Diálogo: lo nuevo y la última publicación usan el mismo criterio (pendientes = ⚠ + ℹ; ◐ aparte en el desglose)
+var D=vm.runInNewContext(cut('function txt(v){','function normVal')+'\n'+cut('function pubUltimasApi','function gapCodes')+'\n({api:pubUltimasApi,texto:pubUltimaTexto,desglose:pubDesglose,pend:pubPendientes});');
+assert.strictEqual(D.pend(p.totales),2,'los ◐ no suman en pendientes');assert.strictEqual(D.desglose(p.totales),'⚠ 1 · ℹ 1 · ◐ 1');
+var ult=D.api([{poligono:'260210019',publicado:'15/11/2026 9:00',antes:'10/11/2026',despues:'14/11/2026',totales:p.totales}]);
+assert.strictEqual(ult['260210019'].pendientes,D.pend(p.totales));
+assert.strictEqual(D.texto('260210019',ult,{}),'Última publicación: 15/11/2026 9:00 · 2 pendientes de 6 · 10/11/2026 → 14/11/2026 · ⚠ 1 · ℹ 1 · ◐ 1');
+assert(/pubPendientes\(p\.totales\)\+' pendientes de '\+t\.filas\+' · '\+p\.antes\+' → '\+p\.despues\+' · '\+pubDesglose\(p\.totales\)/.test(html),'la línea nueva del diálogo lleva el mismo desglose');
 console.log('ok publicar ◐ cambió otro campo como aviso · verificado no · sin valores ni DNI');
