@@ -28,7 +28,7 @@ var OTRO={report:'CON',field:'ECS'};                                        // n
 var casos=[
   [1,'APLICA',[USO,DESC],'✔ VERIFICADO',undefined,false],                   // cambió observado o relacionado
   [1,'APLICA',[CIIU],'✔ VERIFICADO',undefined,false],
-  [2,'APLICA',[USO,OTRO],'✔ VERIFICADO',undefined,true],                    // + nota "Además cambió"
+  [2,'APLICA',[USO,OTRO],'✔ VERIFICADO',undefined,true],                    // + nota "También cambió"
   [3,'APLICA',[OTRO],'◐ CAMBIÓ OTRO CAMPO','posible OTRO CAMBIO',false],
   [4,'APLICA',[],'⚠ SIN CAMBIO EN SICUN',undefined,false],
   [5,'OTRO CAMBIO',[OTRO],'✔ CAMBIÓ',undefined,false],
@@ -40,7 +40,7 @@ var casos=[
 ];
 casos.forEach(function(c){var r=cruce('VAL_USO_CIIU',c[1],c[2]);
   assert.strictEqual(r.result,c[3],'caso '+c[0]);assert.strictEqual(r.suggestion,c[4],'sugerencia caso '+c[0]);assert.strictEqual(!!r.extra,c[5],'nota caso '+c[0]);
-  console.log('ok caso '+c[0]+' · '+c[1]+' → '+r.result+(r.suggestion?' · Sugerencia: '+r.suggestion:'')+(r.extra?' · Además cambió':''));});
+  console.log('ok caso '+c[0]+' · '+c[1]+' → '+r.result+(r.suggestion?' · Sugerencia: '+r.suggestion:'')+(r.extra?' · También cambió':''));});
 
 // 3) Reglas fijas de la tabla
 function kind(v,e){return T.c2eventKind(M[v],Object.assign({key:'150112190370070101010015',type:'cell',before:'',after:''},e),function(){return true;});}
