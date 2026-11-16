@@ -3018,7 +3018,7 @@ function loteResultado(code,prep){
   if(!o)return {code:code,estado:'omitido',motivo:'sin cruce: falta el Excel del revisor'};
   if(!o.habilitado)return {code:code,estado:'omitido',motivo:/^faltan S/.test(o.motivo)?'sectores incompletos: '+o.motivo:o.motivo};
   if(!p||!t||!t.filas)return {code:code,estado:'omitido',motivo:'sin cruce: el Excel del revisor no tiene filas revisadas que cruzar'};
-  return {code:code,estado:'listo',parcial:!!p.parcial,detalle:(p.parcialDetalle||[]).slice(),pendientes:p.filas.length,filas:t.filas,antes:p.antes,despues:p.despues,publicado:false,intentos:0,payload:p};
+  return {code:code,estado:'listo',parcial:!!p.parcial,detalle:(p.parcialDetalle||[]).slice(),pendientes:pubPendientes(p.totales),desglose:pubDesglose(p.totales),filas:t.filas,antes:p.antes,despues:p.despues,publicado:false,intentos:0,payload:p};
 }
 /* Reintento con espera creciente: el bloqueo de 30 s del Apps Script hace fallar publicarPendientes si hay otra ejecución.
    Un error de clave no se reintenta. Devuelve {ok,intentos,error}; nunca lanza. */
@@ -3054,7 +3054,7 @@ async function loteCorrer(codes,procesar,publicar,progreso,reintento){
 function loteResumen(resultados){
   var g={publicados:[],parciales:[],comparados:[],omitidos:[],lineas:[]};
   (resultados||[]).forEach(function(r){(r.estado==='omitido'?g.omitidos:r.parcial?g.parciales:r.publicado?g.publicados:g.comparados).push(r);});
-  function base(r){return r.code+' · '+r.pendientes+' pendientes de '+r.filas+' · '+r.antes+' → '+r.despues+(r.sectores?' · '+r.sectores:'')+(r.aviso?' · ⚠ '+r.aviso:'')+(r.intentos>1?' · '+r.intentos+' intentos':'');}
+  function base(r){return r.code+' · '+r.pendientes+' pendientes de '+r.filas+' · '+r.antes+' → '+r.despues+(r.desglose?' · '+r.desglose:'')+(r.sectores?' · '+r.sectores:'')+(r.aviso?' · ⚠ '+r.aviso:'')+(r.intentos>1?' · '+r.intentos+' intentos':'');}
   g.lineas.push('Publicados: '+g.publicados.length+' · Parciales: '+g.parciales.length+(g.comparados.length?' · Comparados sin publicar: '+g.comparados.length:'')+' · Omitidos: '+g.omitidos.length);
   g.publicados.forEach(function(r){g.lineas.push('✓ '+base(r));});
   g.parciales.forEach(function(r){g.lineas.push('◐ '+base(r)+' · parcial'+(r.publicado?'':' (sin publicar)')+': '+r.detalle.join(' | '));});

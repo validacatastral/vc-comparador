@@ -75,8 +75,11 @@ function tot(filas,malas){return {filas:filas,verificado:filas-malas,otroCampo:0
 function prep(code,sectors,cargados,t,parcial){var loaded={A:S(cargados),B:S(cargados)},op=T.pubOpciones([{code:code,sectors:S(sectors),ilegibles:0,totales:t}],loaded,code),pay={};
   if(op[0].habilitado)pay[code]={poligono:code,antes:'03/11/2026',despues:'15/11/2026',totales:t,filas:[{codigo:'x'},{codigo:'y'}],parcial:!!parcial,parcialDetalle:parcial?['S25 · CONS · 15/11: falta en esta fecha']:[]};
   var tt={};tt[code]=t;return {opciones:op,payloads:pay,totales:tt};}
-var ok=T.loteResultado('260210019',prep('260210019',['19','25'],['19','25'],tot(120,3)));
-assert.strictEqual(ok.estado,'listo');assert.strictEqual(ok.pendientes,2);assert.strictEqual(ok.filas,120);assert.strictEqual(ok.parcial,false);
+// Mismo criterio que el diálogo de publicar: pendientes = ⚠ + ℹ; los avisos ◐ van aparte en el desglose (aunque se publiquen más filas).
+var ok=T.loteResultado('260210019',prep('260210019',['19','25'],['19','25'],Object.assign(tot(120,3),{verificado:112,sinCambio:1,noAplicaConCambio:1,otroCampo:3})));
+assert.strictEqual(ok.estado,'listo');assert.strictEqual(ok.pendientes,2);assert.strictEqual(ok.desglose,'⚠ 1 · ℹ 1 · ◐ 3');
+assert.strictEqual(T.loteResumen([Object.assign({},ok,{publicado:true,intentos:1,payload:null})]).lineas[1],'✓ 260210019 · 2 pendientes de 120 · 03/11/2026 → 15/11/2026 · ⚠ 1 · ℹ 1 · ◐ 3');
+assert.strictEqual(ok.filas,120);assert.strictEqual(ok.parcial,false);
 assert.strictEqual(T.loteResultado('260210019',prep('260210019',['19','25'],['19'],tot(120,3))).motivo,'sectores incompletos: faltan S25');
 assert.match(T.loteResultado('260210019',prep('260210019',['19'],['19'],tot(100,90))).motivo,/90 de 100 inválidas o no encontradas/);
 assert.match(T.loteResultado('260210019',prep('260210019',['19'],['19'],tot(0,0))).motivo,/^sin cruce/);
