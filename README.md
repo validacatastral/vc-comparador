@@ -289,6 +289,14 @@ Botón **▶ Comparar todos (revisión final)**, junto a **☁ Cargar desde Driv
 
 Pruebas con datos sintéticos: `node tests/comparar-todos.test.js` (dos distritos sin mezclar, Antes por polígono, error que no corta el lote, reintento, resumen, 40 polígonos seguidos).
 
+## Regla de estado por campos esperados y columna Observación vs Antes → Después
+
+- **Regla (estado APLICA):** si cambió al menos un campo esperado del validador (observado o relacionado en `CAMPOS_VALIDADOR`), el resultado es `✔ VERIFICADO`, aunque hayan cambiado otros; los extras van en la nota `También cambió: X, Y` (solo nombres de campo). `◐ CAMBIÓ OTRO CAMPO` solo cuando ningún campo esperado cambió y sí cambió otro. `NO APLICA` y `OTRO CAMBIO` no cambian.
+- **Mapeo:** `VAL_USO_CIIU` acepta `CON · Código De Actividad Económica (CIIU)` y también `UA · Código De Uso` / `UA · Descripción Del Uso`. La tabla no se modificó; `tests/regla-campos-esperados.test.js` recorre los 55 campos esperados de los 11 validadores.
+- **Vista:** la celda *Qué cambió* separa `Esperado: …` (primero) de `También cambió: …` / `Otro campo: …`, con Antes → Después, al lado de *Observación*.
+- **Excel descargado:** una columna nueva al final de `CRUCE_REVISOR`, `Observación vs Antes → Después` (`Observación: … ‖ Esperado: … ‖ También cambió: …`). Las 16 columnas anteriores conservan nombre, orden y contenido.
+- **No se publica:** esa columna trae la observación completa y valores SICUN (pueden ser nombres o DNI); no va a *Publicar pendientes* ni a la página pública. El payload sigue llevando solo nombres de campo y la observación saneada opcional.
+
 ## Universo Drive y tabla C2
 
 El botón **☁ Cargar universo desde Drive** usa la URL `/exec` configurada y la clave de lectura (`drvKey`): `GET ?api=universo&k=…`. Se espera `{"poligonos":{"150112001":["15011219057"]}}`, con manzanas de 11 dígitos (ubigeo + sector + manzana). Comparte estructura, resumen y selección con el Excel manual. El asistente obtiene el universo si aún no está cargado y activa el polígono elegido en A; si falta en el universo, muestra un error.
