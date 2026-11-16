@@ -477,6 +477,7 @@ input, select, textarea, button {max-width:100%;}
   <section>
     <button type="button" id="drvSettings">⚙ Publicación / URL de Drive</button><div id="drvConfig"></div>
     <button type="button" class="rbtn" id="drvOpen">☁ Cargar desde Drive</button>
+    <button type="button" class="rbtn" id="loteOpen">▶ Comparar todos (revisión final)</button>
     <label>Clave de lectura <input id="drvKey" type="password" autocomplete="off"></label>
     <label><input id="drvRemember" type="checkbox"> Recordar clave de lectura en este navegador</label>
     <p>Configura la URL /exec en ⚙ Publicación. La carga manual sigue disponible.</p>
@@ -494,6 +495,16 @@ input, select, textarea, button {max-width:100%;}
     </div>
     <p role="status" id="drvProgressText" aria-live="polite"></p><progress id="drvProgress" max="1" value="0" style="width:100%"></progress>
     <p id="drvError" role="alert" style="color:var(--danger,#e66)"></p><button type="button" id="drvClose">Cerrar</button>
+  </dialog>
+  <dialog id="loteDialog" aria-labelledby="loteTitle" style="width:min(760px,90vw);max-height:85vh;overflow:auto;background:var(--bg-panel);color:var(--text-prime);border:1px solid var(--border)">
+    <h2 id="loteTitle">▶ Comparar todos (revisión final)</h2><p id="loteTarget"></p>
+    <div id="loteDrive"><label>Carpeta DISTRITO <select id="loteDistrict"></select></label><button type="button" id="loteBuscar">Buscar polígonos del distrito</button></div>
+    <p id="loteInfo" class="sub"></p><div id="loteList"></div>
+    <label><input type="checkbox" id="lotePublicar"> Publicar pendientes al terminar cada polígono</label>
+    <button type="button" id="loteRun" disabled>Comparar marcados</button>
+    <p role="status" id="loteProgressText" aria-live="polite"></p><progress id="loteProgress" max="1" value="0" style="width:100%"></progress>
+    <div id="loteResumen" role="status" style="font-size:13px;font-family:var(--font-mono)"></div>
+    <p id="loteError" role="alert" style="color:var(--danger,#e66)"></p><button type="button" id="loteClose">Cerrar</button>
   </dialog>
   <section>
     <p class="sec-label">Universo de polígonos</p>
@@ -2095,11 +2106,12 @@ function polyRead(file){
       var rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:null,raw:true});
       if(!rows.length){skipped.push(name);return;}
       var h=rows[0].map(function(v){return stripAccents(txt(v)).toUpperCase().replace(/[^A-Z0-9]/g,"");});
-      var si=h.indexOf("SECTOR"), mi=h.indexOf("MANZANA"), ci=h.indexOf("NCRC");
+      var si=h.indexOf("SECTOR"), mi=h.indexOf("MANZANA"), ci=h.indexOf("NCRC"), ui=h.indexOf("UBIGEO");
       if(si<0||mi<0){skipped.push(name);return;}
-      var keys=new Set(), sectors=new Set(), crc=0, hasCrc=ci>=0;
-      rows.slice(1).forEach(function(r){var sec=txt(r[si]).trim(), mz=txt(r[mi]).trim(); if(!/^\d+$/.test(sec)||!/^\d+$/.test(mz))return; sec=sec.padStart(2,"0");mz=mz.padStart(3,"0"); keys.add(sec+"|"+mz);sectors.add(sec);if(hasCrc)crc+=Number(r[ci])||0;});
-      result.push({code:name,keys:keys,sectors:sectors,crc:crc,hasCrc:hasCrc});
+      var keys=new Set(), sectors=new Set(), ubigeos=new Set(), crc=0, hasCrc=ci>=0;
+      rows.slice(1).forEach(function(r){var sec=txt(r[si]).trim(), mz=txt(r[mi]).trim(); if(!/^\d+$/.test(sec)||!/^\d+$/.test(mz))return; sec=sec.padStart(2,"0");mz=mz.padStart(3,"0"); keys.add(sec+"|"+mz);sectors.add(sec);if(hasCrc)crc+=Number(r[ci])||0;
+        var ub=ui<0?"":txt(r[ui]).trim().replace(/\.0+$/,""); if(/^\d{5,6}$/.test(ub))ubigeos.add(ub.padStart(6,"0"));});
+      result.push({code:name,keys:keys,sectors:sectors,ubigeos:ubigeos,crc:crc,hasCrc:hasCrc});
     });
     polySet(result,skipped);
   }catch(err){$("polySummary").textContent="No se pudo leer el universo: "+err.message;}};fr.readAsArrayBuffer(file);
@@ -2115,12 +2127,12 @@ async function polyFromDrive(){
   if(!polygons||typeof polygons!=='object'||Array.isArray(polygons))throw new Error('Formato de universo no reconocido.');
   var result=Object.keys(polygons).map(function(code){
     if(!Array.isArray(polygons[code]))throw new Error('Universo inválido: '+code);
-    var keys=new Set(),sectors=new Set();
+    var keys=new Set(),sectors=new Set(),ubigeos=new Set();
     polygons[code].forEach(function(value){
       var key=String(value);if(!/^\d{11}$/.test(key))throw new Error('Manzana inválida en el universo: '+code);
-      var sec=key.slice(6,8);keys.add(sec+'|'+key.slice(8,11));sectors.add(sec);
+      var sec=key.slice(6,8);keys.add(sec+'|'+key.slice(8,11));sectors.add(sec);ubigeos.add(key.slice(0,6));
     });
-    return {code:code,keys:keys,sectors:sectors,crc:0,hasCrc:false};
+    return {code:code,keys:keys,sectors:sectors,ubigeos:ubigeos,crc:0,hasCrc:false};
   });
   if(!result.length)throw new Error('El universo de Drive está vacío.');
   polySet(result,[]);
@@ -2578,6 +2590,42 @@ function pubPayload(polygon,rows,key,includeObs,extra){
     /* Campos nuevos al final: cruce parcial (faltó un reporte en una fecha) y filas sin comparar, fuera de los conteos. */
     parcial:!!(extra&&extra.parcial),parcialDetalle:extra&&extra.parcialDetalle||[],sinComparar:sinComparar};
 }
+/* Prepara la publicación del distrito activo con el cruce completo: sin filtro de polígono ni de ubicación y con los avisos NO APLICA.
+   La usan "Publicar pendientes" y "Comparar todos"; la vista se restaura al terminar (quien llama repinta).
+   Devuelve {opciones,payloads,totales,warnings}; lanza Error si no se puede publicar nada. */
+function pubPreparar(key,activo,includeObs){
+  var district=DISTRICTS[CUR], board=district&&district.board, active=POLY_ACTIVE, noAplica=$('c2NoAplica').checked;
+  var filterNodes=CF_SEGS.concat(LOC_SEGS).map(function(s){return $(s.id);}).concat([$('fPaste'),$('lPaste')]);
+  var values=filterNodes.map(function(el){return el.value;}), filters=FILTER_STATE;
+  var ids=['polySelect','c2Validator','c2Technician','c2Result'], selections=ids.map(function(id){return $(id).value;});
+  var out={opciones:[],payloads:{},totales:{},warnings:''};
+  try{
+    // Comparar copias completas, sin reconstruir controles ni los reportes de la vista.
+    POLY_ACTIVE=null;FILTER_STATE={f:[new Set(),new Set(),new Set()],l:[new Set(),new Set(),new Set()]};
+    filterNodes.forEach(function(el){el.value='';});$('c2NoAplica').checked=true;
+    if(!district)throw new Error('No hay distrito cargado.');
+    district.board=board.map(function(ctx){var copy=Object.assign({},ctx);['A','B'].forEach(function(side){if(ctx[side])copy[side]=mergeFiles(ctx[side].files||[ctx[side]]);});if(ctx.RES&&copy.A&&copy.B)copy.RES=compareCtx(copy);return copy;});
+    var polygons=Array.from(new Set(c2files().map(function(f){return f.polygon;}))),rows=c2assign(c2rows()),dates={A:new Set(),B:new Set()};
+    BOARD_().forEach(function(c){if(c.RES)['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){dates[side].add(fileDate(f).day);});});});
+    out.warnings=['A','B'].filter(function(side){return dates[side].size>1;}).map(function(side){return (side==='A'?'ANTES':'DESPUÉS')+' con '+dates[side].size+' fechas distintas';}).join(' · ');
+    if(!polygons.length)throw new Error('No hay Excel del revisor cargado.');
+    if(polygons.some(function(p){return !p;}))throw new Error('Hay archivos sin polígono identificado; revisa el nombre del Excel.');
+    var gap=gapNow();if(!gap||gap.bloquea)throw new Error('No hay ningún reporte cargado en una de las dos fechas: no se publica nada.');
+    // Solo se puede publicar un polígono con TODOS sus sectores comparados (ambas fechas en un mismo reporte) y que pase el seguro del 50%.
+    var loaded=pubLoaded(gapPresent(BOARD_()));
+    var items=polygons.map(function(p){var u=POLYGONS.find(function(x){return x.code===p;}),excel=u?null:pubSectoresExcel(c2files().filter(function(f){return f.polygon===p;}));
+      out.totales[p]=pubCounts(rows.filter(function(r){return r.polygon===p;}));
+      return {code:p,sectors:u?u.sectors:excel.sectors,ilegibles:u?0:excel.ilegibles,sinUniverso:!!u&&!u.keys.size,totales:out.totales[p]};});
+    out.opciones=pubOpciones(items,loaded,activo||'');
+    out.opciones.forEach(function(o,i){if(!o.habilitado)return;var sectors=items[i].sectors,detalle=gap.gaps.filter(function(g){return g.tipo==='parcial'&&sectors.has(g.sector.slice(-2));}).map(function(g){return g.texto.replace(/^⚠ /,'');});
+      out.payloads[o.code]=pubPayload(o.code,rows.filter(function(r){return r.polygon===o.code;}),key,includeObs,{parcial:detalle.length>0,parcialDetalle:detalle});});
+  }finally{
+    if(district)district.board=board;POLY_ACTIVE=active;FILTER_STATE=filters;
+    filterNodes.forEach(function(el,i){el.value=values[i];});$('c2NoAplica').checked=noAplica;
+    ids.forEach(function(id,i){$(id).value=selections[i];});
+  }
+  return out;
+}
 async function pubPost(url,payload){
   var response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
   var body=await response.text(),data;try{data=JSON.parse(body);}catch(e){throw new Error(body||'Respuesta vacía del servidor');}
@@ -2623,38 +2671,12 @@ async function pubPost(url,payload){
   $('pubStart').addEventListener('click',function(){
     if(busy)return;url=$('pubUrl').value.trim();var key=$('pubKey').value.trim();
     if(!url||!key){panel();$('pubStatus').textContent='Configura la URL y la clave de escritura.';return;}
-    var district=DISTRICTS[CUR], board=district&&district.board, active=POLY_ACTIVE, noAplica=$('c2NoAplica').checked;
-    var filterNodes=CF_SEGS.concat(LOC_SEGS).map(function(s){return $(s.id);}).concat([$('fPaste'),$('lPaste')]);
-    var values=filterNodes.map(function(el){return el.value;}), filters=FILTER_STATE;
-    var ids=['polySelect','c2Validator','c2Technician','c2Result'], selections=ids.map(function(id){return $(id).value;});
     opciones=[];payloads={};totales={};warnings='';
     try{
       var parsed=new URL(url);if(parsed.protocol!=='https:'||!parsed.pathname.endsWith('/exec'))throw new Error('La URL debe usar HTTPS y terminar en /exec.');
-      // Comparar copias completas, sin reconstruir controles ni los reportes de la vista.
-      POLY_ACTIVE=null;FILTER_STATE={f:[new Set(),new Set(),new Set()],l:[new Set(),new Set(),new Set()]};
-      filterNodes.forEach(function(el){el.value='';});$('c2NoAplica').checked=true;
-      if(!district)throw new Error('No hay distrito cargado.');
-      district.board=board.map(function(ctx){var copy=Object.assign({},ctx);['A','B'].forEach(function(side){if(ctx[side])copy[side]=mergeFiles(ctx[side].files||[ctx[side]]);});if(ctx.RES&&copy.A&&copy.B)copy.RES=compareCtx(copy);return copy;});
-      var polygons=Array.from(new Set(c2files().map(function(f){return f.polygon;}))),rows=c2assign(c2rows()),dates={A:new Set(),B:new Set()};
-      BOARD_().forEach(function(c){if(c.RES)['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){dates[side].add(fileDate(f).day);});});});
-      warnings=['A','B'].filter(function(side){return dates[side].size>1;}).map(function(side){return (side==='A'?'ANTES':'DESPUÉS')+' con '+dates[side].size+' fechas distintas';}).join(' · ');
-      if(!polygons.length)throw new Error('No hay Excel del revisor cargado.');
-      if(polygons.some(function(p){return !p;}))throw new Error('Hay archivos sin polígono identificado; revisa el nombre del Excel.');
-      var gap=gapNow();if(!gap||gap.bloquea)throw new Error('No hay ningún reporte cargado en una de las dos fechas: no se publica nada.');
-      // Solo se puede publicar un polígono con TODOS sus sectores comparados (ambas fechas en un mismo reporte) y que pase el seguro del 50%.
-      var loaded=pubLoaded(gapPresent(BOARD_()));
-      var items=polygons.map(function(p){var u=POLYGONS.find(function(x){return x.code===p;}),excel=u?null:pubSectoresExcel(c2files().filter(function(f){return f.polygon===p;}));
-        totales[p]=pubCounts(rows.filter(function(r){return r.polygon===p;}));
-        return {code:p,sectors:u?u.sectors:excel.sectors,ilegibles:u?0:excel.ilegibles,sinUniverso:!!u&&!u.keys.size,totales:totales[p]};});
-      opciones=pubOpciones(items,loaded,active?active.code:'');
-      opciones.forEach(function(o,i){if(!o.habilitado)return;var sectors=items[i].sectors,detalle=gap.gaps.filter(function(g){return g.tipo==='parcial'&&sectors.has(g.sector.slice(-2));}).map(function(g){return g.texto.replace(/^⚠ /,'');});
-        payloads[o.code]=pubPayload(o.code,rows.filter(function(r){return r.polygon===o.code;}),key,$('pubObs').checked,{parcial:detalle.length>0,parcialDetalle:detalle});});
+      var prep=pubPreparar(key,POLY_ACTIVE?POLY_ACTIVE.code:'',$('pubObs').checked);opciones=prep.opciones;payloads=prep.payloads;totales=prep.totales;warnings=prep.warnings;
     }catch(e){opciones=[];$('pubStatus').textContent=e.message;}
-    finally{
-      if(district)district.board=board;POLY_ACTIVE=active;FILTER_STATE=filters;
-      filterNodes.forEach(function(el,i){el.value=values[i];});$('c2NoAplica').checked=noAplica;
-      ids.forEach(function(id,i){$(id).value=selections[i];});c2render();
-    }
+    finally{c2render();}
     if(opciones.length){render();$('pubDialog').showModal();}
   });
   $('pubCancel').addEventListener('click',function(){if(!busy)$('pubDialog').close();});
@@ -2858,25 +2880,34 @@ function drvSectors(){var set=new Set();c2files().forEach(function(f){if(f.name!
 function drvSelected(){return Array.from($('drvSectors').querySelectorAll('input:checked')).map(function(x){return x.value;});}
 function drvRenderSectors(){ $('drvSectors').innerHTML=DRV.sectors.map(function(s){return '<label style="display:inline-block;margin:6px"><input type="checkbox" value="'+esc(s)+'" checked> '+(s.length===8?esc(s.slice(0,6))+' · S'+esc(s.slice(6)):'S'+esc(s))+'</label>';}).join('');}
 async function drvAction(fn){if(DRV.busy)return;DRV.busy=true;$('drvError').textContent='';$('drvProgressText').textContent='Consultando Drive…';$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=true;});try{await fn();}catch(e){$('drvError').textContent=e.message;}finally{DRV.busy=false;$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=false;});}}
+/* Carpetas de polígono (Validaciones_alfanuméricas / <pol>) de las dos raíces; solo lectura. */
+async function drvPoligonos(){
+  var items=(await drvList('validaciones')).filter(function(x){return x.folder;});
+  // Comas: segunda raíz de validaciones. Si el Apps Script aún no la admite, se sigue solo con la principal.
+  try{var comas=(await drvList('validacionesComas')).filter(function(x){return x.folder;});items=items.concat(comas.filter(function(x){return !items.some(function(y){return y.id===x.id;});})).sort(function(a,b){return a.name.localeCompare(b.name);});}catch(e){}
+  if(!items.length)throw new Error('La carpeta de validaciones está vacía.');
+  return items;
+}
+/* Excel del revisor de una carpeta de polígono: el único, o el que se llama igual que la carpeta. */
+function drvRevisorUnico(files,label){
+  if(!files.length)throw new Error('Carpeta vacía: no hay Excel ni Google Sheet.');
+  var exact=files.filter(function(x){return x.name.replace(/\.xlsx$/i,'')===label;});if(exact.length===1)files=exact;
+  if(files.length!==1)throw new Error('Hay varios Excel. Deja un único archivo con el nombre del polígono.');
+  return files[0];
+}
 function drvRead(file){return new Promise(function(resolve,reject){readWorkbook(file,function(err,data){if(err)reject(new Error(file.name+': '+err.message));else resolve(data);});});}
 $('drvOpen').addEventListener('click',function(){
   if(CUR<0){showErr('Crea o selecciona un distrito antes de cargar desde Drive.');return;}
   DRV={busy:false,files:[],sectors:[],district:CUR};$('drvTarget').textContent='Distrito de trabajo: '+DISTRICTS[CUR].name;$('drvStepB').hidden=true;$('drvStepC').hidden=true;$('drvProgress').value=0;$('drvProgressText').textContent='';$('drvDialog').showModal();
-  drvAction(async function(){var items=(await drvList('validaciones')).filter(function(x){return x.folder;});
-    // Comas: segunda raíz de validaciones. Si el Apps Script aún no la admite, se sigue solo con la principal.
-    try{var comas=(await drvList('validacionesComas')).filter(function(x){return x.folder;});items=items.concat(comas.filter(function(x){return !items.some(function(y){return y.id===x.id;});})).sort(function(a,b){return a.name.localeCompare(b.name);});}catch(e){}
-    if(!items.length)throw new Error('La carpeta de validaciones está vacía.');drvOptions('drvPolygon',items,drvLast().polygon);});
+  drvAction(async function(){drvOptions('drvPolygon',await drvPoligonos(),drvLast().polygon);});
 });
 $('drvClose').addEventListener('click',function(){$('drvDialog').close();DRV.files=[];});
 $('drvDialog').addEventListener('cancel',function(e){if(DRV.busy)e.preventDefault();});
 $('drvReviewer').addEventListener('click',function(){drvAction(async function(){
   $('drvStepB').hidden=true;$('drvStepC').hidden=true;DRV.files=[];
   var id=$('drvPolygon').value;if(!id)throw new Error('Elige un polígono.');
-  var files=(await drvList('validaciones',id)).filter(drvExcel);if(!files.length)throw new Error('Carpeta vacía: no hay Excel ni Google Sheet.');
   var label=$('drvPolygon').selectedOptions[0].textContent;
-  var exact=files.filter(function(x){return x.name.replace(/\.xlsx$/i,'')===label;});if(exact.length===1)files=exact;
-  if(files.length!==1)throw new Error('Hay varios Excel. Deja un único archivo con el nombre del polígono.');
-  var file=await drvFile(files[0]);DRV.reviewer=file.name;
+  var file=await drvFile(drvRevisorUnico((await drvList('validaciones',id)).filter(drvExcel),label));DRV.reviewer=file.name;
   await loadReviewerFiles([file]);DRV.sectors=drvSectors();drvRenderSectors();
   var districts=(await drvList('reportes')).filter(function(x){return x.folder;});if(!districts.length)throw new Error('La carpeta de reportes está vacía.');drvOptions('drvDistrict',districts,drvLast().district);$('drvStepB').hidden=false;drvSaveLast();
 });});
@@ -2918,6 +2949,207 @@ $('drvLoad').addEventListener('click',function(){drvAction(async function(){
   c2render();
   $('drvProgressText').textContent=done+' de '+files.length+' · Carga y comparación completadas.'+(sinArchivos.length?' · Sin archivos en esas fechas: '+sinArchivos.map(function(s){return 'S'+s;}).join(', '):'')+($('gapPanel').classList.contains('hidden')?'':' · Revisa los avisos de reportes faltantes.');DRV.files=[];
 });});
+/* ============ Comparar todos (revisión final): el mismo flujo de publicación, polígono por polígono ============ */
+/* Solo se recorren los polígonos del universo cuyo UBIGEO es el del distrito de trabajo; nada se guarda fuera de la memoria de la sesión. */
+function loteDia(day){var m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(day||'');return m?m[3]+'/'+m[2]+'/'+m[1]:'';}
+/* rep_TIPO_UBIGEO+SECTOR_AAMMDD.xlsx → {tipo,ubigeo,sector,day}, o null si el nombre no cumple. */
+function loteNombre(name){var m=/^rep_(.+)_(\d{6})(\d{2})_\d{6}(?:\.xlsx)?$/i.exec(txt(name)),day=m?drvDate(name):'';return m&&day?{tipo:m[1].toUpperCase(),ubigeo:m[2],sector:m[3],day:day}:null;}
+/* UBIGEO del distrito de trabajo a partir de códigos UBIGEO+SECTOR (nombres de archivo de Drive o CRC cargados). Con dos UBIGEO no se recorre nada. */
+function loteUbigeo(codes){var set=new Set();(codes||[]).forEach(function(c){c=txt(c);if(/^\d{8}/.test(c))set.add(c.slice(0,6));});var list=Array.from(set).sort();
+  if(!list.length)return {ubigeo:'',error:'No se pudo deducir el UBIGEO del distrito: no hay reportes con UBIGEO+SECTOR.'};
+  if(list.length>1)return {ubigeo:'',error:'Los reportes mezclan '+list.length+' UBIGEO ('+list.join(', ')+'): no se recorre nada. Deja un solo distrito.'};
+  return {ubigeo:list[0],error:''};}
+/* Universo → polígonos del distrito. polys: POLYGONS ({code,keys,sectors,ubigeos}).
+   Devuelve {procesar:[polígono], omitidos:[{code,motivo}], ajenos:n}; los de otro UBIGEO nunca se recorren. */
+function lotePoligonos(polys,ubigeo){
+  var out={procesar:[],omitidos:[],ajenos:0};
+  (polys||[]).forEach(function(p){var u=Array.from(p.ubigeos||[]).sort();
+    if(!u.length)out.omitidos.push({code:p.code,motivo:'sin UBIGEO en el universo'});
+    else if(u.length>1){if(u.indexOf(ubigeo)>=0)out.omitidos.push({code:p.code,motivo:'UBIGEO mezclado en el universo ('+u.join(', ')+')'});else out.ajenos++;}
+    else if(u[0]!==ubigeo)out.ajenos++;
+    else if(!p.keys||!p.keys.size)out.omitidos.push({code:p.code,motivo:'sin universo (la pestaña del polígono no tiene UBIGEO/SECTOR/MANZANA)'});
+    else out.procesar.push(p);});
+  return out;
+}
+/* Fechas de un polígono. files: [{ubigeo,sector,day}] del distrito · sectors: Set('SS').
+   Antes = la descarga MÁS ANTIGUA de sus sectores (la original, nunca la del día anterior); Después = la más reciente. */
+function loteFechas(files,ubigeo,sectors){
+  var set=new Set(Array.from(sectors||[])),days=new Set();(files||[]).forEach(function(f){if(f.ubigeo===ubigeo&&set.has(f.sector)&&f.day)days.add(f.day);});
+  var dias=Array.from(days).sort();
+  return {dias:dias,antes:dias[0]||'',despues:dias.length>1?dias[dias.length-1]:'',
+    motivo:!dias.length?'falta Antes y Después: no hay reportes en Drive para sus sectores':dias.length<2?'falta Después: solo existe la descarga del '+loteDia(dias[0]):''};
+}
+/* Archivos a bajar para un polígono: solo su UBIGEO, sus sectores y sus dos fechas. */
+function loteArchivos(files,ubigeo,sectors,antes,despues){var set=new Set(Array.from(sectors||[]));return (files||[]).filter(function(f){return f.ubigeo===ubigeo&&set.has(f.sector)&&(f.day===antes||f.day===despues);});}
+/* Resultado de un polígono a partir de pubPreparar(): mismas validaciones que "Publicar pendientes". El payload se suelta al publicar. */
+function loteResultado(code,prep){
+  var o=(prep.opciones||[]).filter(function(x){return x.code===code;})[0],p=(prep.payloads||{})[code],t=(prep.totales||{})[code];
+  if(!o)return {code:code,estado:'omitido',motivo:'sin cruce: falta el Excel del revisor'};
+  if(!o.habilitado)return {code:code,estado:'omitido',motivo:/^faltan S/.test(o.motivo)?'sectores incompletos: '+o.motivo:o.motivo};
+  if(!p||!t||!t.filas)return {code:code,estado:'omitido',motivo:'sin cruce: el Excel del revisor no tiene filas revisadas que cruzar'};
+  return {code:code,estado:'listo',parcial:!!p.parcial,detalle:(p.parcialDetalle||[]).slice(),pendientes:p.filas.length,filas:t.filas,antes:p.antes,despues:p.despues,publicado:false,intentos:0,payload:p};
+}
+/* Reintento con espera creciente: el bloqueo de 30 s del Apps Script hace fallar publicarPendientes si hay otra ejecución.
+   Un error de clave no se reintenta. Devuelve {ok,intentos,error}; nunca lanza. */
+var LOTE_ESPERAS=[5000,15000,35000];
+async function loteReintento(fn,opciones){
+  var esperas=(opciones&&opciones.esperas)||LOTE_ESPERAS,dormir=(opciones&&opciones.dormir)||function(ms){return new Promise(function(r){setTimeout(r,ms);});},aviso=opciones&&opciones.aviso,error='';
+  for(var n=0;n<=esperas.length;n++){
+    try{await fn();return {ok:true,intentos:n+1,error:''};}
+    catch(e){error=txt(e&&e.message)||'error desconocido';if(/clave|key|unauthor|deneg|forbidden/i.test(error))return {ok:false,intentos:n+1,error:error};}
+    if(n<esperas.length){if(aviso)aviso(n+1,esperas[n],error);await dormir(esperas[n]);}
+  }
+  return {ok:false,intentos:esperas.length+1,error:error};
+}
+/* Bucle del lote: UNO POR UNO. Un polígono con error queda en el resumen y no detiene a los demás.
+   procesar(code) → resultado de loteResultado · publicar(payload) → promesa (o null para solo comparar).
+   Solo se guarda la línea de resumen de cada polígono; filas y payload se sueltan. */
+async function loteCorrer(codes,procesar,publicar,progreso,reintento){
+  var out=[];
+  for(var n=0;n<codes.length;n++){var code=codes[n],r;
+    if(progreso)progreso(n,codes.length,code,'comparando');
+    try{r=await procesar(code);
+      if(r.estado==='listo'&&publicar){if(progreso)progreso(n,codes.length,code,'publicando');
+        var payload=r.payload,t=await loteReintento(function(){return publicar(payload);},Object.assign({aviso:function(i,ms,msg){if(progreso)progreso(n,codes.length,code,'reintento '+i+' en '+Math.round(ms/1000)+' s ('+msg+')');}},reintento||{}));
+        r.intentos=t.intentos;if(t.ok)r.publicado=true;else{r.estado='omitido';r.motivo='error al publicar tras '+t.intentos+' intento'+(t.intentos===1?'':'s')+': '+t.error;}}
+    }catch(e){r={code:code,estado:'omitido',motivo:'error: '+(txt(e&&e.message)||'desconocido')};}
+    if(r)delete r.payload;out.push(r);r=null;
+    await new Promise(function(resolve){setTimeout(resolve,0);});
+  }
+  if(progreso)progreso(codes.length,codes.length,'','fin');
+  return out;
+}
+/* Resumen del distrito: publicados / parciales / omitidos (con motivo). Sin publicar, los completos van como "comparados". */
+function loteResumen(resultados){
+  var g={publicados:[],parciales:[],comparados:[],omitidos:[],lineas:[]};
+  (resultados||[]).forEach(function(r){(r.estado==='omitido'?g.omitidos:r.parcial?g.parciales:r.publicado?g.publicados:g.comparados).push(r);});
+  function base(r){return r.code+' · '+r.pendientes+' pendientes de '+r.filas+' · '+r.antes+' → '+r.despues+(r.intentos>1?' · '+r.intentos+' intentos':'');}
+  g.lineas.push('Publicados: '+g.publicados.length+' · Parciales: '+g.parciales.length+(g.comparados.length?' · Comparados sin publicar: '+g.comparados.length:'')+' · Omitidos: '+g.omitidos.length);
+  g.publicados.forEach(function(r){g.lineas.push('✓ '+base(r));});
+  g.parciales.forEach(function(r){g.lineas.push('◐ '+base(r)+' · parcial'+(r.publicado?'':' (sin publicar)')+': '+r.detalle.join(' | '));});
+  g.comparados.forEach(function(r){g.lineas.push('· '+base(r)+' · comparado, sin publicar');});
+  g.omitidos.forEach(function(r){g.lineas.push('✗ '+r.code+' · omitido: '+r.motivo);});
+  return g;
+}
+/* Ejecuta fn con un distrito temporal como activo (un polígono del lote) y lo retira al terminar, sin repintar la vista. */
+function loteEnDistrito(temp,fn){var cur=CUR;DISTRICTS.push(temp);CUR=DISTRICTS.length-1;try{return fn();}finally{DISTRICTS.pop();CUR=cur;}}
+/* Índice de BASE_REPORTES_MASIVOS / DISTRITO / Sxx: solo nombres e identificadores, sin bajar archivos. */
+async function loteIndice(folder){
+  var folders=(await drvList('reportes',folder)).filter(function(x){return x.folder&&/^S\d{2}$/i.test(x.name);});
+  if(!folders.length)throw new Error('La carpeta DISTRITO no tiene carpetas Sxx.');
+  var ignorados=0,groups=await drvPool(folders,async function(f){return (await drvList('reportes',f.id)).filter(drvExcel).map(function(x){
+    var n=loteNombre(x.name);if(!n||n.sector!==f.name.slice(1)){ignorados++;return null;}
+    return {id:x.id,name:x.name,size:x.size,tipo:n.tipo,ubigeo:n.ubigeo,sector:n.sector,day:n.day};}).filter(Boolean);});
+  return {files:groups.flat(),ignorados:ignorados};
+}
+(function(){
+  var L={busy:false,modo:'',ubigeo:'',opciones:[],items:{},indice:null,revisores:{},prep:null};
+  function controles(){return $('loteDialog').querySelectorAll('button,select,input');}
+  function sync(){var publicar=$('lotePublicar').checked;$('loteRun').textContent=publicar?'Comparar y publicar marcados':'Comparar marcados';$('loteRun').disabled=L.busy||!pubElegidos(L.opciones,marcados()).length;}
+  function marcados(){return Array.from($('loteList').querySelectorAll('input:checked')).map(function(x){return x.value;});}
+  async function accion(fn){if(L.busy)return;L.busy=true;$('loteError').textContent='';controles().forEach(function(x){x.disabled=true;});
+    try{await fn();}catch(e){$('loteError').textContent=e.message;}
+    finally{L.busy=false;controles().forEach(function(x){x.disabled=x.dataset.off==='1';});sync();}}
+  function linea(host,text){var d=document.createElement('div');d.textContent=text;host.appendChild(d);}
+  /* Lista con casillas: lo que no se puede recorrer queda deshabilitado con su motivo, igual que en "Publicar pendientes". */
+  function render(info){
+    var host=$('loteList');host.textContent='';$('loteInfo').textContent=info;$('loteResumen').textContent='';
+    L.opciones.forEach(function(o){
+      var it=L.items[o.code]||{},row=document.createElement('div'),label=document.createElement('label'),input=document.createElement('input');
+      row.style.cssText='margin:10px 0';input.type='checkbox';input.value=o.code;input.checked=o.marcado;input.disabled=!o.habilitado;if(!o.habilitado)input.dataset.off='1';
+      var sectores=it.poly?' · '+Array.from(it.poly.sectors).sort().map(function(x){return 'S'+x;}).join(', '):'';
+      label.append(input,document.createTextNode(' Polígono '+o.code+sectores+(o.habilitado?(it.res?' · '+it.res.pendientes+' pendientes de '+it.res.filas+' · '+it.res.antes+' → '+it.res.despues:''):' · se omite: '+o.motivo)));row.appendChild(label);
+      if(o.habilitado&&it.dias){var select=document.createElement('select');
+        it.dias.slice(0,-1).forEach(function(d){var op=document.createElement('option');op.value=d;op.textContent=loteDia(d);select.appendChild(op);});
+        select.value=it.antes;select.addEventListener('change',function(){it.antes=select.value;});
+        row.append(document.createTextNode(' · Antes '),select,document.createTextNode(' → Después '+loteDia(it.despues)));}
+      host.appendChild(row);
+    });
+    sync();
+  }
+  function opcion(code,motivo){L.opciones.push({code:code,habilitado:!motivo,marcado:!motivo,motivo:motivo||''});}
+  /* Carga manual: el distrito activo ya tiene sus reportes y los Excel del revisor; se prepara una vez y se recorre polígono por polígono. */
+  function prepararManual(){
+    var codes=[],present=gapPresent(BOARD_());Object.keys(present).forEach(function(id){['A','B'].forEach(function(side){codes=codes.concat(present[id][side]||[]);});});
+    var u=loteUbigeo(codes);if(u.error)throw new Error(u.error);
+    if(!POLYGONS.length)throw new Error('Carga primero el universo de polígonos (Excel o Drive).');
+    L.ubigeo=u.ubigeo;L.prep=pubPreparar('','',$('pubObs').checked);
+    var sel=lotePoligonos(POLYGONS,L.ubigeo);
+    sel.procesar.forEach(function(p){var r=loteResultado(p.code,L.prep);L.items[p.code]={poly:p,res:r};opcion(p.code,r.estado==='omitido'?r.motivo:'');});
+    sel.omitidos.forEach(function(o){opcion(o.code,o.motivo);});
+    return sel;
+  }
+  /* Drive: se listan los nombres del distrito y, por polígono, sus fechas; los archivos se bajan después, de uno en uno. */
+  async function prepararDrive(){
+    var id=$('loteDistrict').value;if(!id)throw new Error('Elige la carpeta DISTRITO.');
+    if(!POLYGONS.length)await polyFromDrive();
+    L.indice=await loteIndice(id);
+    var u=loteUbigeo(L.indice.files.map(function(f){return f.ubigeo+f.sector;}));if(u.error)throw new Error(u.error);
+    L.ubigeo=u.ubigeo;L.revisores={};(await drvPoligonos()).forEach(function(x){L.revisores[x.name]=x;});
+    var sel=lotePoligonos(POLYGONS,L.ubigeo);
+    sel.procesar.forEach(function(p){var f=loteFechas(L.indice.files,L.ubigeo,p.sectors);L.items[p.code]={poly:p,dias:f.dias,antes:f.antes,despues:f.despues};
+      opcion(p.code,!L.revisores[p.code]?'sin cruce: falta la carpeta del Excel del revisor en Validaciones_alfanuméricas':f.motivo);});
+    sel.omitidos.forEach(function(o){opcion(o.code,o.motivo);});
+    return sel;
+  }
+  function info(sel){return 'UBIGEO '+L.ubigeo+' · '+(sel.procesar.length+sel.omitidos.length)+' polígonos del distrito'+(sel.ajenos?' · '+sel.ajenos+' de otros distritos no se recorren':'')+(L.indice&&L.indice.ignorados?' · '+L.indice.ignorados+' archivos con nombre no reconocido ignorados':'');}
+  /* Un polígono desde Drive: baja su Excel del revisor y sus reportes (su UBIGEO, sus sectores, sus dos fechas), cruza y suelta todo. */
+  async function procesarDrive(code){
+    var it=L.items[code],p=it.poly,a=it.antes,b=it.despues;
+    var rev=await drvFile(drvRevisorUnico((await drvList('validaciones',L.revisores[code].id)).filter(drvExcel),code));
+    var c2=c2read(XLSX.read(new Uint8Array(await rev.arrayBuffer()),{type:'array',cellText:true}),rev.name);rev=null;
+    if(c2.polygon!==code)throw new Error('el Excel del revisor no corresponde al polígono (nombre: '+(c2.polygon||'sin código')+')');
+    var files=loteArchivos(L.indice.files,L.ubigeo,p.sectors,a,b);
+    if(!files.some(function(x){return x.day===a;}))return {code:code,estado:'omitido',motivo:'falta Antes: no hay reportes del '+loteDia(a)};
+    if(!files.some(function(x){return x.day===b;}))return {code:code,estado:'omitido',motivo:'falta Después: no hay reportes del '+loteDia(b)};
+    var total=0,leidos=await drvPool(files,async function(item){
+      var file=await drvFile(item);total+=file.size;if(total>DRV_TOTAL)throw new Error('los reportes del polígono superan 150 MiB');
+      var data=await drvRead(file),preset=detectPreset(data.headers);file=null;if(!preset)throw new Error(item.name+': tipo de reporte no reconocido');
+      var esperado=L.ubigeo+item.sector;if(data.rows.some(function(r){var crc=txt(r[preset.key]);return /^\d{14}$|^\d{24}$/.test(crc)&&crc.slice(0,8)!==esperado;}))throw new Error(item.name+': trae CRC de otro UBIGEO/sector; no se mezcla');
+      return {data:data,preset:preset,side:item.day===a?'A':'B'};});
+    var grouped={};leidos.forEach(function(x){var k=x.preset.id+'|'+x.side;(grouped[k]||(grouped[k]=[])).push(x.data);});leidos=null;
+    Object.keys(grouped).forEach(function(k){var h=JSON.stringify(grouped[k][0].headers);if(grouped[k].some(function(d){return JSON.stringify(d.headers)!==h;}))throw new Error('encabezados incompatibles: '+k);});
+    // pubPreparar une los archivos y compara una sola vez: aquí solo se dejan listos (RES marca "hay que comparar").
+    var board=newBoard();board.forEach(function(ctx){['A','B'].forEach(function(side){var list=grouped[ctx.preset.id+'|'+side];if(list)ctx[side]={files:list};});ctx.RES=!!(ctx.A&&ctx.B);});grouped=null;
+    var temp={name:'Lote '+code,board:board,tec:{},c2:[c2],registro:null,registroError:false};
+    // Registro del descargador (solo lectura): explica los reportes faltantes. Si no responde, se sigue sin él.
+    try{var reg=await drvGet('registro',{fechas:a+','+b,codigos:Array.from(p.sectors).sort().map(function(x){return L.ubigeo+x;}).join(',')});if(!Array.isArray(reg.registro))throw new Error('formato');temp.registro=reg.registro;}catch(e){temp.registroError=true;}
+    var r;try{r=loteResultado(code,loteEnDistrito(temp,function(){return pubPreparar('',code,$('pubObs').checked);}));}
+    finally{temp.board=temp.c2=temp.registro=null;board=c2=null;}
+    return r;
+  }
+  $('loteOpen').addEventListener('click',function(){
+    if(CUR<0){showErr('Crea o selecciona un distrito antes de comparar todos.');return;}
+    L={busy:false,modo:BOARD_().some(function(c){return c.A||c.B;})?'manual':'drive',ubigeo:'',opciones:[],items:{},indice:null,revisores:{},prep:null};
+    $('loteTarget').textContent='Distrito de trabajo: '+DISTRICTS[CUR].name+' · '+(L.modo==='manual'?'se usan los reportes y Excel del revisor ya cargados en este distrito.':'sin reportes cargados: se leen de Drive, polígono por polígono.');
+    $('loteDrive').hidden=L.modo==='manual';$('loteProgress').value=0;$('loteProgressText').textContent='';$('loteError').textContent='';render('');$('loteDialog').showModal();
+    accion(async function(){
+      if(L.modo==='manual'){render(info(prepararManual()));return;}
+      var districts=(await drvList('reportes')).filter(function(x){return x.folder;});if(!districts.length)throw new Error('La carpeta de reportes está vacía.');drvOptions('loteDistrict',districts,drvLast().district);
+    });
+  });
+  $('loteBuscar').addEventListener('click',function(){accion(async function(){L.opciones=[];L.items={};render('');render(info(await prepararDrive()));});});
+  $('loteDistrict').addEventListener('change',function(){L.opciones=[];L.items={};L.indice=null;render('');});
+  $('loteList').addEventListener('change',sync);$('lotePublicar').addEventListener('change',sync);
+  $('loteClose').addEventListener('click',function(){if(L.busy)return;$('loteDialog').close();L.indice=L.prep=null;L.items={};L.opciones=[];});
+  $('loteDialog').addEventListener('cancel',function(e){if(L.busy)e.preventDefault();});
+  $('loteRun').addEventListener('click',function(){accion(async function(){
+    var publicar=$('lotePublicar').checked,url=$('pubUrl').value.trim(),key=$('pubKey').value.trim(),marcas=marcados(),elegidos=pubElegidos(L.opciones,marcas);
+    if(!elegidos.length)throw new Error('Marca al menos un polígono.');
+    if(publicar){if(!url||!key)throw new Error('Configura la URL y la clave de escritura en ⚙ Publicación.');
+      var parsed=new URL(url);if(parsed.protocol!=='https:'||!parsed.pathname.endsWith('/exec'))throw new Error('La URL debe usar HTTPS y terminar en /exec.');}
+    var previos=L.opciones.filter(function(o){return elegidos.indexOf(o.code)<0;}).map(function(o){return {code:o.code,estado:'omitido',motivo:o.habilitado?'no marcado':o.motivo};});
+    $('loteProgress').max=elegidos.length;$('loteProgress').value=0;$('loteResumen').textContent='';
+    var hechos=await loteCorrer(elegidos,
+      L.modo==='manual'?function(code){var r=loteResultado(code,L.prep);delete L.prep.payloads[code];return r;}:procesarDrive,
+      publicar?function(payload){payload.k=key;return pubPost(url,payload);}:null,
+      function(n,total,code,fase){$('loteProgress').value=n;$('loteProgressText').textContent=fase==='fin'?total+' de '+total+' · Lote terminado.':'Polígono '+(n+1)+' de '+total+' · '+code+' · '+fase;});
+    var host=$('loteResumen');host.textContent='';linea(host,'Resumen · '+DISTRICTS[CUR].name+' · UBIGEO '+L.ubigeo);
+    loteResumen(hechos.concat(previos)).lineas.forEach(function(t){linea(host,t);});
+    // Lo ya recorrido no se vuelve a enviar: hay que buscar de nuevo para repetir.
+    L.opciones=[];L.items={};L.prep=null;$('loteList').textContent='';
+  });});
+})();
 (function(){
   try{$('drvRemember').checked=!!localStorage.getItem('vc-cmp-drv-key');$('drvKey').value=sessionStorage.getItem('vc-cmp-drv-key')||localStorage.getItem('vc-cmp-drv-key')||'';}catch(e){}
   function save(){try{var key=$('drvKey').value.trim();if($('drvRemember').checked){localStorage.setItem('vc-cmp-drv-key',key);sessionStorage.removeItem('vc-cmp-drv-key');}else{sessionStorage.setItem('vc-cmp-drv-key',key);localStorage.removeItem('vc-cmp-drv-key');}}catch(e){}}
