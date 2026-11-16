@@ -6,3 +6,4 @@
 - 2026-11-16: "Comparar todos (revisión final)": recorre uno por uno los polígonos del distrito activo (por UBIGEO, sin mezclar distritos), Antes por polígono, publicación opcional con reintento y resumen publicados / parciales / omitidos.
 - 2026-11-16: regla de estado por campos esperados fijada con pruebas (nota "También cambió: X, Y") y columna nueva al final del Excel "Observación vs Antes → Después" (no se publica).
 - 2026-11-16: "Publicar pendientes" incluye como aviso las filas ◐ cambió otro campo, con etiqueta propia "◐ Cambió otro campo, no el observado" (solo nombres de campo, sin valores); los ✔ verificado no se publican.
+- 2026-11-16: "Cargar desde Drive": cada sector una sola vez ("S35" = "150112 · S35"); un archivo que falla se reintenta 2 veces y, si sigue fallando, no corta la carga: queda parcial con la lista de faltantes y botón "Reintentar faltantes" (en memoria).
