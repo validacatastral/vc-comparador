@@ -7,7 +7,7 @@ var html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 function cut(from,to){var i=html.indexOf(from),j=html.indexOf(to,i);assert(i>=0&&j>i,'no se halló: '+from);return html.slice(i,j);}
 var src=[cut('function txt(v){','function normVal'),cut('function drvDate(name){','\n'),cut('/* ============ Reportes faltantes','function gapCodes'),
   cut('/* ============ Comparar todos','/* Ejecuta fn con un distrito temporal')].join('\n');
-var T=vm.runInNewContext(src+'\n({loteNombre:loteNombre,loteUbigeo:loteUbigeo,lotePoligonos:lotePoligonos,loteFechas:loteFechas,loteArchivos:loteArchivos,loteResultado:loteResultado,loteReintento:loteReintento,loteCorrer:loteCorrer,loteResumen:loteResumen,pubOpciones:pubOpciones,pubLoaded:pubLoaded,pubElegidos:pubElegidos});',{setTimeout:setTimeout,Promise:Promise});
+var T=vm.runInNewContext(src+'\n({loteNombre:loteNombre,loteUbigeo:loteUbigeo,lotePoligonos:lotePoligonos,loteFechas:loteFechas,loteArchivos:loteArchivos,loteAviso:loteAviso,loteFechasTxt:loteFechasTxt,loteResultado:loteResultado,loteReintento:loteReintento,loteCorrer:loteCorrer,loteResumen:loteResumen,pubOpciones:pubOpciones,pubLoaded:pubLoaded,pubElegidos:pubElegidos});',{setTimeout:setTimeout,Promise:Promise});
 function S(l){return new Set(l);}
 function eq(a,b){assert.deepStrictEqual(JSON.parse(JSON.stringify(a)),b);}   // los valores vienen de otro contexto (vm)
 function poly(code,ubigeo,sectors){return {code:code,ubigeos:S(ubigeo?[ubigeo]:[]),sectors:S(sectors),keys:S(sectors.map(function(s){return s+'|001';}))};}
@@ -41,13 +41,34 @@ var drive=[];
 drive.push(file('UA',IND,'30','261112'));                                   // 068: una sola descarga
 ['261020','261116'].forEach(function(d){drive.push(file('UA',COM,'19',d));drive.push(file('UA',COM,'02',d));});
 var f019=T.loteFechas(drive,IND,S(['19','25'])),fCom=T.loteFechas(drive,COM,S(['19','02'])),f068=T.loteFechas(drive,IND,S(['30']));
-assert.strictEqual(f019.antes,'2026-11-03');assert.strictEqual(f019.despues,'2026-11-15');assert.strictEqual(f019.motivo,'');
-assert.strictEqual(fCom.antes,'2026-10-20');assert.strictEqual(fCom.despues,'2026-11-16');   // el S19 de Comas no toma fechas del S19 de Independencia
-assert.strictEqual(f068.motivo,'falta Después: solo existe la descarga del 12/11/2026');
+eq(f019.porSector,{'19':{dias:['2026-11-03','2026-11-14','2026-11-15'],antes:'2026-11-03',despues:'2026-11-15'},'25':{dias:['2026-11-10','2026-11-15'],antes:'2026-11-10',despues:'2026-11-15'}});
+assert.strictEqual(f019.motivo,'');assert.strictEqual(f019.aviso,'Antes mixto: 1 del 03/11, 1 del 10/11');     // cada sector con SU Antes; solo avisa
+assert.strictEqual(fCom.porSector['19'].antes,'2026-10-20');assert.strictEqual(fCom.porSector['19'].despues,'2026-11-16');assert.strictEqual(fCom.aviso,'');   // el S19 de Comas no toma fechas del S19 de Independencia
+assert.strictEqual(f068.motivo,'falta Después: solo existe una descarga de S30 (12/11/2026)');
 assert.match(T.loteFechas(drive,COM,S(['03'])).motivo,/falta Antes y Después/);
-var bajar=T.loteArchivos(drive,COM,S(['19','02']),fCom.antes,fCom.despues);
+assert.strictEqual(T.loteFechas(drive,COM,S(['19','03'])).motivo,'sectores incompletos: sin reportes en Drive para S03');
+var bajar=T.loteArchivos(drive,COM,fCom.porSector);
 assert.strictEqual(bajar.length,4);assert(bajar.every(function(x){return x.ubigeo===COM;}),'archivo de otro distrito en el lote de Comas');
-assert(T.loteArchivos(drive,IND,S(['19','25']),f019.antes,f019.despues).every(function(x){return x.ubigeo===IND&&x.day!=='2026-11-14';}),'no se usa la del día anterior');
+var b019=T.loteArchivos(drive,IND,f019.porSector);
+assert(b019.every(function(x){return x.ubigeo===IND&&x.day!=='2026-11-14';}),'no se usa la del día anterior');assert.strictEqual(b019.length,6);
+
+// 3b) CASO: polígono de 6 sectores; 5 con su reporte más reciente del 16 y 1 del 17. Antes (fecha única = 17) dejaba 5 sectores
+//     sin Después y el polígono se omitía por "faltan S01…S05". Ahora cada sector usa SU Antes y SU Después y solo se avisa.
+var SEIS=['01','02','03','04','05','06'],drive6=[];
+SEIS.forEach(function(s){[s==='02'?'261105':'261103','261110',s==='06'?'261117':'261116'].forEach(function(d){drive6.push(file('UA',COM,s,d));drive6.push(file('CONS',COM,s,d));});});
+var f6=T.loteFechas(drive6,COM,S(SEIS));
+assert.strictEqual(f6.motivo,'','fechas mixtas no bloquean');
+assert.strictEqual(f6.aviso,'Antes mixto: 5 del 03/11, 1 del 05/11 · Después mixto: 5 del 16/11, 1 del 17/11');
+SEIS.forEach(function(s){assert.strictEqual(f6.porSector[s].antes,s==='02'?'2026-11-05':'2026-11-03','Antes propio de S'+s);assert.strictEqual(f6.porSector[s].despues,s==='06'?'2026-11-17':'2026-11-16','Después propio de S'+s);});
+assert.strictEqual(T.loteFechasTxt(f6.porSector),'S01 03/11→16/11 · S02 05/11→16/11 · S03 03/11→16/11 · S04 03/11→16/11 · S05 03/11→16/11 · S06 03/11→17/11');
+var b6=T.loteArchivos(drive6,COM,f6.porSector),lados={A:[],B:[]};
+b6.forEach(function(x){lados[x.day===f6.porSector[x.sector].antes?'A':'B'].push(COM+x.sector);});
+assert.strictEqual(b6.length,24,'2 tipos × 2 fechas × 6 sectores');assert(b6.every(function(x){return x.day!=='2026-11-10';}),'la descarga intermedia no se usa');
+var op6=T.pubOpciones([{code:'270100009',sectors:S(SEIS),ilegibles:0,totales:{filas:60,noEncontrado:0,invalido:0}}],T.pubLoaded({UA:lados,CON:lados}),'270100009');
+assert.strictEqual(op6[0].habilitado,true,'ningún sector queda sin reporte: '+op6[0].motivo);
+// Con la fecha única de antes (todos al 17) solo S06 tendría Después: se comprueba que ese es justo el fallo que se evita.
+var unico={A:lados.A,B:[COM+'06']};
+assert.strictEqual(T.pubOpciones([{code:'270100009',sectors:S(SEIS),ilegibles:0,totales:{filas:60,noEncontrado:0,invalido:0}}],T.pubLoaded({UA:unico}),'270100009')[0].motivo,'faltan S01, S02, S03, S04, S05');
 
 // 4) Resultado por polígono con las MISMAS validaciones de "Publicar pendientes" (pubOpciones: sectores incompletos, seguro 50%)
 function tot(filas,malas){return {filas:filas,verificado:filas-malas,otroCampo:0,sinCambio:0,noEncontrado:malas,invalido:0,noAplicaConCambio:0};}
@@ -89,8 +110,11 @@ assert.match(T.loteResultado('260210019',{opciones:[],payloads:{},totales:{}}).m
   assert.strictEqual(g.lineas[0],'Publicados: 1 · Parciales: 1 · Omitidos: 4');
   assert(g.lineas.indexOf('✗ ERROR · omitido: error: rep_UA_15011230_261112.xlsx: base64 inválido.')>0);
   assert(g.lineas.indexOf('✗ BLOQUEO · omitido: error al publicar tras 4 intentos: Lock timeout')>0);
-  assert(g.lineas.indexOf('✗ 260410068 · omitido: falta Después: solo existe la descarga del 12/11/2026')>0);
+  assert(g.lineas.indexOf('✗ 260410068 · omitido: falta Después: solo existe una descarga de S30 (12/11/2026)')>0);
   assert(g.lineas.some(function(t){return /^◐ PARCIAL .* parcial: S25 · CONS/.test(t);}));
+  // El resumen muestra las fechas por sector y el aviso de fechas mixtas
+  var g6=T.loteResumen([{code:'270100009',estado:'listo',parcial:false,publicado:true,pendientes:4,filas:60,antes:'03/11/2026 – 05/11/2026',despues:'16/11/2026 – 17/11/2026',intentos:1,sectores:T.loteFechasTxt(f6.porSector),aviso:f6.aviso}]);
+  assert.strictEqual(g6.lineas[1],'✓ 270100009 · 4 pendientes de 60 · 03/11/2026 – 05/11/2026 → 16/11/2026 – 17/11/2026 · S01 03/11→16/11 · S02 05/11→16/11 · S03 03/11→16/11 · S04 03/11→16/11 · S05 03/11→16/11 · S06 03/11→17/11 · ⚠ Antes mixto: 5 del 03/11, 1 del 05/11 · Después mixto: 5 del 16/11, 1 del 17/11');
 
   // 7) Sin publicar (casilla desmarcada): nada se envía y los completos quedan como "comparados"
   enviados=[];res=await T.loteCorrer(['260210019','PARCIAL'],procesar,null,null,{dormir:dormir});

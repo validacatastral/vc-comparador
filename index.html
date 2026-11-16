@@ -2971,16 +2971,30 @@ function lotePoligonos(polys,ubigeo){
     else out.procesar.push(p);});
   return out;
 }
-/* Fechas de un polígono. files: [{ubigeo,sector,day}] del distrito · sectors: Set('SS').
-   Antes = la descarga MÁS ANTIGUA de sus sectores (la original, nunca la del día anterior); Después = la más reciente. */
+/* Fechas de un polígono, POR SECTOR. files: [{ubigeo,sector,day}] del distrito · sectors: Set('SS').
+   Cada sector usa SU Antes (su descarga más antigua: la original, nunca la del día anterior) y SU Después (su descarga más reciente);
+   no hay una fecha única por polígono que deje sectores sin reporte. Fechas distintas entre sectores solo generan un aviso.
+   Devuelve {porSector:{SS:{dias,antes,despues}},motivo,aviso}; motivo ≠ '' si algún sector no tiene sus dos descargas. */
 function loteFechas(files,ubigeo,sectors){
-  var set=new Set(Array.from(sectors||[])),days=new Set();(files||[]).forEach(function(f){if(f.ubigeo===ubigeo&&set.has(f.sector)&&f.day)days.add(f.day);});
-  var dias=Array.from(days).sort();
-  return {dias:dias,antes:dias[0]||'',despues:dias.length>1?dias[dias.length-1]:'',
-    motivo:!dias.length?'falta Antes y Después: no hay reportes en Drive para sus sectores':dias.length<2?'falta Después: solo existe la descarga del '+loteDia(dias[0]):''};
+  var porSector={},lista=Array.from(sectors||[]).sort();lista.forEach(function(x){porSector[x]={dias:[],antes:'',despues:''};});
+  (files||[]).forEach(function(f){var o=f.ubigeo===ubigeo?porSector[f.sector]:null;if(o&&f.day&&o.dias.indexOf(f.day)<0)o.dias.push(f.day);});
+  lista.forEach(function(x){var o=porSector[x];o.dias.sort();o.antes=o.dias[0]||'';o.despues=o.dias.length>1?o.dias[o.dias.length-1]:'';});
+  var sin=lista.filter(function(x){return !porSector[x].dias.length;}),una=lista.filter(function(x){return porSector[x].dias.length===1;});
+  function S(l){return l.map(function(x){return 'S'+x;}).join(', ');}
+  var motivo=!lista.length||sin.length===lista.length?'falta Antes y Después: no hay reportes en Drive para sus sectores':sin.length?'sectores incompletos: sin reportes en Drive para '+S(sin)
+    :una.length?'falta Después: solo existe una descarga de '+una.map(function(x){return 'S'+x+' ('+loteDia(porSector[x].antes)+')';}).join(', '):'';
+  return {porSector:porSector,motivo:motivo,aviso:loteAviso(porSector)};
 }
-/* Archivos a bajar para un polígono: solo su UBIGEO, sus sectores y sus dos fechas. */
-function loteArchivos(files,ubigeo,sectors,antes,despues){var set=new Set(Array.from(sectors||[]));return (files||[]).filter(function(f){return f.ubigeo===ubigeo&&set.has(f.sector)&&(f.day===antes||f.day===despues);});}
+/* Aviso (no bloquea) cuando los sectores no comparten fecha: "Después mixto: 5 del 16/11, 1 del 17/11". */
+function loteAviso(porSector){
+  function mixto(campo,nombre){var n={};Object.keys(porSector||{}).forEach(function(x){var d=porSector[x][campo];if(d)n[d]=(n[d]||0)+1;});var dias=Object.keys(n).sort();
+    return dias.length>1?nombre+' mixto: '+dias.map(function(d){return n[d]+' del '+loteDia(d).slice(0,5);}).join(', '):'';}
+  return [mixto('antes','Antes'),mixto('despues','Después')].filter(Boolean).join(' · ');
+}
+/* Fechas por sector en una línea: "S01 03/11→16/11 · S06 03/11→17/11". */
+function loteFechasTxt(porSector){return Object.keys(porSector||{}).sort().map(function(x){var o=porSector[x];return 'S'+x+' '+(loteDia(o.antes).slice(0,5)||'—')+'→'+(loteDia(o.despues).slice(0,5)||'—');}).join(' · ');}
+/* Archivos a bajar para un polígono: solo su UBIGEO y, de cada sector, SUS dos fechas. */
+function loteArchivos(files,ubigeo,porSector){return (files||[]).filter(function(f){var o=f.ubigeo===ubigeo?(porSector||{})[f.sector]:null;return !!o&&!!f.day&&(f.day===o.antes||f.day===o.despues);});}
 /* Resultado de un polígono a partir de pubPreparar(): mismas validaciones que "Publicar pendientes". El payload se suelta al publicar. */
 function loteResultado(code,prep){
   var o=(prep.opciones||[]).filter(function(x){return x.code===code;})[0],p=(prep.payloads||{})[code],t=(prep.totales||{})[code];
@@ -3023,7 +3037,7 @@ async function loteCorrer(codes,procesar,publicar,progreso,reintento){
 function loteResumen(resultados){
   var g={publicados:[],parciales:[],comparados:[],omitidos:[],lineas:[]};
   (resultados||[]).forEach(function(r){(r.estado==='omitido'?g.omitidos:r.parcial?g.parciales:r.publicado?g.publicados:g.comparados).push(r);});
-  function base(r){return r.code+' · '+r.pendientes+' pendientes de '+r.filas+' · '+r.antes+' → '+r.despues+(r.intentos>1?' · '+r.intentos+' intentos':'');}
+  function base(r){return r.code+' · '+r.pendientes+' pendientes de '+r.filas+' · '+r.antes+' → '+r.despues+(r.sectores?' · '+r.sectores:'')+(r.aviso?' · ⚠ '+r.aviso:'')+(r.intentos>1?' · '+r.intentos+' intentos':'');}
   g.lineas.push('Publicados: '+g.publicados.length+' · Parciales: '+g.parciales.length+(g.comparados.length?' · Comparados sin publicar: '+g.comparados.length:'')+' · Omitidos: '+g.omitidos.length);
   g.publicados.forEach(function(r){g.lineas.push('✓ '+base(r));});
   g.parciales.forEach(function(r){g.lineas.push('◐ '+base(r)+' · parcial'+(r.publicado?'':' (sin publicar)')+': '+r.detalle.join(' | '));});
@@ -3059,10 +3073,14 @@ async function loteIndice(folder){
       row.style.cssText='margin:10px 0';input.type='checkbox';input.value=o.code;input.checked=o.marcado;input.disabled=!o.habilitado;if(!o.habilitado)input.dataset.off='1';
       var sectores=it.poly?' · '+Array.from(it.poly.sectors).sort().map(function(x){return 'S'+x;}).join(', '):'';
       label.append(input,document.createTextNode(' Polígono '+o.code+sectores+(o.habilitado?(it.res?' · '+it.res.pendientes+' pendientes de '+it.res.filas+' · '+it.res.antes+' → '+it.res.despues:''):' · se omite: '+o.motivo)));row.appendChild(label);
-      if(o.habilitado&&it.dias){var select=document.createElement('select');
-        it.dias.slice(0,-1).forEach(function(d){var op=document.createElement('option');op.value=d;op.textContent=loteDia(d);select.appendChild(op);});
-        select.value=it.antes;select.addEventListener('change',function(){it.antes=select.value;});
-        row.append(document.createTextNode(' · Antes '),select,document.createTextNode(' → Después '+loteDia(it.despues)));}
+      if(o.habilitado&&it.fechas){
+        // Fechas por sector; el Antes de cada sector se puede corregir antes de lanzar. Las fechas mixtas solo avisan.
+        var aviso=document.createElement('div');aviso.className='sub';
+        Object.keys(it.fechas.porSector).sort().forEach(function(x){var f=it.fechas.porSector[x],line=document.createElement('div'),select=document.createElement('select');line.className='sub';
+          f.dias.slice(0,-1).forEach(function(d){var op=document.createElement('option');op.value=d;op.textContent=loteDia(d);select.appendChild(op);});
+          select.value=f.antes;select.addEventListener('change',function(){f.antes=select.value;var t=loteAviso(it.fechas.porSector);aviso.textContent=t?'⚠ '+t:'';});
+          line.append(document.createTextNode('S'+x+' · Antes '),select,document.createTextNode(' → Después '+loteDia(f.despues)));row.appendChild(line);});
+        aviso.textContent=it.fechas.aviso?'⚠ '+it.fechas.aviso:'';row.appendChild(aviso);}
       host.appendChild(row);
     });
     sync();
@@ -3087,35 +3105,36 @@ async function loteIndice(folder){
     var u=loteUbigeo(L.indice.files.map(function(f){return f.ubigeo+f.sector;}));if(u.error)throw new Error(u.error);
     L.ubigeo=u.ubigeo;L.revisores={};(await drvPoligonos()).forEach(function(x){L.revisores[x.name]=x;});
     var sel=lotePoligonos(POLYGONS,L.ubigeo);
-    sel.procesar.forEach(function(p){var f=loteFechas(L.indice.files,L.ubigeo,p.sectors);L.items[p.code]={poly:p,dias:f.dias,antes:f.antes,despues:f.despues};
+    sel.procesar.forEach(function(p){var f=loteFechas(L.indice.files,L.ubigeo,p.sectors);L.items[p.code]={poly:p,fechas:f};
       opcion(p.code,!L.revisores[p.code]?'sin cruce: falta la carpeta del Excel del revisor en Validaciones_alfanuméricas':f.motivo);});
     sel.omitidos.forEach(function(o){opcion(o.code,o.motivo);});
     return sel;
   }
   function info(sel){return 'UBIGEO '+L.ubigeo+' · '+(sel.procesar.length+sel.omitidos.length)+' polígonos del distrito'+(sel.ajenos?' · '+sel.ajenos+' de otros distritos no se recorren':'')+(L.indice&&L.indice.ignorados?' · '+L.indice.ignorados+' archivos con nombre no reconocido ignorados':'');}
-  /* Un polígono desde Drive: baja su Excel del revisor y sus reportes (su UBIGEO, sus sectores, sus dos fechas), cruza y suelta todo. */
+  /* Un polígono desde Drive: baja su Excel del revisor y sus reportes (su UBIGEO y, de cada sector, sus dos fechas), cruza y suelta todo. */
   async function procesarDrive(code){
-    var it=L.items[code],p=it.poly,a=it.antes,b=it.despues;
+    var it=L.items[code],p=it.poly,ps=it.fechas.porSector;function lado(x){return x.day===ps[x.sector].antes?'A':'B';}
     var rev=await drvFile(drvRevisorUnico((await drvList('validaciones',L.revisores[code].id)).filter(drvExcel),code));
     var c2=c2read(XLSX.read(new Uint8Array(await rev.arrayBuffer()),{type:'array',cellText:true}),rev.name);rev=null;
     if(c2.polygon!==code)throw new Error('el Excel del revisor no corresponde al polígono (nombre: '+(c2.polygon||'sin código')+')');
-    var files=loteArchivos(L.indice.files,L.ubigeo,p.sectors,a,b);
-    if(!files.some(function(x){return x.day===a;}))return {code:code,estado:'omitido',motivo:'falta Antes: no hay reportes del '+loteDia(a)};
-    if(!files.some(function(x){return x.day===b;}))return {code:code,estado:'omitido',motivo:'falta Después: no hay reportes del '+loteDia(b)};
+    var files=loteArchivos(L.indice.files,L.ubigeo,ps),dias=Array.from(new Set(files.map(function(x){return x.day;}))).sort();
+    if(!files.some(function(x){return lado(x)==='A';}))return {code:code,estado:'omitido',motivo:'falta Antes: no hay reportes de la primera descarga'};
+    if(!files.some(function(x){return lado(x)==='B';}))return {code:code,estado:'omitido',motivo:'falta Después: no hay reportes de la última descarga'};
     var total=0,leidos=await drvPool(files,async function(item){
       var file=await drvFile(item);total+=file.size;if(total>DRV_TOTAL)throw new Error('los reportes del polígono superan 150 MiB');
       var data=await drvRead(file),preset=detectPreset(data.headers);file=null;if(!preset)throw new Error(item.name+': tipo de reporte no reconocido');
       var esperado=L.ubigeo+item.sector;if(data.rows.some(function(r){var crc=txt(r[preset.key]);return /^\d{14}$|^\d{24}$/.test(crc)&&crc.slice(0,8)!==esperado;}))throw new Error(item.name+': trae CRC de otro UBIGEO/sector; no se mezcla');
-      return {data:data,preset:preset,side:item.day===a?'A':'B'};});
+      return {data:data,preset:preset,side:lado(item)};});
     var grouped={};leidos.forEach(function(x){var k=x.preset.id+'|'+x.side;(grouped[k]||(grouped[k]=[])).push(x.data);});leidos=null;
     Object.keys(grouped).forEach(function(k){var h=JSON.stringify(grouped[k][0].headers);if(grouped[k].some(function(d){return JSON.stringify(d.headers)!==h;}))throw new Error('encabezados incompatibles: '+k);});
     // pubPreparar une los archivos y compara una sola vez: aquí solo se dejan listos (RES marca "hay que comparar").
     var board=newBoard();board.forEach(function(ctx){['A','B'].forEach(function(side){var list=grouped[ctx.preset.id+'|'+side];if(list)ctx[side]={files:list};});ctx.RES=!!(ctx.A&&ctx.B);});grouped=null;
     var temp={name:'Lote '+code,board:board,tec:{},c2:[c2],registro:null,registroError:false};
     // Registro del descargador (solo lectura): explica los reportes faltantes. Si no responde, se sigue sin él.
-    try{var reg=await drvGet('registro',{fechas:a+','+b,codigos:Array.from(p.sectors).sort().map(function(x){return L.ubigeo+x;}).join(',')});if(!Array.isArray(reg.registro))throw new Error('formato');temp.registro=reg.registro;}catch(e){temp.registroError=true;}
+    try{var reg=await drvGet('registro',{fechas:dias.join(','),codigos:Array.from(p.sectors).sort().map(function(x){return L.ubigeo+x;}).join(',')});if(!Array.isArray(reg.registro))throw new Error('formato');temp.registro=reg.registro;}catch(e){temp.registroError=true;}
     var r;try{r=loteResultado(code,loteEnDistrito(temp,function(){return pubPreparar('',code,$('pubObs').checked);}));}
     finally{temp.board=temp.c2=temp.registro=null;board=c2=null;}
+    r.sectores=loteFechasTxt(ps);r.aviso=loteAviso(ps);
     return r;
   }
   $('loteOpen').addEventListener('click',function(){
