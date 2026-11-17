@@ -36,7 +36,7 @@ var casos=[
   [7,'OTRO CAMBIO',[],'⚠ SIN CAMBIO EN SICUN',undefined,false],
   [8,'NO APLICA',[],'✔ NO APLICA CONFIRMADO',undefined,false],
   [9,'NO APLICA',[CIIU],'ℹ NO APLICA pero SICUN cambió','debería ser APLICA',false],
-  [10,'NO APLICA',[OTRO],'ℹ NO APLICA pero SICUN cambió',undefined,false]
+  [10,'NO APLICA',[OTRO],'✔ NO APLICA CONFIRMADO',undefined,true]                 // solo campo no esperado → confirmado + nota
 ];
 casos.forEach(function(c){var r=cruce('VAL_USO_CIIU',c[1],c[2]);
   assert.strictEqual(r.result,c[3],'caso '+c[0]);assert.strictEqual(r.suggestion,c[4],'sugerencia caso '+c[0]);assert.strictEqual(!!r.extra,c[5],'nota caso '+c[0]);

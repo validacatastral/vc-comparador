@@ -36,7 +36,7 @@ assert.strictEqual(cruce('VAL_USO_CIIU','APLICA',[ev('CON','Área Verificada')])
 
 // 3) NO APLICA y OTRO CAMBIO no cambian
 assert.deepStrictEqual(JSON.parse(JSON.stringify([cruce('VAL_USO_CIIU','NO APLICA',[]).cls,cruce('VAL_USO_CIIU','NO APLICA',[EXTRA]).cls,cruce('VAL_USO_CIIU','NO APLICA',[ev('UA','Código De Uso')]).cls,cruce('VAL_USO_CIIU','OTRO CAMBIO',[EXTRA]).cls])),
-  [{result:'✔ NO APLICA CONFIRMADO',omit:true},{result:'ℹ NO APLICA pero SICUN cambió'},{result:'ℹ NO APLICA pero SICUN cambió',suggestion:'debería ser APLICA'},{result:'✔ CAMBIÓ'}]);
+  [{result:'✔ NO APLICA CONFIRMADO',omit:true},{result:'✔ NO APLICA CONFIRMADO',extra:true},{result:'ℹ NO APLICA pero SICUN cambió',suggestion:'debería ser APLICA'},{result:'✔ CAMBIÓ'}]);
 
 // 4) Observación vs Antes → Después: primero los esperados, luego el resto
 var c=cruce('VAL_USO_CIIU','APLICA',[ev('CON','Área Verificada','50','60'),ev('UA','Código De Uso','010101','020202')]);
