@@ -2479,10 +2479,29 @@ function c2pisoSplit(events,piso,floorsOf,kindOf,anyFloor){
     (ok?out.hits:out.otros).push(e);});
   return out;
 }
+/* Pares de CRC renombrados de una fila del revisor. Primero el DV: el CRC que desapareció (solo en Antes, en todos los reportes) con el único CRC
+   que apareció (solo en Después) con los mismos 23 primeros dígitos; luego los de findRenames de CUALQUIER reporte para los CRC que queden.
+   (findRenames empareja por parecido del contenido: en un lote con unidades parecidas puede cruzar el CRC con otra unidad; el DV no se equivoca.)
+   lados = {A:Map prefijo23→[CRC solo en Antes], B:Map prefijo23→[CRC solo en Después]}. Devuelve [[antes, después, porDV], …]. */
+function c2renLados(board){
+  var ks={A:new Set(),B:new Set()}, out={A:new Map(),B:new Map()};
+  board.forEach(function(c){if(!c.RES||c.preset.id==='ING')return;['A','B'].forEach(function(side){if(c[side])c[side].rows.forEach(function(r){var k=normKey(r[c.preset.key]);if(/^\d{24}$/.test(k))ks[side].add(k);});});});
+  ['A','B'].forEach(function(side){var other=ks[side==='A'?'B':'A'];ks[side].forEach(function(k){if(other.has(k))return;var p=k.slice(0,23);if(!out[side].has(p))out[side].set(p,[]);out[side].get(p).push(k);});});
+  return out;
+}
+function c2renPares(events,lados){
+  var out=[], usados={};
+  function dv(k){var p=k.slice(0,23),a=lados.A.get(p)||[],b=lados.B.get(p)||[];return a.length===1&&b.length===1&&(a[0]===k||b[0]===k)?[a[0],b[0]]:null;}
+  events.forEach(function(e){if(['eliminados','nuevos','rename'].indexOf(e.type)<0)return;
+    (e.type==='rename'?[e.before,e.after]:[e.key]).forEach(function(k){var d=/^\d{24}$/.test(k)&&!usados[k]?dv(k):null;
+      if(d&&!usados[d[0]]&&!usados[d[1]]){out.push([d[0],d[1],true]);usados[d[0]]=usados[d[1]]=1;}});});
+  events.forEach(function(e){if(e.type==='rename'&&!usados[e.before]&&!usados[e.after]){out.push([e.before,e.after,false]);usados[e.before]=usados[e.after]=1;}});
+  return out;
+}
 function c2rows(){
   var files=c2files(), keys=c2keys(), events=[];BOARD_().forEach(function(c){events=events.concat(c2events(c));});
   var gapState=gapNow(), gapIdx={};if(gapState&&!gapState.bloquea)gapState.gaps.forEach(function(g){gapIdx[g.sector+'|'+g.rep]=g;});
-  var huellas=null, lotCache={};function lotMatch(l){if(!huellas)huellas=c2huellas(BOARD_());return lotCache[l]||(lotCache[l]=c2matchUnits(huellas.A,huellas.B,l));}
+  var lados=null, huellas=null, lotCache={};function lotMatch(l){if(!huellas)huellas=c2huellas(BOARD_());return lotCache[l]||(lotCache[l]=c2matchUnits(huellas.A,huellas.B,l));}
   var all=[];files.forEach(function(file){file.rows.forEach(function(row){
     if(row.noState||(!row.state||row.state==='PENDIENTE'))return;
     var invalid=['APLICA','NO APLICA','OTRO CAMBIO'].indexOf(row.state)<0, code=c2resolve(row,keys), map=c2map(row.validator), level=map?map.level:(code.length===8?'LOTE':'CRC');
@@ -2509,9 +2528,17 @@ function c2rows(){
       dirs.forEach(function(d){BOARD_().forEach(function(c){if(c.RES&&c.preset.id!=='ING')relevant=relevant.concat(c2rediff(c,d[0],d[1]));});});
       relevant.push({key:code,report:'CRC',field:(swap?'CRC intercambiados':'CRC cambió')+(c2soloDV(it.a,it.b)?' (solo DV)':''),before:it.a,after:it.b,type:'crcmatch'});
     });
-    /* CRC renombrado (sin emparejar por huella): se comparan los renglones Antes→Después del par renombrado. */
-    var renPares={};relevant.forEach(function(e){if(e.type==='rename')renPares[e.before+'>'+e.after]=[e.before,e.after];});
-    Object.keys(renPares).forEach(function(k){var d=renPares[k];BOARD_().forEach(function(c){if(c.RES&&c.preset.id!=='ING'&&c.RES.renombrados.some(function(x){return x.de===d[0]&&x.a===d[1];}))relevant=relevant.concat(c2rediff(c,d[0],d[1]));});});
+    /* CRC renombrado (código o solo DV) sin emparejar por huella: el par se compara Antes→Después en TODOS los reportes (UA/TIT/CON/OBR/REC),
+       aunque ese reporte no lo haya emparejado (varios renglones por CRC); sus "(registro nuevo/eliminado)" del par se reemplazan por esa comparación. */
+    if(!lados)lados=c2renLados(BOARD_());
+    c2renPares(relevant,lados).filter(function(d){return wholeLot||d[0]===code||d[1]===code;}).forEach(function(d){
+      BOARD_().forEach(function(c){if(!c.RES||c.preset.id==='ING')return;
+        var propio=c.RES.renombrados.some(function(x){return x.de===d[0]&&x.a===d[1];});
+        if(!d[2]&&!propio&&c.RES.renombrados.some(function(x){return x.de===d[0]||x.a===d[1];}))return;   /* ese reporte emparejó otro CRC (sin DV que lo desmienta): se respeta */
+        /* fuera: "(registro nuevo/eliminado)" del par y los renombres de ese reporte que cruzan el par con otra unidad; el renombre propio del par se queda */
+        relevant=relevant.filter(function(e){return !(e.report===c.preset.id&&(e.key===d[0]||e.key===d[1])&&(e.type==='nuevos'||e.type==='eliminados'||(e.type==='rename'&&!(e.before===d[0]&&e.after===d[1]))));}).concat(c2rediff(c,d[0],d[1]));});
+      if(d[2]&&!relevant.some(function(e){return e.type==='rename'&&e.before===d[0]&&e.after===d[1];}))relevant.push({key:code,report:'CRC',field:'CRC cambió (solo DV)',before:d[0],after:d[1],type:'crcmatch'});
+    });
     var dvs=relevant.filter(c2esDV);relevant=relevant.filter(function(e){return !c2esDV(e);});
     var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC);
     var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
