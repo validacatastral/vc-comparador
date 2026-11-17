@@ -787,7 +787,7 @@ input, select, textarea, button {max-width:100%;}
    VAL_TITULARES cubre VAL_TITULARES_1/2/3 y VAL_CATEGORIAS-AREAS cubre VAL_CATEGORIAS-AREAS_2. */
 var CAMPOS_VALIDADOR = {
   VAL_CRC:{level:'CRC', fi:'FI.02.04',
-    observados:{CRC:['Sector','Manzana','Lote','Edificación','Entrada','Piso','Unidad']}, relacionados:{}},
+    observados:{CRC:['Sector','Manzana','Lote','Edificación','Entrada','Piso','Unidad']}, relacionados:{UA:['Tipo de Interior','Número de Interior']}},   /* "Inconsistencia por estructura" se corrige vía interior */
   VAL_AREA_TERR_PISO:{level:'LOTE', fi:'FI.26.02',
     observados:{UA:['Área De Terreno Verificada (M2)'],CON:['Área Verificada']}, relacionados:{CON:['N° Piso']}},
   VAL_FECHA_PISO:{level:'LOTE', fi:'FI.28.02',
@@ -2348,17 +2348,17 @@ function c2expected(map){var out=[];['observados','relacionados'].forEach(functi
 function c2inList(group,e){return ((group||{})[e.report]||[]).some(function(f){return c2campo(f)===c2campo(e.field);});}
 /* CRC renombrado: solo cambió el DV (dígito 24) y el código (primeros 23 dígitos) es el mismo. */
 function c2soloDV(a,b){a=txt(a);b=txt(b);return a.length===24&&b.length===24&&a!==b&&a.slice(0,23)===b.slice(0,23);}
-/* La observación del validador o del revisor menciona el DV. */
-function c2mencionaDV(){return Array.prototype.some.call(arguments,function(t){return /(^|[^a-z0-9])dv([^a-z0-9]|$)|digito\s*verificador/.test(c2norm(t));});}
-/* Tipo de un evento SICUN frente a un validador: 'obs' (observado), 'rel' (relacionado) u 'otro'.
-   dvOk: la fila menciona "DV"/"dígito verificador" → un renombre solo de DV cuenta como observado. */
-function c2eventKind(map,e,sameLot,dvOk){
+/* CRC renombrado/emparejado donde solo cambió el DV: SICUN lo recalcula (el técnico no lo cambia) → neutro en todos los validadores. */
+function c2esDV(e){return (e.type==='rename'||e.type==='crcmatch')&&c2soloDV(e.before,e.after);}
+/* Tipo de un evento SICUN frente a un validador: 'obs' (observado), 'rel' (relacionado), 'dv' (solo DV, neutro) u 'otro'. */
+function c2eventKind(map,e,sameLot){
+  if(c2esDV(e))return 'dv';
   if(!map)return 'obs';
   var crc=(map.observados||{}).CRC;
-  if(e.type==='crcmatch')return crc&&(dvOk||!c2soloDV(e.before,e.after))?'obs':'otro';
+  if(e.type==='crcmatch')return crc?'obs':'otro';
   if(crc && e.key.length===24){
     if(e.type==='eliminados'||(e.type==='nuevos'&&sameLot(e.key)))return 'obs';
-    if(e.type==='rename'){if(c2soloDV(e.before,e.after))return dvOk?'obs':'otro';if(txt(e.before).slice(0,23)!==txt(e.after).slice(0,23))return 'obs';}
+    if(e.type==='rename'&&txt(e.before).slice(0,23)!==txt(e.after).slice(0,23))return 'obs';
   }
   if(['add','rem','nuevos','eliminados'].indexOf(e.type)>=0)return !crc&&Object.prototype.hasOwnProperty.call(map.observados||{},e.report)?'obs':'otro';
   if(e.type==='cell'){if(c2inList(map.observados,e))return 'obs';if(c2inList(map.relacionados,e))return 'rel';}
@@ -2509,10 +2509,13 @@ function c2rows(){
       dirs.forEach(function(d){BOARD_().forEach(function(c){if(c.RES&&c.preset.id!=='ING')relevant=relevant.concat(c2rediff(c,d[0],d[1]));});});
       relevant.push({key:code,report:'CRC',field:(swap?'CRC intercambiados':'CRC cambió')+(c2soloDV(it.a,it.b)?' (solo DV)':''),before:it.a,after:it.b,type:'crcmatch'});
     });
+    /* CRC renombrado (sin emparejar por huella): se comparan los renglones Antes→Después del par renombrado. */
+    var renPares={};relevant.forEach(function(e){if(e.type==='rename')renPares[e.before+'>'+e.after]=[e.before,e.after];});
+    Object.keys(renPares).forEach(function(k){var d=renPares[k];BOARD_().forEach(function(c){if(c.RES&&c.preset.id!=='ING'&&c.RES.renombrados.some(function(x){return x.de===d[0]&&x.a===d[1];}))relevant=relevant.concat(c2rediff(c,d[0],d[1]));});});
+    var dvs=relevant.filter(c2esDV);relevant=relevant.filter(function(e){return !c2esDV(e);});
     var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC);
     var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
-    var dvOk=c2mencionaDV(row.message,row.observation);
-    var split=c2pisoSplit(relevant,map&&level==='CRC+PISO'?(row.piso||''):null,floors,function(e){return c2eventKind(map,e,sameLot,dvOk);},row.state==='OTRO CAMBIO'), hits=[], otros=split.otros;
+    var split=c2pisoSplit(relevant,map&&level==='CRC+PISO'?(row.piso||''):null,floors,function(e){return c2eventKind(map,e,sameLot);},row.state==='OTRO CAMBIO'), hits=[], otros=split.otros;
     if(split.sinPiso)addNote('cruzado sin piso');
     if(split.otroPiso.length)addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
     split.hits.forEach(function(e){var ok=true, vals;
@@ -2528,12 +2531,14 @@ function c2rows(){
     else if(rowGaps.length && row.state!=='NO APLICA' && !hits.length && (row.state==='APLICA'||!otros.length))status='⏸ Sin comparar ('+Array.from(new Set(rowGaps.map(function(g){return g.motivo;}))).join('; ')+')';
     else if(row.state==='APLICA' && isCrc && revisar.length){status='⚠ REVISAR A MANO';addNote('CRC: '+revisar[0].reason+'; no se pudo emparejar la unidad');}
     else if(row.state==='APLICA' && map && !hits.length && c2reports(map).some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';
-    else {cls=c2classify(row.state,hits.length,otros.length);if(cls.omit)return;status=cls.result;
-      if(cls.extra)addNote('También cambió: '+names(otros));
-      if(isCrc&&!dvOk&&otros.some(function(e){return (e.type==='rename'||e.type==='crcmatch')&&c2soloDV(e.before,e.after);}))addNote('solo cambió el DV');
+    else {var soloDV=dvs.length>0&&!hits.length&&!otros.length;   /* lo único que cambió es el DV → sin cambio en el campo observado */
+      cls=c2classify(row.state,hits.length,otros.length+(soloDV?1:0));if(cls.omit)return;status=cls.result;
+      if(cls.extra&&otros.length)addNote('También cambió: '+names(otros));
+      if(dvs.length)addNote(soloDV?'solo DV recalculado por SICUN':'DV recalculado por SICUN');
       if(cls.suggestion)addNote('Sugerencia: '+cls.suggestion+(hits.length?' (cambió '+names(hits)+')':''));
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
-    var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch'||c2soloDV(e.before,e.after);}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
+    if(soloDV)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
+    var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch'||c2esDV(e);}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
     var changes=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}).map(function(e){return e.report+' · '+e.field+': '+e.before+' → '+e.after;});
     all.push(Object.assign({},row,{code:code||row.rawCode,fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,campos:campos,change:(resumen?resumen+(changes.length?' | ':''):'')+changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':''),note:note,
       changeView:[resumen,c2cambios(hits,otros,5)].filter(Boolean).join(' | '),obsChange:c2obsCambios(row.observation,hits,otros)}));
