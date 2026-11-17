@@ -9,14 +9,15 @@ var src=[cut('var CAMPOS_VALIDADOR','/* ============ Configuración de reportes'
   cut('var CRC_PARTS','function crcHtml'),cut('function c2norm','function c2state'),cut('function c2keys','function c2rows(){'),cut('function c2rows(){','function c2summary'),cut('var PUB_LABELS','/* Prepara la publicación')].join('\n');
 var stubs='var POLY_ACTIVE=null, BOARD=[], FILES=[];function BOARD_(){return BOARD;}function c2files(){return FILES;}function gapNow(){return null;}'+
   'function filterActive(){return false;}function filterPass(){return true;}function mzKeyOf(k){return k.slice(6,8)+"|"+k.slice(8,11);}'+
-  'function $(id){return {checked:true,value:""};}function c2huellas(){return {A:new Map(),B:new Map(),campos:[]};}function matchBlock(){return {pairs:[],soloA:[],soloB:[]};}function eqVal(a,b){return a===b;}';
-var T=vm.runInNewContext(stubs+src+'\n({set:function(b,f){BOARD=b;FILES=f;},c2rows:c2rows,c2bucket:c2bucket,pubPublica:pubPublica,c2eventKind:c2eventKind,M:CAMPOS_VALIDADOR});');
+  'function $(id){return {checked:true,value:""};}var HUELLAS=null;function matchBlock(){return {pairs:[],soloA:[],soloB:[]};}function eqVal(a,b){return a===b;}';
+// c2huellas real se reemplaza (va después de src): huella sintética o vacía.
+var T=vm.runInNewContext(stubs+src+'\nvar c2huellasReal=c2huellas;c2huellas=function(b){return HUELLAS||c2huellasReal(b);};\n({set:function(b,f,h){BOARD=b;FILES=f;HUELLAS=h||null;},c2rows:c2rows,c2bucket:c2bucket,pubPublica:pubPublica,c2eventKind:c2eventKind,M:CAMPOS_VALIDADOR});');
 
 var KEY='Código de Referencia Catastral', PISO='N° Piso';
 function ctx(id,rowsA,rowsB,res){return {preset:{id:id,key:KEY},A:{headers:[KEY,PISO],rows:rowsA},B:{headers:[KEY,PISO],rows:rowsB},
   RES:Object.assign({mods:[],nuevos:[],eliminados:[],renombrados:[],diffCols:[]},res)};}
 function fila(validator,code,state,extra){return Object.assign({tecnico:'TEC SINTETICO',polygon:'',sheet:validator,validator:validator,rawCode:code,partial:'',numeric:false,piso:'',state:state,observation:'',message:'',noState:false},extra||{});}
-function run(board,rows){T.set(board,[{rows:rows}]);return T.c2rows();}
+function run(board,rows,h){T.set(board,[{rows:rows}],h);return T.c2rows();}
 // Renombre: un evento por reporte (UA, TIT, CON), como en el caso real.
 function renombre(de,a){var r={};r[KEY]=a;return ['UA','TIT','CON'].map(function(id){return ctx(id,[{[KEY]:de}],[{[KEY]:a}],{renombrados:[{de:de,a:a,row:r}]});});}
 
@@ -67,3 +68,15 @@ assert.strictEqual(rc.result,'ℹ NO APLICA pero SICUN cambió');assert.strictEq
 var ro=run(board4([celda('CON','Código De Actividad Económica (CIIU)','2')]),[fila('VAL_USO_CIIU',C,'NO APLICA',{piso:'1'})]);
 assert.strictEqual(ro.length,0,'esperado de otro piso → confirmado sin cambios propios (se omite, como antes)');
 console.log('ok controles · esperado mismo piso → ℹ publicado · esperado de otro piso → confirmado');
+
+// 5) Emparejado por huella ("CRC cambió"), sin evento de renombre: misma regla del DV
+function huella(a,b){return {A:new Map([[a,'titular=X']]),B:new Map([[b,'titular=X']]),campos:['titular']};}
+function soloHuella(a,b){return ['UA','TIT','CON'].map(function(id){return ctx(id,[{[KEY]:a}],[{[KEY]:b}],{});});}
+var h1=run(soloHuella(A1,B1),[fila('VAL_CRC',A1,'APLICA')],huella(A1,B1))[0];
+assert.strictEqual(h1.result,'✔ VERIFICADO','huella con cambio de código');assert(/CRC cambió/.test(h1.change));
+var h2=run(soloHuella(A2,B2),[fila('VAL_CRC',A2,'APLICA')],huella(A2,B2))[0];
+assert.strictEqual(h2.result,'◐ CAMBIÓ OTRO CAMPO','huella solo DV sin mención');assert(/solo cambió el DV/.test(h2.note),h2.note);
+assert.strictEqual(h2.campos,'CRC · CRC cambió (solo DV)','campos = lo usado para el estado');
+var h3=run(soloHuella(A2,B2),[fila('VAL_CRC',A2,'APLICA',{observation:'corregir dígito verificador'})],huella(A2,B2))[0];
+assert.strictEqual(h3.result,'✔ VERIFICADO','huella solo DV con mención');assert.strictEqual(h3.campos,h2.campos);assert(!/solo cambió el DV/.test(h3.note));
+console.log('ok 5 · huella: código → '+h1.result+' · solo DV sin mención → '+h2.result+' ('+h2.note+') · con mención → '+h3.result);

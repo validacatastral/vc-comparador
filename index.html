@@ -2355,7 +2355,7 @@ function c2mencionaDV(){return Array.prototype.some.call(arguments,function(t){r
 function c2eventKind(map,e,sameLot,dvOk){
   if(!map)return 'obs';
   var crc=(map.observados||{}).CRC;
-  if(e.type==='crcmatch')return crc?'obs':'otro';
+  if(e.type==='crcmatch')return crc&&(dvOk||!c2soloDV(e.before,e.after))?'obs':'otro';
   if(crc && e.key.length===24){
     if(e.type==='eliminados'||(e.type==='nuevos'&&sameLot(e.key)))return 'obs';
     if(e.type==='rename'){if(c2soloDV(e.before,e.after))return dvOk?'obs':'otro';if(txt(e.before).slice(0,23)!==txt(e.after).slice(0,23))return 'obs';}
@@ -2507,7 +2507,7 @@ function c2rows(){
       var swap=it.type==='swap', dirs=!swap?[[it.a,it.b]]:wholeLot?[[it.a,it.b],[it.b,it.a]]:[[code,code===it.a?it.b:it.a]];
       relevant=relevant.filter(function(e){return !(e.key.length===24&&(e.key===it.a||e.key===it.b)&&(swap||['nuevos','eliminados','rename'].indexOf(e.type)>=0));});
       dirs.forEach(function(d){BOARD_().forEach(function(c){if(c.RES&&c.preset.id!=='ING')relevant=relevant.concat(c2rediff(c,d[0],d[1]));});});
-      relevant.push({key:code,report:'CRC',field:swap?'CRC intercambiados':'CRC cambió',before:it.a,after:it.b,type:'crcmatch'});
+      relevant.push({key:code,report:'CRC',field:(swap?'CRC intercambiados':'CRC cambió')+(c2soloDV(it.a,it.b)?' (solo DV)':''),before:it.a,after:it.b,type:'crcmatch'});
     });
     var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC);
     var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
@@ -2530,10 +2530,10 @@ function c2rows(){
     else if(row.state==='APLICA' && map && !hits.length && c2reports(map).some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';
     else {cls=c2classify(row.state,hits.length,otros.length);if(cls.omit)return;status=cls.result;
       if(cls.extra)addNote('También cambió: '+names(otros));
-      if(isCrc&&!dvOk&&otros.some(function(e){return e.type==='rename'&&c2soloDV(e.before,e.after);}))addNote('solo cambió el DV');
+      if(isCrc&&!dvOk&&otros.some(function(e){return (e.type==='rename'||e.type==='crcmatch')&&c2soloDV(e.before,e.after);}))addNote('solo cambió el DV');
       if(cls.suggestion)addNote('Sugerencia: '+cls.suggestion+(hits.length?' (cambió '+names(hits)+')':''));
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
-    var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
+    var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch'||c2soloDV(e.before,e.after);}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
     var changes=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}).map(function(e){return e.report+' · '+e.field+': '+e.before+' → '+e.after;});
     all.push(Object.assign({},row,{code:code||row.rawCode,fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,campos:campos,change:(resumen?resumen+(changes.length?' | ':''):'')+changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':''),note:note,
       changeView:[resumen,c2cambios(hits,otros,5)].filter(Boolean).join(' | '),obsChange:c2obsCambios(row.observation,hits,otros)}));
