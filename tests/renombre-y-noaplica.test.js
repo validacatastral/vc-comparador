@@ -1,4 +1,4 @@
-/* VAL_CRC con CRC renombrado (código vs solo DV) y NO APLICA con solo campos no esperados.
+/* VAL_CRC con CRC renombrado (código vs solo DV; el DV es neutro) y NO APLICA con solo campos no esperados.
    Corre c2rows real con stubs mínimos (sin DOM). Datos sintéticos. Uso: node tests/renombre-y-noaplica.test.js */
 'use strict';
 var fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert');
@@ -28,23 +28,21 @@ assert.strictEqual(r1.result,'✔ VERIFICADO','renombre de código');
 assert.strictEqual(r1.campos,'UA · CRC renombrado | TIT · CRC renombrado | CON · CRC renombrado');
 console.log('ok 1 · renombre de código → '+r1.result+' · campos: '+r1.campos);
 
-// 2) Solo cambió el DV, sin mención → ◐ con nota "solo cambió el DV"
+// 2) Solo cambió el DV (lo recalcula SICUN) → ◐ con nota "solo DV recalculado por SICUN"
 var A2='150112990370190101020010', B2='150112990370190101020019';
 var r2=run(renombre(A2,B2),[fila('VAL_CRC',A2,'APLICA',{message:'VAL_CRC: código no coincide',observation:'se corrigió en SICUN'})])[0];
-assert.strictEqual(r2.result,'◐ CAMBIÓ OTRO CAMPO','solo DV sin mención');
-assert(/solo cambió el DV/.test(r2.note),'nota solo DV: '+r2.note);
+assert.strictEqual(r2.result,'◐ CAMBIÓ OTRO CAMPO','solo DV');
+assert(/(^| · )solo DV recalculado por SICUN/.test(r2.note),'nota solo DV: '+r2.note);
 assert.strictEqual(r2.campos,'UA · CRC renombrado (solo DV) | TIT · CRC renombrado (solo DV) | CON · CRC renombrado (solo DV)');
 assert.strictEqual(T.pubPublica(r2),true,'◐ sigue publicándose como aviso');
-console.log('ok 2 · solo DV sin mención → '+r2.result+' · nota: '+r2.note);
+console.log('ok 2 · solo DV → '+r2.result+' · nota: '+r2.note);
 
-// 3) Solo DV con "dígito verificador" (u "DV") en la observación → ✔ VERIFICADO
+// 3) Regla vieja retirada: mencionar "DV"/"dígito verificador" ya no cambia el estado (sigue ◐)
 ['corregir dígito verificador','Digito  Verificador mal','DV incorrecto','el dv no cuadra'].forEach(function(obs,i){
   var r=run(renombre(A2,B2),[fila('VAL_CRC',A2,'APLICA',i%2?{message:obs}:{observation:obs})])[0];
-  assert.strictEqual(r.result,'✔ VERIFICADO','solo DV con mención: '+obs);assert(!/solo cambió el DV/.test(r.note));
+  assert.strictEqual(r.result,'◐ CAMBIÓ OTRO CAMPO','solo DV con mención: '+obs);assert(/solo DV recalculado por SICUN/.test(r.note));
   assert.strictEqual(r.campos,r2.campos,'mismos campos');});
-// "DV" dentro de otra palabra no cuenta
-assert.strictEqual(run(renombre(A2,B2),[fila('VAL_CRC',A2,'APLICA',{observation:'ADVERTENCIA'})])[0].result,'◐ CAMBIÓ OTRO CAMPO');
-console.log('ok 3 · solo DV con "dígito verificador"/"DV" en obs o mensaje → ✔ VERIFICADO');
+console.log('ok 3 · mención de "DV" en obs o mensaje ya no cuenta → ◐ CAMBIÓ OTRO CAMPO');
 
 // 4) NO APLICA con solo campos no esperados (mismo piso) → ✔ NO APLICA CONFIRMADO, nota "también cambió", no se publica
 var C='150112190370070101010015';
@@ -69,14 +67,14 @@ var ro=run(board4([celda('CON','Código De Actividad Económica (CIIU)','2')]),[
 assert.strictEqual(ro.length,0,'esperado de otro piso → confirmado sin cambios propios (se omite, como antes)');
 console.log('ok controles · esperado mismo piso → ℹ publicado · esperado de otro piso → confirmado');
 
-// 5) Emparejado por huella ("CRC cambió"), sin evento de renombre: misma regla del DV
+// 5) Emparejado por huella ("CRC cambió"), sin evento de renombre: el DV también es neutro
 function huella(a,b){return {A:new Map([[a,'titular=X']]),B:new Map([[b,'titular=X']]),campos:['titular']};}
 function soloHuella(a,b){return ['UA','TIT','CON'].map(function(id){return ctx(id,[{[KEY]:a}],[{[KEY]:b}],{});});}
 var h1=run(soloHuella(A1,B1),[fila('VAL_CRC',A1,'APLICA')],huella(A1,B1))[0];
 assert.strictEqual(h1.result,'✔ VERIFICADO','huella con cambio de código');assert(/CRC cambió/.test(h1.change));
 var h2=run(soloHuella(A2,B2),[fila('VAL_CRC',A2,'APLICA')],huella(A2,B2))[0];
-assert.strictEqual(h2.result,'◐ CAMBIÓ OTRO CAMPO','huella solo DV sin mención');assert(/solo cambió el DV/.test(h2.note),h2.note);
+assert.strictEqual(h2.result,'◐ CAMBIÓ OTRO CAMPO','huella solo DV');assert(/solo DV recalculado por SICUN/.test(h2.note),h2.note);
 assert.strictEqual(h2.campos,'CRC · CRC cambió (solo DV)','campos = lo usado para el estado');
 var h3=run(soloHuella(A2,B2),[fila('VAL_CRC',A2,'APLICA',{observation:'corregir dígito verificador'})],huella(A2,B2))[0];
-assert.strictEqual(h3.result,'✔ VERIFICADO','huella solo DV con mención');assert.strictEqual(h3.campos,h2.campos);assert(!/solo cambió el DV/.test(h3.note));
-console.log('ok 5 · huella: código → '+h1.result+' · solo DV sin mención → '+h2.result+' ('+h2.note+') · con mención → '+h3.result);
+assert.strictEqual(h3.result,'◐ CAMBIÓ OTRO CAMPO','huella solo DV con mención: la mención ya no cuenta');assert.strictEqual(h3.campos,h2.campos);
+console.log('ok 5 · huella: código → '+h1.result+' · solo DV → '+h2.result+' ('+h2.note+') · con mención → '+h3.result);
