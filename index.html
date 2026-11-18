@@ -477,10 +477,12 @@ input, select, textarea, button {max-width:100%;}
   <section>
     <button type="button" id="drvSettings">⚙ Publicación / URL de Drive</button><div id="drvConfig"></div>
     <button type="button" class="rbtn" id="drvOpen">☁ Cargar desde Drive</button>
+    <button type="button" class="rbtn" id="drvRepeat" disabled title="Sin última carga guardada">↻ Repetir última carga</button>
     <button type="button" class="rbtn" id="loteOpen">▶ Comparar todos (revisión final)</button>
     <label>Clave de lectura <input id="drvKey" type="password" autocomplete="off"></label>
     <label><input id="drvRemember" type="checkbox"> Recordar clave de lectura en este navegador</label>
     <p>Configura la URL /exec en ⚙ Publicación. La carga manual sigue disponible.</p>
+    <p class="sub" style="font-size:12px"><button type="button" id="cacheClear">Borrar datos guardados</button> <span id="cacheInfo" role="status">Guardado: —</span></p>
   </section>
   <dialog id="drvDialog" aria-labelledby="drvTitle" style="width:min(760px,90vw);max-height:85vh;overflow:auto;background:var(--bg-panel);color:var(--text-prime);border:1px solid var(--border)">
     <h2 id="drvTitle">☁ Cargar desde Drive</h2><p id="drvTarget"></p>
@@ -490,7 +492,10 @@ input, select, textarea, button {max-width:100%;}
       <div id="drvSectors"></div><label>Añadir sector (SS o UBIGEO+SS) <input id="drvSector" maxlength="8" inputmode="numeric"></label><button type="button" id="drvAddSector">Añadir</button>
       <label>Carpeta DISTRITO <select id="drvDistrict"></select></label><button type="button" id="drvDates">Buscar fechas</button>
     </div>
-    <div id="drvStepC" hidden><p>C · Fechas</p><label>ANTES <select id="drvBefore"></select></label><label>DESPUÉS <select id="drvAfter"></select></label>
+    <div id="drvStepC" hidden><p>C · Fechas</p>
+      <p id="drvResumen" style="white-space:pre-line;font-size:12px;font-family:var(--font-mono)"></p>
+      <label><input type="checkbox" id="drvManual"> Elegir fechas a mano</label>
+      <div id="drvManualBox" hidden><label>ANTES <select id="drvBefore"></select></label><label>DESPUÉS <select id="drvAfter"></select></label></div>
       <p>D · Se crea un distrito de trabajo nuevo con la selección para conservar tus cargas previas.</p><button type="button" id="drvLoad">Cargar y comparar</button>
     </div>
     <p role="status" id="drvProgressText" aria-live="polite"></p><progress id="drvProgress" max="1" value="0" style="width:100%"></progress>
@@ -512,6 +517,13 @@ input, select, textarea, button {max-width:100%;}
     <button type="button" id="polyDrive">☁ Cargar universo desde Drive</button>
     <div id="polySummary" class="bulkmsg">Ningún polígono cargado.</div>
     <label>Polígono activo <select id="polySelect"><option value="">Sin polígono (todo)</option></select></label>
+  </section>
+  <section>
+    <details id="pendPanel">
+      <summary class="sec-label" style="cursor:pointer">Pendientes publicados</summary>
+      <p><button type="button" id="pendOpen">Abrir en pestaña ↗</button> <span id="pendInfo" style="font-size:12px;color:var(--text-mute)"></span></p>
+      <div id="pendHost"></div>
+    </details>
   </section>
   <section>
     <p class="sec-label">Distrito de trabajo</p>
@@ -2660,7 +2672,8 @@ function pubPayload(polygon,rows,key,includeObs,extra){
   BOARD_().forEach(function(c){if(!c.RES)return;events=events.concat(c2events(c));['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))dates[side].add(day);});});});
   if(!dates.A.size||!dates.B.size)throw new Error('Se necesita al menos una fecha de descarga ANTES y DESPUÉS en los reportes comparados.');
   function range(side){var days=Array.from(dates[side]).sort(),format=function(d){return d.split('-').reverse().join('/');};return format(days[0])+(days.length>1?' – '+format(days[days.length-1]):'');}
-  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:range('A'),despues:range('B'),totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.filter(pubPublica).map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);var fila={poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:pubResultado(r),campos:pubFields(r,events)};if(includeObs)fila.obs=txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500);fila.nota=txt(r.note);return fila;}),
+  /* Con fechas por sector (Drive automático) manda extra.antes/despues: la más antigua usada y la más reciente. */
+  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:extra&&extra.antes||range('A'),despues:extra&&extra.despues||range('B'),totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.filter(pubPublica).map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);var fila={poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:pubResultado(r),campos:pubFields(r,events)};if(includeObs)fila.obs=txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500);fila.nota=txt(r.note);return fila;}),
     /* Campos nuevos al final: cruce parcial (faltó un reporte en una fecha) y filas sin comparar, fuera de los conteos. */
     parcial:!!(extra&&extra.parcial),parcialDetalle:extra&&extra.parcialDetalle||[],sinComparar:sinComparar};
 }
@@ -2693,7 +2706,10 @@ function pubPreparar(key,activo,includeObs){
       return {code:p,sectors:sectors,ilegibles:u?0:excel.ilegibles,sinUniverso:!!u&&!u.keys.size,totales:out.totales[p],faltantes:pubFaltantes(district.descarga,sectors)};});
     out.opciones=pubOpciones(items,loaded,activo||'');
     out.opciones.forEach(function(o,i){if(!o.habilitado)return;var sectors=items[i].sectors,detalle=gap.gaps.filter(function(g){return g.tipo==='parcial'&&sectors.has(g.sector.slice(-2));}).map(function(g){return g.texto.replace(/^⚠ /,'');});
-      out.payloads[o.code]=pubPayload(o.code,rows.filter(function(r){return r.polygon===o.code;}),key,includeObs,{parcial:detalle.length>0,parcialDetalle:detalle});});
+      // Fechas por sector: sectores excluidos (cuentan como parcial) y sectores con fecha distinta (solo detalle).
+      var fs=pubFechasSector(district.fechasSector,district.excluidos,sectors),extra={parcial:detalle.length>0||!!(fs&&fs.excluidos.length),parcialDetalle:detalle.concat(fs?fs.excluidos.concat(fs.detalle):[])};
+      if(fs){extra.antes=fs.antes;extra.despues=fs.despues;}
+      out.payloads[o.code]=pubPayload(o.code,rows.filter(function(r){return r.polygon===o.code;}),key,includeObs,extra);});
   }finally{
     if(district)district.board=board;POLY_ACTIVE=active;FILTER_STATE=filters;
     filterNodes.forEach(function(el,i){el.value=values[i];});$('c2NoAplica').checked=noAplica;
@@ -2759,11 +2775,11 @@ async function pubPost(url,payload){
   $('pubSend').addEventListener('click',async function(){
     // Nunca se envía un polígono no marcado, deshabilitado o que no pase el seguro.
     var elegidos=pubElegidos(opciones,marcados()).filter(function(code){return payloads[code]&&!pubSeguro(payloads[code].totales);});
-    if(busy||!elegidos.length)return;busy=true;this.disabled=true;$('pubCancel').disabled=true;$('pubList').querySelectorAll('input').forEach(function(x){x.disabled=true;});
+    if(busy||!elegidos.length)return;var publicados=0;busy=true;this.disabled=true;$('pubCancel').disabled=true;$('pubList').querySelectorAll('input').forEach(function(x){x.disabled=true;});
     try{for(var n=0;n<elegidos.length;n++){var p=payloads[elegidos[n]];
-      try{await pubPost(url,p);guardarUltima(p);status('Publicado: '+p.poligono+' · '+p.filas.length+' filas · '+new Date().toLocaleString('es-PE'));}
+      try{await pubPost(url,p);guardarUltima(p);publicados++;status('Publicado: '+p.poligono+' · '+p.filas.length+' filas · '+new Date().toLocaleString('es-PE'));}
       catch(e){status('Error: '+p.poligono+' · '+e.message+(n<elegidos.length-1?' · No se enviaron: '+elegidos.slice(n+1).join(', '):''));break;}}}
-    finally{busy=false;$('pubCancel').disabled=false;opciones=[];$('pubDialog').close();}
+    finally{busy=false;$('pubCancel').disabled=false;opciones=[];$('pubDialog').close();if(publicados)pendRecargar();}
   });
 })();
 
@@ -2932,25 +2948,40 @@ async function drvList(root,folder){
   // Acepta listas mixtas o las dos colecciones del servicio.
   var list=Array.isArray(data)?data:Array.isArray(data.items)?data.items:null;
   if(!list){if(!Array.isArray(data.carpetas)&&!Array.isArray(data.archivos))throw new Error('Formato de listado no reconocido (items o carpetas/archivos).');list=(data.carpetas||[]).map(function(x){return Object.assign({},x,{folder:true});}).concat(data.archivos||[]);}
-  return list.map(function(x){return {id:String(x.id||''),name:String(x.nombre||x.name||''),folder:x.folder===true||x.esCarpeta===true||x.tipo==='carpeta'||x.mimeType==='application/vnd.google-apps.folder',mime:x.mimeType||'',size:Number(x.size||x.tamano||0)};}).filter(function(x){return x.id&&x.name;});
+  return list.map(function(x){return {id:String(x.id||''),name:String(x.nombre||x.name||''),folder:x.folder===true||x.esCarpeta===true||x.tipo==='carpeta'||x.mimeType==='application/vnd.google-apps.folder',mime:x.mimeType||'',size:Number(x.size||x.tamano||0),modificado:String(x.modificado||x.modifiedTime||'')};}).filter(function(x){return x.id&&x.name;});
 }
 function drvExcel(x){return !x.folder&&(/\.xlsx$/i.test(x.name)||x.mime==='application/vnd.google-apps.spreadsheet');}
-async function drvFile(item){
-  if(item.size>DRV_LIMIT)throw new Error(item.name+': tamaño superior a 25 MiB.');
+/* Baja un archivo de Drive (api=archivo) → {nombre,bytes}. */
+async function drvBajar(item){
   var data=await drvGet('archivo',{id:item.id});
   if(typeof data.base64!=='string'||!data.base64.length)throw new Error(item.name+': archivo vacío o sin base64.');
   if(data.base64.length>Math.ceil(DRV_LIMIT*4/3))throw new Error(item.name+': tamaño superior a 25 MiB.');
   var bytes;try{var raw=atob(data.base64);bytes=Uint8Array.from(raw,function(c){return c.charCodeAt(0);});}catch(e){throw new Error(item.name+': base64 inválido.');}
   if(!bytes.length||bytes.length>DRV_LIMIT)throw new Error(item.name+': tamaño inválido (máximo 25 MiB).');
   var name=String(data.nombre||item.name);if(!/\.xlsx$/i.test(name))name+='.xlsx';
-  return new File([bytes],name,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',lastModified:0});
+  return {nombre:name,bytes:bytes};
 }
+/* Archivo de Drive como File: primero la caché del navegador (IndexedDB), si no, Drive. cont: {cache,drive} opcional. */
+async function drvFile(item,cont){
+  if(item.size>DRV_LIMIT)throw new Error(item.name+': tamaño superior a 25 MiB.');
+  var r=await drvFileCache(item,await cacheDb(),drvBajar,Date.now(),cont);
+  return new File([r.bytes],r.nombre,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',lastModified:0});
+}
+/* Caché: se abre una vez; si IndexedDB no existe o falla, CACHE.sinCache y se sigue como antes. */
+var CACHE={promesa:null,sinCache:false};
+function cacheIdb(){try{return typeof indexedDB!=='undefined'?indexedDB:null;}catch(e){return null;}}
+function cacheDb(){if(!CACHE.promesa)CACHE.promesa=cacheAbrir(cacheIdb()).catch(function(){return null;}).then(function(db){CACHE.sinCache=!db;return db;});return CACHE.promesa;}
+async function cachePintar(){var info=$('cacheInfo'),btn=$('cacheClear');
+  try{var db=await cacheDb();if(!db){info.textContent='Sin caché en este navegador (modo privado o bloqueado): se baja todo de Drive.';btn.disabled=true;return;}
+    info.textContent='Guardado: '+cacheMB(await cacheTamano(db));btn.disabled=false;}catch(e){info.textContent='Caché no disponible: se baja todo de Drive.';}}
 function drvDate(name){var m=name.match(/_(\d{2})(\d{2})(\d{2})(?:\.xlsx)?$/i);if(!m)return '';var y=2000+Number(m[1]),mo=Number(m[2]),d=Number(m[3]),date=new Date(Date.UTC(y,mo-1,d));return date.getUTCFullYear()===y&&date.getUTCMonth()===mo-1&&date.getUTCDate()===d?'20'+m[1]+'-'+m[2]+'-'+m[3]:'';}
 async function drvPool(items,fn){var next=0,results=new Array(items.length),failure;await Promise.all(Array.from({length:Math.min(3,items.length)},async function(){while(next<items.length&&!failure){var i=next++;try{results[i]=await fn(items[i],i);}catch(e){failure=e;}}}));if(failure)throw failure;return results;}
 var DRV={busy:false,files:[],sectors:[],district:-1};
 function drvOptions(id,items,last){$(id).innerHTML='<option value="">Elegir…</option>'+items.map(function(x){return '<option value="'+esc(x.id)+'">'+esc(x.name)+'</option>';}).join('');if(items.some(function(x){return x.id===last;}))$(id).value=last;}
 function drvLast(){try{return JSON.parse(localStorage.getItem('vc-cmp-drv-last')||'{}')||{};}catch(e){return {};}}
-function drvSaveLast(){try{localStorage.setItem('vc-cmp-drv-last',JSON.stringify({polygon:$('drvPolygon').value,district:$('drvDistrict').value}));}catch(e){}}
+/* vc-cmp-drv-last: {polygon,district} para preseleccionar y, tras una carga, carga:{polygon,polygonName,district,districtName,sectors,fechas,antes,despues} para "↻ Repetir". */
+function drvSaveLast(carga){try{var last=drvLast(),v={polygon:$('drvPolygon').value,district:$('drvDistrict').value};if(carga)v.carga=carga;else if(last.carga)v.carga=last.carga;localStorage.setItem('vc-cmp-drv-last',JSON.stringify(v));}catch(e){}drvRepeatSync();}
+function drvRepeatSync(){var c=drvLast().carga,r=drvRepetible(c),b=$('drvRepeat');if(!b)return;b.disabled=!r.ok;b.title=r.ok?'Polígono '+(c.polygonName||'')+' · '+c.sectors.map(drvSectorLabel).join(', ')+' · fechas automáticas por sector':r.motivo;}
 /* ---- Carga desde Drive: sectores normalizados y descarga tolerante a fallos (funciones puras, con pruebas Node) ---- */
 /* UBIGEO del distrito: el único de los CRC completos del Excel del revisor; si no hay, el único del polígono en el universo. '' si no es único. */
 function drvUbigeo(sectors,universo){var set=new Set();(sectors||[]).forEach(function(s){if(/^\d{8}$/.test(s))set.add(s.slice(0,6));});if(!set.size)(universo||[]).forEach(function(u){if(/^\d{6}$/.test(u))set.add(u);});return set.size===1?Array.from(set)[0]:'';}
@@ -2974,18 +3005,104 @@ async function drvPoolParcial(items,fn){var next=0,fallos=[],fatal;
   if(fatal)throw fatal;return {fallos:fallos};}
 /* Faltantes con su sector/tipo/fecha, ordenados. a: fecha ANTES · ubigeo: el de la selección para ese sector ('' si no se conoce). */
 function drvFaltantes(fallos,a,selected){return (fallos||[]).map(function(f){var n=loteNombre(f.item.name),sel=(selected||[]).filter(function(s){return s.length===8&&s.slice(6)===f.item.sector;});
-    return {sector:f.item.sector,ubigeo:n?n.ubigeo:sel.length===1?sel[0].slice(0,6):'',tipo:n?n.tipo:'?',lado:f.item.day===a?'ANTES':'DESPUÉS',day:f.item.day,name:f.item.name,error:f.error};})
+    return {sector:f.item.sector,ubigeo:n?n.ubigeo:sel.length===1?sel[0].slice(0,6):'',tipo:n?n.tipo:'?',lado:f.item.lado?(f.item.lado==='A'?'ANTES':'DESPUÉS'):f.item.day===a?'ANTES':'DESPUÉS',day:f.item.day,name:f.item.name,error:f.error};})
   .sort(function(x,y){return (x.sector+x.tipo+x.day).localeCompare(y.sector+y.tipo+y.day);});}
 function drvFaltanteTxt(f){return (f.ubigeo?f.ubigeo+' · ':'')+'S'+f.sector+' · '+f.tipo+' · '+f.lado+' '+f.day+' — '+f.name+': '+f.error;}
 /* ---- fin funciones puras de carga desde Drive ---- */
+/* ---- Caché de Drive, fechas automáticas por sector, repetir y panel de pendientes (funciones puras, con pruebas Node) ---- */
+/* Caché en IndexedDB "vc-cmp-cache": 'meta' {clave,id,modificado,tamano,nombre,ocupa,ultimoUso} y 'datos' {clave,bytes}.
+   Clave = id|modificado|tamano: si Drive cambia el archivo, la clave cambia y se baja de nuevo (la versión vieja se borra al guardar).
+   Sin "modificado" no se cachea (no se podría saber si cambió). Vence lo que no se usa en 7 días. */
+var CACHE_DB='vc-cmp-cache',CACHE_VIGENCIA=7*24*60*60*1000;
+function cacheClave(item){var id=String(item&&item.id||''),mod=String(item&&item.modificado||'');return id&&mod?id+'|'+mod+'|'+(Number(item.size)||0):'';}
+/* null si no hay IndexedDB o no abre (modo privado, bloqueado): se sigue sin caché. */
+function cacheAbrir(idb){return new Promise(function(ok){try{if(!idb||typeof idb.open!=='function'){ok(null);return;}var req=idb.open(CACHE_DB,1);
+  req.onupgradeneeded=function(){var db=req.result;['meta','datos'].forEach(function(n){if(!db.objectStoreNames.contains(n))db.createObjectStore(n,{keyPath:'clave'});});};
+  req.onsuccess=function(){ok(req.result);};req.onerror=function(){ok(null);};req.onblocked=function(){ok(null);};}catch(e){ok(null);}});}
+/* Transacción sobre meta+datos con callbacks (sin await dentro, para que no se cierre antes de tiempo). fn(meta,datos,fin) fija el resultado con fin(v). */
+function cacheTx(db,modo,fn){return new Promise(function(ok,ko){try{var tx=db.transaction(['meta','datos'],modo),out;
+  tx.oncomplete=function(){ok(out);};tx.onerror=tx.onabort=function(){ko(tx.error||new Error('IndexedDB'));};
+  fn(tx.objectStore('meta'),tx.objectStore('datos'),function(v){out=v;});}catch(e){ko(e);}});}
+function cacheLeer(db,item,ahora){var clave=cacheClave(item);if(!db||!clave)return Promise.resolve(null);
+  return cacheTx(db,'readwrite',function(meta,datos,fin){var rm=meta.get(clave);rm.onsuccess=function(){var m=rm.result;if(!m)return;var rd=datos.get(clave);
+    rd.onsuccess=function(){var d=rd.result;if(!d||!d.bytes)return;m.ultimoUso=ahora;meta.put(m);fin({nombre:m.nombre,bytes:d.bytes});};};});}
+function cacheGuardar(db,item,nombre,bytes,ahora){var clave=cacheClave(item);if(!db||!clave)return Promise.resolve(false);
+  return cacheTx(db,'readwrite',function(meta,datos,fin){var r=meta.getAll();r.onsuccess=function(){
+    (r.result||[]).forEach(function(m){if(m.id===item.id&&m.clave!==clave){meta.delete(m.clave);datos.delete(m.clave);}});
+    meta.put({clave:clave,id:item.id,modificado:String(item.modificado),tamano:Number(item.size)||0,nombre:nombre,ocupa:bytes.byteLength||bytes.length||0,ultimoUso:ahora});
+    datos.put({clave:clave,bytes:bytes});fin(true);};});}
+/* Borra lo que lleva más de 7 días sin usarse. Devuelve cuántos borró. */
+function cacheVencer(db,ahora){if(!db)return Promise.resolve(0);
+  return cacheTx(db,'readwrite',function(meta,datos,fin){var r=meta.getAll();r.onsuccess=function(){var n=0;
+    (r.result||[]).forEach(function(m){if(!(ahora-Number(m.ultimoUso)<=CACHE_VIGENCIA)){meta.delete(m.clave);datos.delete(m.clave);n++;}});fin(n);};});}
+function cacheTamano(db){if(!db)return Promise.resolve(0);return cacheTx(db,'readonly',function(meta,datos,fin){var r=meta.getAll();r.onsuccess=function(){fin((r.result||[]).reduce(function(a,m){return a+(Number(m.ocupa)||0);},0));};});}
+function cacheVaciar(db){if(!db)return Promise.resolve(false);return cacheTx(db,'readwrite',function(meta,datos,fin){meta.clear();datos.clear();fin(true);});}
+function cacheMB(n){var mb=(Number(n)||0)/1048576;if(mb>0&&mb<0.1)return '< 0.1 MB';return (mb>=10||mb===0?String(Math.round(mb)):mb.toFixed(1))+' MB';}
+/* Un archivo de Drive: primero la caché; si no está (o cambió en Drive), bajar(item) → {nombre,bytes} y guardar.
+   Un fallo de la caché nunca corta la carga: se baja de Drive. cont cuenta {cache,drive}. */
+async function drvFileCache(item,db,bajar,ahora,cont){cont=cont||{};
+  if(db){try{var hit=await cacheLeer(db,item,ahora);if(hit){cont.cache=(cont.cache||0)+1;return {nombre:hit.nombre,bytes:hit.bytes,deCache:true};}}catch(e){cont.errorCache=String(e&&e.message||e);}}
+  var r=await bajar(item);cont.drive=(cont.drive||0)+1;
+  if(db){try{await cacheGuardar(db,item,r.nombre,r.bytes,ahora);}catch(e){cont.errorCache=String(e&&e.message||e);}}
+  return {nombre:r.nombre,bytes:r.bytes,deCache:false};}
+/* rep_TIPO_UBIGEO+SECTOR_AAMMDD.xlsx → 'TIPO' ('' si el nombre no cumple). */
+function drvTipo(name){var m=/^rep_(.+)_\d{8}_\d{6}(?:\.xlsx)?$/i.exec(String(name||''));return m?m[1].toUpperCase():'';}
+function drvDia5(d){return /^\d{4}-\d{2}-\d{2}$/.test(d||'')?d.slice(8,10)+'/'+d.slice(5,7):'—';}
+/* Fechas automáticas POR SECTOR. files: [{sector:'SS',day:'AAAA-MM-DD',tipo}] · sectores: ['SS'].
+   ANTES = la descarga ORIGINAL: la fecha más antigua (sin contar la última) con todos los tipos del sector; si ninguna los tiene todos, la más antigua con más tipos.
+   DESPUÉS = la fecha más reciente, posterior al ANTES, con TODOS los tipos de su ANTES. Si la última está incompleta se usa la anterior completa y se avisa.
+   Sin fecha completa posterior → el sector se excluye (no corta la carga). Devuelve {porSector:{SS:{antes,despues,tipos,incompleto}},excluidos,avisos,resumen}. */
+function drvFechasAuto(files,sectores){
+  var por={},excluidos=[],avisos=[];
+  Array.from(new Set(sectores||[])).sort().forEach(function(s){
+    var dias={};(files||[]).forEach(function(f){if(f.sector!==s||!/^\d{4}-\d{2}-\d{2}$/.test(f.day||'')||!f.tipo)return;(dias[f.day]||(dias[f.day]=new Set())).add(f.tipo);});
+    var lista=Object.keys(dias).sort(),ultima=lista[lista.length-1];
+    if(!lista.length){excluidos.push({sector:s,motivo:'sin reportes en Drive'});return;}
+    if(lista.length<2){excluidos.push({sector:s,motivo:'solo una descarga ('+drvDia5(ultima)+')'});return;}
+    var req=new Set();lista.forEach(function(d){dias[d].forEach(function(t){req.add(t);});});
+    var cand=lista.slice(0,-1),antes=cand.filter(function(d){return dias[d].size===req.size;})[0];
+    if(!antes){var max=Math.max.apply(null,cand.map(function(d){return dias[d].size;}));antes=cand.filter(function(d){return dias[d].size===max;})[0];}
+    var tipos=Array.from(dias[antes]).sort();
+    function tiene(d){return tipos.filter(function(t){return dias[d].has(t);}).length;}
+    var despues=lista.filter(function(d){return d>antes&&tiene(d)===tipos.length;}).pop()||'';
+    var inc=ultima!==despues?drvDia5(ultima)+' incompleto ('+tiene(ultima)+'/'+tipos.length+')':'';
+    if(!despues){excluidos.push({sector:s,motivo:'sin descarga completa posterior al ANTES '+drvDia5(antes)+(inc?' · '+inc:'')});return;}
+    por[s]={antes:antes,despues:despues,tipos:tipos,incompleto:inc};
+    if(inc)avisos.push('S'+s+': '+inc+', se usa '+drvDia5(despues));
+  });
+  return {porSector:por,excluidos:excluidos,avisos:avisos,resumen:drvResumenTxt(por,excluidos)};
+}
+/* "S08: 02/10 → 18/11 · S09: 25/09 → 16/11 (18/11 incompleto) · S10: excluido (…)". */
+function drvResumenTxt(por,excluidos){return Object.keys(por||{}).sort().map(function(s){var o=por[s];return 'S'+s+': '+drvDia5(o.antes)+' → '+drvDia5(o.despues)+(o.incompleto?' ('+o.incompleto.replace(/ \(\d+\/\d+\)$/,'')+')':'');})
+  .concat((excluidos||[]).map(function(e){return 'S'+e.sector+': excluido ('+e.motivo+')';})).join(' · ');}
+/* Archivos a bajar con fechas por sector: su ANTES y su DESPUÉS (en DESPUÉS solo los tipos que tiene su ANTES). Marca lado 'A'/'B'. */
+function drvArchivosAuto(files,por){return (files||[]).filter(function(f){var o=(por||{})[f.sector];if(!o)return false;if(f.day===o.antes)return true;
+    return f.day===o.despues&&(!o.tipos||o.tipos.indexOf(drvTipo(f.name)||f.tipo)>=0);}).map(function(f){f.lado=f.day===por[f.sector].antes?'A':'B';return f;});}
+/* Publicación con fechas por sector (solo cargas automáticas). fs: {SS:{antes,despues,incompleto}} · sectors: sectores del polígono.
+   antes = la fecha más antigua usada, despues = la más reciente; detalle: sectores con fecha distinta; excluidos: sectores sin descarga completa. */
+function pubFechasSector(fs,excluidos,sectors){if(!fs)return null;var lista=Array.from(sectors||[]),usados=lista.filter(function(s){return fs[s];}).sort();if(!usados.length)return null;
+  var a=usados.map(function(s){return fs[s].antes;}).sort()[0],b=usados.map(function(s){return fs[s].despues;}).sort().pop(),f=function(d){return d.split('-').reverse().join('/');};
+  return {antes:f(a),despues:f(b),
+    detalle:usados.filter(function(s){return fs[s].antes!==a||fs[s].despues!==b;}).map(function(s){var o=fs[s];return 'S'+s+': fechas '+drvDia5(o.antes)+' → '+drvDia5(o.despues)+(o.incompleto?' ('+o.incompleto+')':'');}),
+    excluidos:(excluidos||[]).filter(function(e){return lista.indexOf(e.sector)>=0;}).map(function(e){return 'S'+e.sector+': excluido ('+e.motivo+')';})};}
+/* "↻ Repetir última carga": hace falta polígono, distrito y sectores guardados. */
+function drvRepetible(c){c=c&&typeof c==='object'?c:{};var falta=[];if(!c.polygon)falta.push('polígono');if(!c.district)falta.push('distrito');if(!Array.isArray(c.sectors)||!c.sectors.length)falta.push('sectores');
+  return {ok:!falta.length,motivo:falta.length?'Sin última carga guardada (falta '+falta.join(', ')+'). Usa ☁ Cargar desde Drive una vez.':''};}
+/* Panel "Pendientes publicados": vc-pendientes con #pol=<polígono>; sin polígono, su portada. recarga (número) fuerza una recarga real. */
+var PEND_URL='https://validacatastral.github.io/vc-pendientes/';
+function pendUrl(code,recarga){code=String(code||'').trim();return PEND_URL+(recarga?'?r='+recarga:'')+(code?'#pol='+encodeURIComponent(code):'');}
+/* Sincroniza el iframe (si existe) con el polígono: solo cambia el hash (sin recargar) salvo que cambie recarga. Devuelve la URL aplicada. */
+function pendAplicar(frame,code,recarga){var url=pendUrl(code,recarga);if(frame){if(frame.getAttribute('src')!==url)frame.setAttribute('src',url);frame.setAttribute('title',code?'Pendientes publicados del polígono '+code:'Pendientes publicados (portada)');}return url;}
+/* ---- fin caché/fechas/pendientes ---- */
 function drvSectors(){var set=new Set();c2files().forEach(function(f){if(f.name!==DRV.reviewer)return;f.rows.forEach(function(r){if(/^\d{24}$/.test(r.rawCode))set.add(r.rawCode.slice(0,8));else if(/^\d{8}$/.test(r.rawCode))set.add(r.rawCode.slice(0,2));else if(r.partial)set.add(r.partial.slice(0,2));});});
   var label=$('drvPolygon').selectedOptions[0]?$('drvPolygon').selectedOptions[0].textContent:'',poly=POLYGONS.find(function(p){return p.code===label;}),list=Array.from(set);
   DRV.ubigeo=drvUbigeo(list,poly&&poly.ubigeos?Array.from(poly.ubigeos):[]);return drvNormSectors(list,DRV.ubigeo);}
 function drvResetPlan(){DRV.plan=null;$('drvMissing').innerHTML='';$('drvRetry').hidden=true;}
-function drvRenderFaltantes(list){$('drvMissing').innerHTML=list.length?'<p>Carga parcial · faltaron '+list.length+' archivo(s):</p><ul>'+list.map(function(f){return '<li>'+esc(drvFaltanteTxt(f))+'</li>';}).join('')+'</ul>':'';$('drvRetry').hidden=!list.length;}
+function drvRenderFaltantes(list,excluidos){excluidos=excluidos||[];$('drvMissing').innerHTML=(list.length?'<p>Carga parcial · faltaron '+list.length+' archivo(s):</p><ul>'+list.map(function(f){return '<li>'+esc(drvFaltanteTxt(f))+'</li>';}).join('')+'</ul>':'')
+  +(excluidos.length?'<p>Sectores excluidos (sin descarga completa): '+excluidos.length+'</p><ul>'+excluidos.map(function(e){return '<li>'+esc('S'+e.sector+': '+e.motivo)+'</li>';}).join('')+'</ul>':'');$('drvRetry').hidden=!list.length;}
 function drvSelected(){return Array.from($('drvSectors').querySelectorAll('input:checked')).map(function(x){return x.value;});}
 function drvRenderSectors(){ $('drvSectors').innerHTML=DRV.sectors.map(function(s){return '<label style="display:inline-block;margin:6px"><input type="checkbox" value="'+esc(s)+'" checked> '+esc(drvSectorLabel(s))+'</label>';}).join('');}
-async function drvAction(fn){if(DRV.busy)return;DRV.busy=true;$('drvError').textContent='';$('drvProgressText').textContent='Consultando Drive…';$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=true;});try{await fn();}catch(e){$('drvError').textContent=e.message;}finally{DRV.busy=false;$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=false;});}}
+async function drvAction(fn){if(DRV.busy)return;DRV.busy=true;$('drvError').textContent='';$('drvProgressText').textContent='Consultando Drive…';$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=true;});try{await fn();}catch(e){$('drvError').textContent=e.message;}finally{DRV.busy=false;$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=false;});cachePintar();}}
 /* Carpetas de polígono (Validaciones_alfanuméricas / <pol>) de las dos raíces; solo lectura. */
 async function drvPoligonos(){
   var items=(await drvList('validaciones')).filter(function(x){return x.folder;});
@@ -3002,67 +3119,89 @@ function drvRevisorUnico(files,label){
   return files[0];
 }
 function drvRead(file){return new Promise(function(resolve,reject){readWorkbook(file,function(err,data){if(err)reject(new Error(file.name+': '+err.message));else resolve(data);});});}
+function drvAbrir(){
+  if(CUR<0){showErr('Crea o selecciona un distrito antes de cargar desde Drive.');return false;}
+  DRV={busy:false,files:[],sectors:[],district:CUR};drvResetPlan();$('drvTarget').textContent='Distrito de trabajo: '+DISTRICTS[CUR].name;$('drvStepB').hidden=true;$('drvStepC').hidden=true;$('drvProgress').value=0;$('drvProgressText').textContent='';$('drvResumen').textContent='';
+  $('drvManual').checked=(drvLast().carga||{}).fechas==='manual';$('drvManualBox').hidden=!$('drvManual').checked;$('drvDialog').showModal();return true;
+}
 $('drvOpen').addEventListener('click',function(){
-  if(CUR<0){showErr('Crea o selecciona un distrito antes de cargar desde Drive.');return;}
-  DRV={busy:false,files:[],sectors:[],district:CUR};drvResetPlan();$('drvTarget').textContent='Distrito de trabajo: '+DISTRICTS[CUR].name;$('drvStepB').hidden=true;$('drvStepC').hidden=true;$('drvProgress').value=0;$('drvProgressText').textContent='';$('drvDialog').showModal();
+  if(!drvAbrir())return;
   drvAction(async function(){drvOptions('drvPolygon',await drvPoligonos(),drvLast().polygon);});
 });
+$('drvManual').addEventListener('change',function(){$('drvManualBox').hidden=!this.checked;});
 $('drvClose').addEventListener('click',function(){$('drvDialog').close();DRV.files=[];drvResetPlan();});
 $('drvDialog').addEventListener('cancel',function(e){if(DRV.busy)e.preventDefault();});
-$('drvReviewer').addEventListener('click',function(){drvAction(async function(){
+/* A → B: baja el Excel del revisor del polígono elegido, deduce sectores y lista las carpetas DISTRITO. */
+async function drvPasoRevisor(){
   $('drvStepB').hidden=true;$('drvStepC').hidden=true;DRV.files=[];drvResetPlan();
   var id=$('drvPolygon').value;if(!id)throw new Error('Elige un polígono.');
   var label=$('drvPolygon').selectedOptions[0].textContent;
   var file=await drvFile(drvRevisorUnico((await drvList('validaciones',id)).filter(drvExcel),label));DRV.reviewer=file.name;
   await loadReviewerFiles([file]);DRV.sectors=drvSectors();drvRenderSectors();
   var districts=(await drvList('reportes')).filter(function(x){return x.folder;});if(!districts.length)throw new Error('La carpeta de reportes está vacía.');drvOptions('drvDistrict',districts,drvLast().district);$('drvStepB').hidden=false;drvSaveLast();
-});});
+}
+$('drvReviewer').addEventListener('click',function(){drvAction(drvPasoRevisor);});
 $('drvAddSector').addEventListener('click',function(){var value=$('drvSector').value.trim();if(!/^\d{2}$|^\d{8}$/.test(value)){$('drvError').textContent='Sector: escribe 2 dígitos o ubigeo+sector (8 dígitos).';return;}
   drvNormSectors(DRV.sectors.concat([value]),DRV.ubigeo).filter(function(s){return DRV.sectors.indexOf(s)<0;}).forEach(function(s){DRV.sectors.push(s);var label=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=s;input.checked=true;label.append(input,document.createTextNode(' '+drvSectorLabel(s)+' '));$('drvSectors').appendChild(label);});$('drvSector').value='';});
 ['drvPolygon','drvDistrict'].forEach(function(id){$(id).addEventListener('change',function(){$('drvStepC').hidden=true;DRV.files=[];drvResetPlan();if(id==='drvPolygon')$('drvStepB').hidden=true;});});
-$('drvDates').addEventListener('click',function(){drvAction(async function(){
+/* B → C: lista las carpetas Sxx elegidas y propone las fechas automáticas por sector (reglas ANTES/DESPUÉS); a mano, los selects de siempre. */
+async function drvPasoFechas(){
   $('drvStepC').hidden=true;DRV.files=[];drvResetPlan();var id=$('drvDistrict').value,selected=drvSelected();if(!id||!selected.length)throw new Error('Elige distrito y al menos un sector.');
   var folders=(await drvList('reportes',id)).filter(function(x){return x.folder&&/^S\d{2}$/i.test(x.name);});
   var wanted=Array.from(new Set(selected.map(function(s){return s.slice(-2);}))),missing=wanted.filter(function(s){return !folders.some(function(f){return f.name.slice(1)===s;});});if(missing.length)throw new Error('Faltan carpetas: '+missing.map(function(s){return 'S'+s;}).join(', '));
   var groups=await drvPool(folders.filter(function(f){return wanted.indexOf(f.name.slice(1))>=0;}),async function(f){var list=(await drvList('reportes',f.id)).filter(drvExcel);if(!list.length)throw new Error(f.name+': carpeta vacía.');return list.map(function(x){x.sector=f.name.slice(1);x.day=drvDate(x.name);return x;});});
   var files=groups.flat(),undated=files.filter(function(x){return !x.day;});if(undated.length)throw new Error('Archivos sin fecha AAMMDD válida: '+undated.map(function(x){return x.name;}).join(', '));
   var days=Array.from(new Set(files.map(function(x){return x.day;}))).sort();if(days.length<2)throw new Error('Se necesitan al menos dos fechas de descarga.');DRV.files=files;DRV.selected=selected;
-  ['drvBefore','drvAfter'].forEach(function(id){drvOptions(id,days.map(function(d){return {id:d,name:d};}));});$('drvBefore').value=days[days.length-2];$('drvAfter').value=days[days.length-1];$('drvStepC').hidden=false;drvSaveLast();
-});});
+  ['drvBefore','drvAfter'].forEach(function(id){drvOptions(id,days.map(function(d){return {id:d,name:d};}));});$('drvBefore').value=days[days.length-2];$('drvAfter').value=days[days.length-1];
+  DRV.auto=drvFechasAuto(files.map(function(x){return {sector:x.sector,day:x.day,tipo:drvTipo(x.name)};}),wanted);
+  $('drvResumen').textContent='Automático (ANTES = descarga original · DESPUÉS = última completa, por sector):\n'+(DRV.auto.resumen||'ningún sector')+(DRV.auto.avisos.length?'\n⚠ '+DRV.auto.avisos.join('\n⚠ '):'');
+  $('drvStepC').hidden=false;drvSaveLast();
+}
+$('drvDates').addEventListener('click',function(){drvAction(drvPasoFechas);});
 /* Carga y compara. Un archivo que falla se reintenta y, si sigue fallando, se lista como faltante sin cortar la carga.
    retry: baja solo los faltantes del plan en memoria (lo ya descargado sigue en el distrito creado; nada va a localStorage). */
 async function drvCargar(retry){
   var plan=DRV.plan;
   if(retry){if(!plan)throw new Error('No hay faltantes que reintentar. Vuelve a buscar fechas.');}
   else{
-    var a0=$('drvBefore').value,b0=$('drvAfter').value;if(!a0||!b0||a0>=b0)throw new Error('ANTES debe ser anterior a DESPUÉS.');
     if(JSON.stringify(DRV.selected)!==JSON.stringify(drvSelected()))throw new Error('Los sectores cambiaron. Vuelve a buscar fechas.');
-    var sel=DRV.files.filter(function(x){return x.day===a0||x.day===b0;}),vistos=new Set();sel=sel.filter(function(x){if(vistos.has(x.id))return false;vistos.add(x.id);return true;});
+    var manual=$('drvManual').checked,auto=null,a0,b0,sel;
+    if(manual){a0=$('drvBefore').value;b0=$('drvAfter').value;if(!a0||!b0||a0>=b0)throw new Error('ANTES debe ser anterior a DESPUÉS.');
+      sel=DRV.files.filter(function(x){return x.day===a0||x.day===b0;}).map(function(x){x.lado=x.day===a0?'A':'B';return x;});}
+    else{auto=DRV.auto;if(!auto)throw new Error('Vuelve a buscar fechas.');sel=drvArchivosAuto(DRV.files,auto.porSector);
+      var usados=Object.keys(auto.porSector);if(!usados.length)throw new Error('Ningún sector tiene una descarga completa posterior a su ANTES: '+auto.resumen);
+      a0=usados.map(function(s){return auto.porSector[s].antes;}).sort()[0];b0=usados.map(function(s){return auto.porSector[s].despues;}).sort().pop();}
+    var vistos=new Set();sel=sel.filter(function(x){if(vistos.has(x.id))return false;vistos.add(x.id);return true;});
     sel.forEach(function(x){var m=x.name.match(/^rep_(.+)_\d{8}_\d{6}(?:\.xlsx)?$/i);if(!m)throw new Error('Nombre de reporte no válido: '+x.name);if(x.name.match(/_(\d{8})_\d{6}(?:\.xlsx)?$/i)[1].slice(-2)!==x.sector)throw new Error(x.name+': el sector del nombre no coincide con su carpeta.');});
     // Solo bloquea si una de las dos fechas no tiene NINGÚN reporte; lo demás se avisa sin bloquear.
-    if(!sel.some(function(x){return x.day===a0;})||!sel.some(function(x){return x.day===b0;}))throw new Error('No hay ningún reporte en una de las dos fechas para los sectores elegidos.');
+    if(!sel.some(function(x){return x.lado==='A';})||!sel.some(function(x){return x.lado==='B';}))throw new Error('No hay ningún reporte en una de las dos fechas para los sectores elegidos.');
     var sectors=new Set(sel.map(function(x){return x.sector;}));
-    drvResetPlan();plan=DRV.plan={a:a0,b:b0,files:sel,selected:DRV.selected.slice(),got:{},bytes:0,target:null,sinArchivos:Array.from(new Set(DRV.selected.map(function(s){return s.slice(-2);}))).filter(function(s){return !sectors.has(s);})};
+    drvResetPlan();plan=DRV.plan={a:a0,b:b0,files:sel,selected:DRV.selected.slice(),got:{},bytes:0,target:null,cont:{cache:0,drive:0},auto:auto,dias:Array.from(new Set(sel.map(function(x){return x.day;}))).sort(),
+      sinArchivos:auto?[]:Array.from(new Set(DRV.selected.map(function(s){return s.slice(-2);}))).filter(function(s){return !sectors.has(s);})};
   }
-  var a=plan.a,b=plan.b,files=plan.files,got=plan.got,pend=files.filter(function(x){return !got[x.id];}),done=files.length-pend.length;
-  $('drvProgress').max=files.length;$('drvProgress').value=done;$('drvProgressText').textContent=done+' de '+files.length;
+  var a=plan.a,b=plan.b,files=plan.files,got=plan.got,pend=files.filter(function(x){return !got[x.id];}),done=files.length-pend.length,cont=plan.cont;
+  function avance(){return done+' de '+files.length+' · '+cont.cache+' de caché · '+cont.drive+' bajados de Drive'+(CACHE.sinCache?' (sin caché en este navegador)':'');}
+  $('drvProgress').max=files.length;$('drvProgress').value=done;$('drvProgressText').textContent=avance();
   var res=await drvPoolParcial(pend,async function(item){
-    var file=await drvConReintento(function(){return drvFile(item);},{aviso:function(n,ms){$('drvProgressText').textContent=done+' de '+files.length+' · reintento '+n+' de '+item.name+' en '+Math.round(ms/1000)+' s';}});
+    var file=await drvConReintento(function(){return drvFile(item,cont);},{aviso:function(n,ms){$('drvProgressText').textContent=avance()+' · reintento '+n+' de '+item.name+' en '+Math.round(ms/1000)+' s';}});
     if(plan.bytes+file.size>DRV_TOTAL)throw new Error('La selección supera 150 MiB. Carga menos sectores.');
     var data=await drvRead(file),preset=detectPreset(data.headers);if(!preset)throw new Error('tipo de reporte no reconocido.');
     var wanted=plan.selected.filter(function(s){return s.length===8&&s.slice(-2)===item.sector;});if(wanted.length&&data.rows.some(function(r){var crc=txt(r[preset.key]);return /^\d{14}$|^\d{24}$/.test(crc)&&wanted.indexOf(crc.slice(0,8))<0;}))throw new Error('el ubigeo/sector no coincide con la selección.');
-    plan.bytes+=file.size;got[item.id]={file:file,preset:preset,headers:JSON.stringify(data.headers),side:item.day===a?'A':'B'};
-    $('drvProgress').value=++done;$('drvProgressText').textContent=done+' de '+files.length;
+    plan.bytes+=file.size;got[item.id]={file:file,preset:preset,headers:JSON.stringify(data.headers),side:item.lado||(item.day===a?'A':'B')};
+    $('drvProgress').value=++done;$('drvProgressText').textContent=avance();
   });
-  var faltantes=drvFaltantes(res.fallos,a,plan.selected);drvRenderFaltantes(faltantes);
+  var faltantes=drvFaltantes(res.fallos,a,plan.selected),excluidos=plan.auto?plan.auto.excluidos:[];drvRenderFaltantes(faltantes,excluidos);
   var todos=files.map(function(x){return got[x.id];}).filter(Boolean);
   if(!todos.some(function(x){return x.side==='A';})||!todos.some(function(x){return x.side==='B';}))throw new Error('No se pudo descargar ningún reporte de una de las dos fechas. Pulsa «Reintentar faltantes».');
   var cab={};todos.forEach(function(x){var k=x.preset.id+'|'+x.side;if(cab[k]&&cab[k]!==x.headers)throw new Error('Encabezados incompatibles: '+k);cab[k]=x.headers;});
   if(!plan.target){
     await polyDriveSelection();
     // Se incorpora a un distrito nuevo para conservar cualquier carga manual previa.
-    var source=DISTRICTS[DRV.district],name=$('drvDistrict').selectedOptions[0].textContent+' · Drive '+a+' → '+b;
-    plan.target={name:name,board:newBoard(),tec:{},c2:(source.c2||[]).slice()};DISTRICTS.push(plan.target);switchDist(DISTRICTS.length-1);
+    var source=DISTRICTS[DRV.district],name=$('drvDistrict').selectedOptions[0].textContent+' · Drive '+a+' → '+b+(plan.auto?' (por sector)':'');
+    plan.target={name:name,board:newBoard(),tec:{},c2:(source.c2||[]).slice()};
+    // Fechas por sector (automático): las usa la publicación (antes/después y parcialDetalle).
+    if(plan.auto){plan.target.fechasSector={};Object.keys(plan.auto.porSector).forEach(function(s){var o=plan.auto.porSector[s];plan.target.fechasSector[s]={antes:o.antes,despues:o.despues,incompleto:o.incompleto};});plan.target.excluidos=plan.auto.excluidos.slice();}
+    drvSaveLast({polygon:$('drvPolygon').value,polygonName:$('drvPolygon').selectedOptions[0]?$('drvPolygon').selectedOptions[0].textContent:'',district:$('drvDistrict').value,districtName:$('drvDistrict').selectedOptions[0].textContent,sectors:plan.selected.slice(),fechas:plan.auto?'auto':'manual',antes:a,despues:b});DISTRICTS.push(plan.target);switchDist(DISTRICTS.length-1);
   }else{var at=DISTRICTS.indexOf(plan.target);if(at<0)throw new Error('El distrito de esta carga ya no existe. Vuelve a buscar fechas.');if(CUR!==at)switchDist(at);}
   // Solo se incorporan los archivos nuevos; los ya cargados siguen en el distrito.
   var grouped={};todos.forEach(function(x){if(!x.file)return;var k=x.preset.id+'|'+x.side;(grouped[k]||(grouped[k]=[])).push(x);});
@@ -3073,12 +3212,27 @@ async function drvCargar(retry){
   plan.target.descarga=faltantes.map(function(f){return {sector:f.sector,texto:'S'+f.sector+' · '+f.tipo+' · '+f.lado+' '+f.day};});
   // Registro del descargador (solo lectura): explica los reportes faltantes. Si no responde, se sigue sin él.
   var district=DISTRICTS[CUR];district.registro=null;district.registroError=false;
-  try{var codes=(gapNow()||{sectores:[]}).sectores,reg=await drvGet('registro',{fechas:a+','+b,codigos:codes.join(',')});if(!Array.isArray(reg.registro))throw new Error('formato');district.registro=reg.registro;}catch(e){district.registroError=true;}
+  try{var codes=(gapNow()||{sectores:[]}).sectores,reg=await drvGet('registro',{fechas:(plan.dias||[a,b]).join(','),codigos:codes.join(',')});if(!Array.isArray(reg.registro))throw new Error('formato');district.registro=reg.registro;}catch(e){district.registroError=true;}
   c2render();
-  $('drvProgressText').textContent=done+' de '+files.length+(faltantes.length?' · Carga PARCIAL: faltaron '+faltantes.length+' archivo(s) (lista abajo). Pulsa «Reintentar faltantes» antes de cerrar; los polígonos de esos sectores no se pueden publicar hasta completarlos.':' · Carga y comparación completadas.')+(plan.sinArchivos.length?' · Sin archivos en esas fechas: '+plan.sinArchivos.map(function(s){return 'S'+s;}).join(', '):'')+($('gapPanel').classList.contains('hidden')?'':' · Revisa los avisos de reportes faltantes.');
+  $('drvProgressText').textContent=avance()+(faltantes.length?' · Carga PARCIAL: faltaron '+faltantes.length+' archivo(s) (lista abajo). Pulsa «Reintentar faltantes» antes de cerrar; los polígonos de esos sectores no se pueden publicar hasta completarlos.':' · Carga y comparación completadas.')+(plan.sinArchivos.length?' · Sin archivos en esas fechas: '+plan.sinArchivos.map(function(s){return 'S'+s;}).join(', '):'')+(excluidos.length?' · Sectores excluidos: '+excluidos.map(function(e){return 'S'+e.sector;}).join(', ')+' (lista abajo)':'')+(plan.auto&&plan.auto.avisos.length?' · '+plan.auto.avisos.join(' · '):'')+($('gapPanel').classList.contains('hidden')?'':' · Revisa los avisos de reportes faltantes.');
   DRV.files=[];if(!faltantes.length)DRV.plan=null;
 }
 $('drvLoad').addEventListener('click',function(){drvAction(function(){return drvCargar(false);});});
+/* "↻ Repetir última carga": mismo polígono, distrito y sectores; vuelve a listar Drive y aplica las fechas automáticas por sector, sin pasos del modal. */
+$('drvRepeat').addEventListener('click',function(){
+  var c=drvLast().carga,r=drvRepetible(c);if(!r.ok){showErr(r.motivo);drvRepeatSync();return;}
+  if(!drvAbrir())return;$('drvManual').checked=false;$('drvManualBox').hidden=true;
+  drvAction(async function(){
+    drvOptions('drvPolygon',await drvPoligonos(),c.polygon);if($('drvPolygon').value!==c.polygon)throw new Error('El polígono de la última carga ('+(c.polygonName||c.polygon)+') ya no está en Drive. Usa ☁ Cargar desde Drive.');
+    $('drvProgressText').textContent='Repitiendo: polígono '+(c.polygonName||'')+' · '+(c.districtName||'');
+    await drvPasoRevisor();
+    $('drvDistrict').value=c.district;if($('drvDistrict').value!==c.district)throw new Error('La carpeta DISTRITO de la última carga ('+(c.districtName||c.district)+') ya no está en Drive.');
+    var quiero=drvNormSectors(c.sectors,DRV.ubigeo);DRV.sectors=drvNormSectors(DRV.sectors.concat(quiero),DRV.ubigeo);drvRenderSectors();
+    $('drvSectors').querySelectorAll('input').forEach(function(x){x.checked=quiero.indexOf(x.value)>=0;});
+    await drvPasoFechas();
+    await drvCargar(false);
+  });
+});
 $('drvRetry').addEventListener('click',function(){drvAction(function(){return drvCargar(true);});});
 /* ============ Comparar todos (revisión final): el mismo flujo de publicación, polígono por polígono ============ */
 /* Solo se recorren los polígonos del universo cuyo UBIGEO es el del distrito de trabajo; nada se guarda fuera de la memoria de la sesión. */
@@ -3194,7 +3348,7 @@ async function loteIndice(folder){
   if(!folders.length)throw new Error('La carpeta DISTRITO no tiene carpetas Sxx.');
   var ignorados=0,groups=await drvPool(folders,async function(f){return (await drvList('reportes',f.id)).filter(drvExcel).map(function(x){
     var n=loteNombre(x.name);if(!n||n.sector!==f.name.slice(1)){ignorados++;return null;}
-    return {id:x.id,name:x.name,size:x.size,tipo:n.tipo,ubigeo:n.ubigeo,sector:n.sector,day:n.day};}).filter(Boolean);});
+    return {id:x.id,name:x.name,size:x.size,modificado:x.modificado,tipo:n.tipo,ubigeo:n.ubigeo,sector:n.sector,day:n.day};}).filter(Boolean);});
   return {files:groups.flat(),ignorados:ignorados};
 }
 (function(){
@@ -3320,6 +3474,31 @@ async function loteIndice(folder){
   try{$('drvRemember').checked=!!localStorage.getItem('vc-cmp-drv-key');$('drvKey').value=sessionStorage.getItem('vc-cmp-drv-key')||localStorage.getItem('vc-cmp-drv-key')||'';}catch(e){}
   function save(){try{var key=$('drvKey').value.trim();if($('drvRemember').checked){localStorage.setItem('vc-cmp-drv-key',key);sessionStorage.removeItem('vc-cmp-drv-key');}else{sessionStorage.setItem('vc-cmp-drv-key',key);localStorage.removeItem('vc-cmp-drv-key');}}catch(e){}}
   save();$('drvKey').addEventListener('input',save);$('drvRemember').addEventListener('change',save);
+  drvRepeatSync();
+})();
+/* Caché de Drive: al abrir la página se borra lo que lleva más de 7 días sin usarse; botón para vaciarla. */
+(function(){
+  cacheDb().then(function(db){return db?cacheVencer(db,Date.now()):0;}).catch(function(){return 0;}).then(cachePintar);
+  $('cacheClear').addEventListener('click',async function(){
+    if(!confirm('¿Borrar los archivos de Drive guardados en este navegador? Se volverán a bajar en la próxima carga.'))return;
+    try{var db=await cacheDb();if(db)await cacheVaciar(db);}catch(e){$('cacheInfo').textContent='No se pudo borrar: '+e.message;return;}
+    cachePintar();
+  });
+})();
+/* Panel "Pendientes publicados": iframe a vc-pendientes, creado solo al abrir el panel y sincronizado con el polígono activo. */
+var PEND={frame:null,recarga:0};
+function pendCodigo(){return POLY_ACTIVE?POLY_ACTIVE.code:'';}
+function pendSync(){var code=pendCodigo();$('pendInfo').textContent=code?'Polígono '+code:'Sin polígono activo: portada de vc-pendientes.';if(PEND.frame)pendAplicar(PEND.frame,code,PEND.recarga);}
+function pendRecargar(){if(!PEND.frame)return;PEND.recarga=Date.now();pendSync();}
+(function(){
+  $('pendPanel').addEventListener('toggle',function(){
+    if(this.open&&!PEND.frame){var f=document.createElement('iframe');f.style.cssText='width:100%;height:75vh;min-height:480px;border:1px solid var(--border);border-radius:7px;background:var(--bg-panel)';
+      f.setAttribute('referrerpolicy','no-referrer');PEND.frame=f;$('pendHost').appendChild(f);}
+    pendSync();});
+  $('pendOpen').addEventListener('click',function(){window.open(pendUrl(pendCodigo()),'_blank','noopener');});
+  $('polySelect').addEventListener('change',pendSync);
+  var base=applyPolygon;applyPolygon=function(){var r=base.apply(this,arguments);pendSync();return r;};
+  pendSync();
 })();
 
 
