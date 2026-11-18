@@ -252,10 +252,33 @@ Este repositorio y su código serán públicos en GitHub Pages: https://validaca
 2. Introducir **Clave de lectura** en el panel Drive. Usa `sessionStorage['vc-cmp-drv-key']` por defecto. Marcar **Recordar** la traslada a `localStorage['vc-cmp-drv-key']`; desmarcar elimina esa copia persistente y vuelve a sesión.
 3. Pulsar **☁ Cargar desde Drive**. Elegir polígono y cargar su Excel del revisor. Se usa el mismo lector que el selector manual; el revisor queda en el distrito actual. Se admite `.xlsx` o Google Sheet exportado como XLSX por el servicio. Si hay varios, se elige el único cuyo nombre coincide con la carpeta; de otro modo se avisa para resolver la ambigüedad.
 4. Revisar sectores deducidos de los CRC del revisor (UBIGEO+SS), marcados inicialmente. Se pueden quitar o añadir sectores de dos dígitos o UBIGEO+SS de ocho. Los códigos parciales del revisor permiten deducir SS; requieren elegir con cuidado el distrito de Drive.
-5. Elegir carpeta DISTRITO y **Buscar fechas**. Se leen sus carpetas `Sxx`, se agrupan los nombres `rep_TIPO_UBIGEO+SECTOR_AAMMDD.xlsx` y se proponen las dos fechas más recientes. Elegir ANTES y DESPUÉS; deben ser distintas y estar ordenadas. Se exige el par de fechas por tipo y sector presente y cobertura de todos los sectores elegidos. Un tipo ausente de ambas fechas no se inventa ni se compara.
+5. Elegir carpeta DISTRITO y **Buscar fechas**. Se leen sus carpetas `Sxx` y se agrupan los nombres `rep_TIPO_UBIGEO+SECTOR_AAMMDD.xlsx`. Por defecto las fechas son **automáticas por sector** (ver *Fechas automáticas por sector*) y se muestra el resumen antes de cargar. Con **Elegir fechas a mano** aparecen los selects ANTES/DESPUÉS de siempre (las dos fechas más recientes propuestas; deben ser distintas y estar ordenadas), una sola pareja para todos los sectores. Un tipo ausente de ambas fechas no se inventa ni se compara.
 6. **Cargar y comparar** descarga como máximo tres archivos a la vez y muestra `n de N`. Antes de incorporar los reportes se validan fecha, tipo, encabezados y ubigeo cuando el revisor lo proporciona. Se crea un distrito de trabajo nuevo con los reportes y una copia del revisor; las tarjetas anteriores se conservan. Usa `readWorkbook`, `detectPreset`, `loadInto` y `runAll`, igual que las cargas manuales. La carga manual individual y masiva sigue disponible.
 
-Límites: 25 MiB por XLSX decodificado y 150 MiB por selección; tiempo de espera de 60 segundos por petición. Las respuestas del servicio se leen en memoria. No se persisten archivos ni resultados de Drive. Además de URL/clave, se recuerdan solo los identificadores de la última carpeta de polígono/distrito en `localStorage['vc-cmp-drv-last']`. Las preferencias y asignaciones manuales preexistentes mantienen su comportamiento.
+Límites: 25 MiB por XLSX decodificado y 150 MiB por selección; tiempo de espera de 60 segundos por petición. Los archivos bajados se guardan en la **caché del navegador** (ver abajo); los resultados de la comparación no se persisten. Además de URL/clave, `localStorage['vc-cmp-drv-last']` recuerda la última carpeta de polígono/distrito y, tras una carga, la **última carga** (`carga`: polígono, distrito, sectores, modo de fechas y fechas usadas) para **↻ Repetir última carga**. Las preferencias y asignaciones manuales preexistentes mantienen su comportamiento.
+
+### Caché de archivos de Drive
+
+- **Qué guarda:** cada archivo bajado de Drive (reportes y Excel del revisor, también en *Comparar todos*) queda en IndexedDB `vc-cmp-cache` de este navegador: tienda `meta` `{clave, id, modificado, tamano, nombre, ocupa, ultimoUso}` y tienda `datos` `{clave, bytes}`. La clave es `id|modificado|tamaño` (de `listar`; `modificado` puede venir como `modificado` o `modifiedTime`).
+- **Cuándo se usa:** antes de pedir `api=archivo` se busca la clave; si está, se usa y se actualiza `ultimoUso`. Si en Drive cambió la fecha de modificación o el tamaño, la clave ya no coincide: se baja de nuevo y se borra la versión vieja. Un archivo sin `modificado` en el listado no se guarda (no se podría saber si cambió).
+- **Vencimiento:** al abrir la página se borra todo lo que lleva **más de 7 días sin usarse** (desde su último uso, no desde que se bajó).
+- **Durante la carga** se ve `X de caché · Y bajados de Drive`.
+- **Botón Borrar datos guardados** (pide confirmación) vacía la base; al lado se muestra lo ocupado (`Guardado: 85 MB`).
+- **Sin IndexedDB** (modo privado, bloqueado o lleno): se sigue como antes, todo desde Drive, con un aviso pequeño. Un fallo de la caché nunca corta la carga.
+- **Ojo:** son **datos catastrales reales guardados en el navegador del encargado**. No usar la caché en PCs compartidas; al terminar en un equipo ajeno, pulsar **Borrar datos guardados**.
+
+### Fechas automáticas por sector
+
+- **ANTES = descarga ORIGINAL de cada sector:** la fecha más antigua de su carpeta `Sxx` que tenga los tipos de reporte requeridos (todos los tipos que aparecen en esa carpeta). Si ninguna los tiene todos, la más antigua con más tipos. Un tipo nuevo que solo aparece en la última descarga no mueve el ANTES. Cada sector usa su propia fecha; pueden ser distintas entre sectores.
+- **DESPUÉS = última descarga COMPLETA:** la fecha más reciente que tenga **todos** los tipos de su ANTES. Si la última está incompleta se usa la anterior completa y se avisa: `S09: 18/11 incompleto (3/6), se usa 16/11`. En DESPUÉS se bajan solo los tipos que tiene su ANTES.
+- **Sin fecha completa posterior** (o una sola descarga): el sector se **excluye** y se lista como faltante, sin cortar la carga; los polígonos que lo necesitan quedan sin poder publicarse (`faltan Sxx`), como hoy.
+- **Resumen antes de cargar:** `S08: 02/10 → 18/11 · S09: 25/09 → 16/11 (18/11 incompleto)`.
+- **Publicación:** con fechas por sector, `antes` = la fecha más antigua usada por los sectores del polígono y `despues` = la más reciente. En `parcialDetalle` van los sectores con fecha distinta (`S09: fechas 25/09 → 16/11 (18/11 incompleto (3/6))`) y los excluidos (`S10: excluido (…)`). Un excluido marca `parcial`; una fecha distinta sola no.
+- **Elegir fechas a mano** mantiene los selects `drvBefore`/`drvAfter` para casos especiales (una pareja única para todos los sectores, como antes).
+
+### ↻ Repetir última carga
+
+Junto a **☁ Cargar desde Drive**. Usa el polígono, la carpeta DISTRITO y los sectores de la última carga, vuelve a listar Drive, aplica siempre las **fechas automáticas por sector** y carga y compara sin pasar por los pasos del modal (el progreso y los faltantes se ven en el mismo cuadro). Deshabilitado si no hay última carga guardada. Con la caché, lo que no cambió en Drive no se vuelve a bajar.
 
 ### Contrato de InformeSICUN
 
@@ -287,9 +310,20 @@ Botón **▶ Comparar todos (revisión final)**, junto a **☁ Cargar desde Driv
 - **Carga manual** (distrito con reportes y Excel del revisor ya cargados): se usa lo cargado, sin Drive.
 - **Publicar** es opcional: casilla *Publicar pendientes al terminar cada polígono* (desmarcada = solo compara). Al publicar, cada polígono reintenta con espera creciente (5 s, 15 s, 35 s) por el bloqueo de 30 s del Apps Script; un error de clave no se reintenta. Un polígono con error queda en el resumen y **no detiene** a los demás.
 - **Resumen del distrito:** publicados / parciales / omitidos, con motivo (falta Antes, falta Después, sin cruce, sectores incompletos, seguro del 50 %, error).
-- No escribe en los Sheets de revisores ni usa `localStorage`/`IndexedDB`.
+- No escribe en los Sheets de revisores ni usa `localStorage`. Los archivos que baja pasan por la caché de Drive (IndexedDB `vc-cmp-cache`), igual que en *Cargar desde Drive*.
 
 Pruebas con datos sintéticos: `node tests/comparar-todos.test.js` (dos distritos sin mezclar, Antes por polígono, error que no corta el lote, reintento, resumen, 40 polígonos seguidos).
+
+## Panel Pendientes publicados
+
+Sección plegable **Pendientes publicados**, debajo de *Universo de polígonos*. Al abrirla (no antes) se crea un iframe a `https://validacatastral.github.io/vc-pendientes/#pol=<polígono activo>` a todo el ancho y 75 % del alto de la ventana, con `title` accesible.
+
+- Sigue al selector **Polígono activo**: al cambiarlo solo cambia el hash del iframe. Sin polígono se ve la portada de vc-pendientes.
+- Tras **Publicar** con éxito se recarga el iframe para ver lo recién publicado.
+- **Abrir en pestaña ↗** abre la misma vista en una pestaña nueva.
+- No copia código de vc-pendientes ni lo modifica.
+
+Pruebas con datos sintéticos (sin navegador): `node tests/cache-fechas-pendientes.test.js` (ANTES/DESPUÉS por sector con fechas distintas, último incompleto y sector excluido; publicación coherente; caché con IndexedDB simulado: clave, último uso, vencimiento, cambio en Drive y sin IndexedDB; repetir sin datos guardados; hash del iframe).
 
 ## Regla de estado por campos esperados y columna Observación vs Antes → Después
 
