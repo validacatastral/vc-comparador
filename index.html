@@ -2948,7 +2948,7 @@ async function drvList(root,folder){
   // Acepta listas mixtas o las dos colecciones del servicio.
   var list=Array.isArray(data)?data:Array.isArray(data.items)?data.items:null;
   if(!list){if(!Array.isArray(data.carpetas)&&!Array.isArray(data.archivos))throw new Error('Formato de listado no reconocido (items o carpetas/archivos).');list=(data.carpetas||[]).map(function(x){return Object.assign({},x,{folder:true});}).concat(data.archivos||[]);}
-  return list.map(function(x){return {id:String(x.id||''),name:String(x.nombre||x.name||''),folder:x.folder===true||x.esCarpeta===true||x.tipo==='carpeta'||x.mimeType==='application/vnd.google-apps.folder',mime:x.mimeType||'',size:Number(x.size||x.tamano||0),modificado:String(x.modificado||x.modifiedTime||'')};}).filter(function(x){return x.id&&x.name;});
+  return list.map(function(x){return {id:String(x.id||''),name:String(x.nombre||x.name||''),folder:x.folder===true||x.esCarpeta===true||x.tipo==='carpeta'||x.mimeType==='application/vnd.google-apps.folder',mime:x.mimeType||x.mime||'',size:Number(x.size||x.tamano||0),modificado:String(x.modificado||x.modifiedTime||'')};}).filter(function(x){return x.id&&x.name;});
 }
 function drvExcel(x){return !x.folder&&(/\.xlsx$/i.test(x.name)||x.mime==='application/vnd.google-apps.spreadsheet');}
 /* Baja un archivo de Drive (api=archivo) → {nombre,bytes}. */
@@ -3104,10 +3104,11 @@ function drvSelected(){return Array.from($('drvSectors').querySelectorAll('input
 function drvRenderSectors(){ $('drvSectors').innerHTML=DRV.sectors.map(function(s){return '<label style="display:inline-block;margin:6px"><input type="checkbox" value="'+esc(s)+'" checked> '+esc(drvSectorLabel(s))+'</label>';}).join('');}
 async function drvAction(fn){if(DRV.busy)return;DRV.busy=true;$('drvError').textContent='';$('drvProgressText').textContent='Consultando Drive…';$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=true;});try{await fn();}catch(e){$('drvError').textContent=e.message;}finally{DRV.busy=false;$('drvDialog').querySelectorAll('button,select,input').forEach(function(x){x.disabled=false;});cachePintar();}}
 /* Carpetas de polígono (Validaciones_alfanuméricas / <pol>) de las dos raíces; solo lectura. */
+var DRV_RAIZ={};function drvRaiz(id){return DRV_RAIZ[id]||'validaciones';}
 async function drvPoligonos(){
-  var items=(await drvList('validaciones')).filter(function(x){return x.folder;});
+  var items=(await drvList('validaciones')).filter(function(x){return x.folder;});items.forEach(function(x){DRV_RAIZ[x.id]='validaciones';});
   // Comas: segunda raíz de validaciones. Si el Apps Script aún no la admite, se sigue solo con la principal.
-  try{var comas=(await drvList('validacionesComas')).filter(function(x){return x.folder;});items=items.concat(comas.filter(function(x){return !items.some(function(y){return y.id===x.id;});})).sort(function(a,b){return a.name.localeCompare(b.name);});}catch(e){}
+  try{var comas=(await drvList('validacionesComas')).filter(function(x){return x.folder;});comas.forEach(function(x){if(!DRV_RAIZ[x.id])DRV_RAIZ[x.id]='validacionesComas';});items=items.concat(comas.filter(function(x){return !items.some(function(y){return y.id===x.id;});})).sort(function(a,b){return a.name.localeCompare(b.name);});}catch(e){}
   if(!items.length)throw new Error('La carpeta de validaciones está vacía.');
   return items;
 }
@@ -3136,7 +3137,7 @@ async function drvPasoRevisor(){
   $('drvStepB').hidden=true;$('drvStepC').hidden=true;DRV.files=[];drvResetPlan();
   var id=$('drvPolygon').value;if(!id)throw new Error('Elige un polígono.');
   var label=$('drvPolygon').selectedOptions[0].textContent;
-  var file=await drvFile(drvRevisorUnico((await drvList('validaciones',id)).filter(drvExcel),label));DRV.reviewer=file.name;
+  var file=await drvFile(drvRevisorUnico((await drvList(drvRaiz(id),id)).filter(drvExcel),label));DRV.reviewer=file.name;
   await loadReviewerFiles([file]);DRV.sectors=drvSectors();drvRenderSectors();
   var districts=(await drvList('reportes')).filter(function(x){return x.folder;});if(!districts.length)throw new Error('La carpeta de reportes está vacía.');drvOptions('drvDistrict',districts,drvLast().district);$('drvStepB').hidden=false;drvSaveLast();
 }
@@ -3409,7 +3410,7 @@ async function loteIndice(folder){
   /* Un polígono desde Drive: baja su Excel del revisor y sus reportes (su UBIGEO y, de cada sector, sus dos fechas), cruza y suelta todo. */
   async function procesarDrive(code){
     var it=L.items[code],p=it.poly,ps=it.fechas.porSector;function lado(x){return x.day===ps[x.sector].antes?'A':'B';}
-    var rev=await drvFile(drvRevisorUnico((await drvList('validaciones',L.revisores[code].id)).filter(drvExcel),code));
+    var rev=await drvFile(drvRevisorUnico((await drvList(drvRaiz(L.revisores[code].id),L.revisores[code].id)).filter(drvExcel),code));
     var c2=c2read(XLSX.read(new Uint8Array(await rev.arrayBuffer()),{type:'array',cellText:true}),rev.name);rev=null;
     if(c2.polygon!==code)throw new Error('el Excel del revisor no corresponde al polígono (nombre: '+(c2.polygon||'sin código')+')');
     var files=loteArchivos(L.indice.files,L.ubigeo,ps),dias=Array.from(new Set(files.map(function(x){return x.day;}))).sort();
