@@ -80,7 +80,7 @@ var ID='35007009';
 r=run(board([unidad(U1),unidad(U2)],[unidad(U1),unidad(U2,'POSEEDOR')]),[fila('VAL_USO_CIIU',ID,'APLICA','2'),fila(VAL,ID,'APLICA')]);
 assert.strictEqual(r[0].result,'◐ CAMBIÓ OTRO CAMPO','e lote con cambio (otro campo): '+r[0].result);assert.strictEqual(r[1].result,'✔ VERIFICADO','e lote con cambio: '+r[1].result);
 r=run(board([unidad(U1),unidad(U2)],[unidad(U1),unidad(U2,null,'85.00')]),[fila('VAL_USO_CIIU',ID,'APLICA','2')]);
-assert.strictEqual(r[0].result,T.OTRA,'e otro piso: '+r[0].result);assert.strictEqual(r[0].otraUnidad,U2+' (CON · Área Verificada)');assert.strictEqual(r[0].code,ID);
+assert.strictEqual(r[0].result,'⚠ SIN CAMBIO EN SICUN','e otro piso, campo no esperado (fix/otra-unidad-campos): '+r[0].result);assert.strictEqual(r[0].otraUnidad,'');assert.strictEqual(r[0].code,ID);
 r=run(board([unidad(U1),unidad(U2)],[unidad(U1),unidad(U2)]),[fila('VAL_USO_CIIU',ID,'APLICA','2')]);
 assert.strictEqual(r[0].result,'⚠ SIN CAMBIO EN SICUN','e nada: '+r[0].result);
 // índice por lote: el ID de 8 dígitos se arma con el UBIGEO (lote de 14 dígitos)
