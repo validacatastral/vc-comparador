@@ -2518,14 +2518,14 @@ function c2lotIndex(board,events){
   events.forEach(function(e){if(!/^\d{24}$/.test(e.key)||c2esDV(e))return;var ev=lot(e.key.slice(0,14)).ev;if(!ev.has(e.key))ev.set(e.key,[]);ev.get(e.key).push(e);});
   return idx;
 }
-/* Solo para filas que quedarían ⚠ SIN CAMBIO o ? NO ENCONTRADO. own = CRC de la fila (24 dígitos; no cuenta). Una fila con ID de lote (8 dígitos)
+/* Solo para filas que quedarían ⚠ SIN CAMBIO o ? NO ENCONTRADO. own = CRC de la fila (24 dígitos; solo cuenta en otro piso para CRC+PISO). Una fila con ID de lote (8 dígitos)
    no tiene unidad propia: el cruce ya miró todo el lote, así que aquí solo quedan los cambios que el cruce dejó fuera (otro piso).
    Posible renumeración: el CRC pedido no está en DESPUÉS y en el lote aparece un CRC que no estaba en ANTES.
    Devuelve null o {detalle, texto, campos:[…], crcs:[…]}: detalle = CRC (campos) o "Posible renumeración: CRC" (máx. 3 CRC, luego "+N");
    texto = detalle con "Cambió otra unidad del lote: " delante (columna "Qué cambió"). Solo nombres de campo, nunca valores SICUN.
    esperado(e): solo cuentan los cambios de las otras unidades en los MISMOS campos esperados de la fila (reporte · campo, observados y relacionados);
    el detalle muestra solo esos campos. La renumeración no usa este filtro. */
-function c2otraUnidad(idx,lot,code,esperado){
+function c2otraUnidad(idx,lot,code,esperado,otroPiso,floors){
   var x=idx&&lot?idx.get(lot):null;if(!x)return null;
   var own=code&&code.length===24?code:'';
   function campos(k){return Array.from(new Set((x.ev.get(k)||[]).map(function(e){return e.report+' · '+e.field;})));}
@@ -2533,6 +2533,21 @@ function c2otraUnidad(idx,lot,code,esperado){
   function todos(crcs){return Array.from(new Set([].concat.apply([],crcs.map(campos))));}
   if(own&&!x.B.has(own)){var nuevos=Array.from(x.B).filter(function(k){return !x.A.has(k);}).sort();
     if(nuevos.length){var r='Posible renumeración: '+lista(nuevos,function(k){return k;});return {detalle:r,texto:r,campos:todos(nuevos),crcs:nuevos};}}
+  if(own&&otroPiso.length){
+    var porPiso=new Map(), camposPiso=new Set();
+    otroPiso.forEach(function(e){
+      if(e.key!==own||!esperado(e))return;
+      var campo=e.report+' · '+e.field;
+      floors(e).forEach(function(p){
+        if(!porPiso.has(p))porPiso.set(p,new Set());
+        porPiso.get(p).add(campo);camposPiso.add(campo);
+      });
+    });
+    if(porPiso.size){
+      var detalle='Cambió otro piso de la unidad: '+lista(Array.from(porPiso.keys()),function(p){return own+' piso '+p+' ('+Array.from(porPiso.get(p)).join(', ')+')';});
+      return {detalle:detalle,texto:detalle,campos:Array.from(camposPiso),crcs:[own],otroPiso:true};
+    }
+  }
   function coinciden(k){var l=x.ev.get(k)||[];return Array.from(new Set((esperado?l.filter(esperado):l).map(function(e){return e.report+' · '+e.field;})));}
   var otras=Array.from(x.ev.keys()).filter(function(k){return k!==own&&coinciden(k).length;}).sort();
   if(!otras.length)return null;
@@ -2586,7 +2601,6 @@ function c2rows(){
     var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
     var split=c2pisoSplit(relevant,map&&level==='CRC+PISO'?(row.piso||''):null,floors,function(e){return c2eventKind(map,e,sameLot);},row.state==='OTRO CAMBIO'), hits=[], otros=split.otros;
     if(split.sinPiso)addNote('cruzado sin piso');
-    if(split.otroPiso.length)addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
     split.hits.forEach(function(e){var ok=true, vals;
       if(row.validator==='VAL_AREA_TERR_PISO'&&e.report==='CON'){vals=floors(e)||[];if(!vals.length)addNote('cruzado sin piso');else ok=vals.indexOf('1')>=0;}
       (ok?hits:otros).push(e);
@@ -2608,7 +2622,9 @@ function c2rows(){
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
     if(soloDV)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
     var otra=null;if((status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
-      if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));});   /* mismos campos esperados de la fila */if(otra)status=C2_OTRA_UNIDAD;}
+      if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
+      if(otra)status=C2_OTRA_UNIDAD;}
+    if(split.otroPiso.length&&!(otra&&otra.otroPiso))addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
     var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch'||c2esDV(e);}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
     if(otra)campos=otra.campos.join(' | ');   /* campos de las OTRAS unidades (solo nombres) */
     var changes=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}).map(function(e){return e.report+' · '+e.field+': '+e.before+' → '+e.after;});
