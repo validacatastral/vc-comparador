@@ -2522,8 +2522,10 @@ function c2lotIndex(board,events){
    no tiene unidad propia: el cruce ya miró todo el lote, así que aquí solo quedan los cambios que el cruce dejó fuera (otro piso).
    Posible renumeración: el CRC pedido no está en DESPUÉS y en el lote aparece un CRC que no estaba en ANTES.
    Devuelve null o {detalle, texto, campos:[…], crcs:[…]}: detalle = CRC (campos) o "Posible renumeración: CRC" (máx. 3 CRC, luego "+N");
-   texto = detalle con "Cambió otra unidad del lote: " delante (columna "Qué cambió"). Solo nombres de campo, nunca valores SICUN. */
-function c2otraUnidad(idx,lot,code){
+   texto = detalle con "Cambió otra unidad del lote: " delante (columna "Qué cambió"). Solo nombres de campo, nunca valores SICUN.
+   esperado(e): solo cuentan los cambios de las otras unidades en los MISMOS campos esperados de la fila (reporte · campo, observados y relacionados);
+   el detalle muestra solo esos campos. La renumeración no usa este filtro. */
+function c2otraUnidad(idx,lot,code,esperado){
   var x=idx&&lot?idx.get(lot):null;if(!x)return null;
   var own=code&&code.length===24?code:'';
   function campos(k){return Array.from(new Set((x.ev.get(k)||[]).map(function(e){return e.report+' · '+e.field;})));}
@@ -2531,10 +2533,11 @@ function c2otraUnidad(idx,lot,code){
   function todos(crcs){return Array.from(new Set([].concat.apply([],crcs.map(campos))));}
   if(own&&!x.B.has(own)){var nuevos=Array.from(x.B).filter(function(k){return !x.A.has(k);}).sort();
     if(nuevos.length){var r='Posible renumeración: '+lista(nuevos,function(k){return k;});return {detalle:r,texto:r,campos:todos(nuevos),crcs:nuevos};}}
-  var otras=Array.from(x.ev.keys()).filter(function(k){return k!==own&&x.ev.get(k).length;}).sort();
+  function coinciden(k){var l=x.ev.get(k)||[];return Array.from(new Set((esperado?l.filter(esperado):l).map(function(e){return e.report+' · '+e.field;})));}
+  var otras=Array.from(x.ev.keys()).filter(function(k){return k!==own&&coinciden(k).length;}).sort();
   if(!otras.length)return null;
-  var d=lista(otras,function(k){return k+' ('+campos(k).join(', ')+')';});
-  return {detalle:d,texto:'Cambió otra unidad del lote: '+d,campos:todos(otras),crcs:otras};
+  var d=lista(otras,function(k){return k+' ('+coinciden(k).join(', ')+')';});
+  return {detalle:d,texto:'Cambió otra unidad del lote: '+d,campos:Array.from(new Set([].concat.apply([],otras.map(coinciden)))),crcs:otras};
 }
 var C2_OTRA_UNIDAD='◐ CAMBIÓ OTRA UNIDAD DEL LOTE';
 function c2rows(){
@@ -2605,7 +2608,7 @@ function c2rows(){
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
     if(soloDV)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
     var otra=null;if((status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
-      if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code);if(otra)status=C2_OTRA_UNIDAD;}
+      if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));});   /* mismos campos esperados de la fila */if(otra)status=C2_OTRA_UNIDAD;}
     var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch'||c2esDV(e);}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
     if(otra)campos=otra.campos.join(' | ');   /* campos de las OTRAS unidades (solo nombres) */
     var changes=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}).map(function(e){return e.report+' · '+e.field+': '+e.before+' → '+e.after;});
