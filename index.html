@@ -2948,7 +2948,7 @@ async function drvList(root,folder){
   // Acepta listas mixtas o las dos colecciones del servicio.
   var list=Array.isArray(data)?data:Array.isArray(data.items)?data.items:null;
   if(!list){if(!Array.isArray(data.carpetas)&&!Array.isArray(data.archivos))throw new Error('Formato de listado no reconocido (items o carpetas/archivos).');list=(data.carpetas||[]).map(function(x){return Object.assign({},x,{folder:true});}).concat(data.archivos||[]);}
-  return list.map(function(x){return {id:String(x.id||''),name:String(x.nombre||x.name||''),folder:x.folder===true||x.esCarpeta===true||x.tipo==='carpeta'||x.mimeType==='application/vnd.google-apps.folder',mime:x.mimeType||'',size:Number(x.size||x.tamano||0),modificado:String(x.modificado||x.modifiedTime||'')};}).filter(function(x){return x.id&&x.name;});
+  return list.map(function(x){return {id:String(x.id||''),name:String(x.nombre||x.name||''),folder:x.folder===true||x.esCarpeta===true||x.tipo==='carpeta'||x.mimeType==='application/vnd.google-apps.folder',mime:x.mimeType||x.mime||'',size:Number(x.size||x.tamano||0),modificado:String(x.modificado||x.modifiedTime||'')};}).filter(function(x){return x.id&&x.name;});
 }
 function drvExcel(x){return !x.folder&&(/\.xlsx$/i.test(x.name)||x.mime==='application/vnd.google-apps.spreadsheet');}
 /* Baja un archivo de Drive (api=archivo) → {nombre,bytes}. */
