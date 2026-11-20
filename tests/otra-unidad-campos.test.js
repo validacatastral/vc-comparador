@@ -51,3 +51,31 @@ assert.strictEqual(r[0].result,T.OTRA,'c mismo campo: '+r[0].result);assert.stri
 r=run(board([unidad(U1),unidad(U3)],[unidad(U1),unidad(U3,{area:'85.00'})]),[fila(CIIU,ID,'APLICA','2')]);
 assert.strictEqual(r[0].result,'⚠ SIN CAMBIO EN SICUN','c campo no relacionado (CON · Área Verificada) sigue ⚠: '+r[0].result);assert.strictEqual(r[0].otraUnidad,'');
 console.log('ok c · ID de lote '+ID+' → mismo campo ◐ otra unidad · no relacionado no');
+
+// Una fila CRC+PISO solo pasa a ◐ si otro piso del mismo CRC cambió un campo esperado.
+var crcPisos='150110680360500101010014', muros='Muros y Columna';
+HCON.push(muros);
+var antes=unidad(crcPisos), despues=unidad(crcPisos);
+antes.CON[1][muros]='D';
+despues.CON[1][muros]='F';
+despues.CON[1]['Área Verificada']='61.00';
+var piso1=fila(CIIU,crcPisos,'APLICA','01');
+r=run(board([antes],[despues]),[piso1])[0];
+var detalle='Cambió otro piso de la unidad: '+crcPisos+' piso 2 (CON · '+muros+')';
+assert.strictEqual(r.result,T.OTRA);
+assert.strictEqual(r.otraUnidad,detalle);
+assert(r.change.includes(detalle)&&r.changeView.includes(detalle));
+assert.strictEqual(r.campos,'CON · '+muros);
+assert(!/D → F|60.00 → 61.00/.test([r.change,r.changeView,r.note].join(' ')));
+console.log('ok · mismo CRC, campo esperado en piso 2 → ◐ · '+r.otraUnidad);
+
+despues.CON[1][muros]='D';
+r=run(board([antes],[despues]),[piso1])[0];
+assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN');
+assert.strictEqual(r.otraUnidad,'');
+console.log('ok · mismo CRC, solo campo no esperado en piso 2 → ⚠');
+
+r=run(board([antes],[antes]),[piso1])[0];
+assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN');
+assert.strictEqual(r.campos,'');
+console.log('ok · mismo piso sin cambios → ⚠');
