@@ -2369,7 +2369,7 @@ function c2filaDespues(board,code,rep){
 function c2up(v){return stripAccents(String(v||'')).toUpperCase().replace(/\s+/g,' ').trim();}
 var TIT_REGLAS={R1:'forma de adquisición sin documento sustentatorio',R2:'bloque registral incompleto',R2P:'POSEEDOR con escritura pública',
   R3A:'código de predio con formato inválido',R3B:'partida electrónica con formato inválido',R3C:'ficha con formato inválido',
-  R4:'sucesión intestada con forma distinta de OTROS',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
+  R4:'sucesión intestada con forma distinta de OTROS',R4H:'sucesión intestada con declaratoria de herederos',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
   R13:'forma de adquisición vacía'};
 function c2titularReglas(f,code){
   var out=[];if(!f)return out;
@@ -2388,6 +2388,7 @@ function c2titularReglas(f,code){
   }
   if(!lote){
     if(ct==='SUCESION INTESTADA'&&fa!=='OTROS')out.push('R4');
+    if(ct==='SUCESION INTESTADA'&&td.indexOf('HEREDEROS')>=0)out.push('R4H');
     if(fa==='POSESION'&&ct!=='POSEEDOR')out.push('R5');
     if(td.indexOf('CONSTANCIA')>=0&&(ct!=='POSEEDOR'||(fa!=='POSESION'&&fa!=='OTROS')))out.push('R5C');
     if(!fa)out.push('R13');
@@ -2397,7 +2398,7 @@ function c2titularReglas(f,code){
 /* Qué reglas corresponden a cada mensaje del validador de la UE. Mensaje no reconocido → todas. */
 function c2titularAplicables(msg){
   var m=c2up(msg),set=[];
-  if(/TIPO DE DOCUMENTO/.test(m))set=set.concat(['R2P','R5C','R1']);
+  if(/TIPO DE DOCUMENTO/.test(m))set=set.concat(['R2P','R5C','R1','R4H']);
   if(/FORMA DE ADQUISICION/.test(m)&&/VACI/.test(m))set=set.concat(['R13']);
   else if(/FORMA DE ADQUISICION/.test(m))set=set.concat(['R5','R4','R13']);
   if(/PARTIDA/.test(m))set=set.concat(['R2','R3A','R3B','R3C']);
@@ -2407,6 +2408,99 @@ function c2titularFinal(board,code,msg){
   var f=c2filaDespues(board,code,'UA');if(!f)return null;
   var aplic=c2titularAplicables(msg),siguen=c2titularReglas(f,code).filter(function(r){return aplic.indexOf(r)>=0;});
   return {cumple:!siguen.length,reglas:siguen,txt:siguen.length?siguen.map(function(r){return r+' ('+TIT_REGLAS[r]+')';}).join(', '):'ya no aplica '+aplic.join('/')};
+}
+/* ===== Estado final en SICUN · otros validadores (reglas de los HTML VAL_USO_CIIU, VAL_COND_PREDIO_EN,
+   VAL_OBRAS_COMPLEN y VAL_CRC, ©diegocampos). Mismo criterio que titulares: solo cuando el cruce queda ⚠ SIN CAMBIO. */
+function c2filasDespues(board,rep,pref){
+  var c=board.find(function(x){return x.preset&&x.preset.id===rep&&x.B&&x.B.headers;});if(!c||!pref)return null;
+  return c.B.rows.filter(function(x){return normKey(x[c.preset.key]).indexOf(pref)===0;}).map(function(r){
+    var o={__crc:normKey(r[c.preset.key])};c.B.headers.forEach(function(h){o[c2campo(h)]=txt(r[h]).replace(/\s+/g,' ').trim();});return o;});
+}
+function c2esComun(k){return k.length===24&&(k.substr(16,2)==='99'||k.substr(18,2)==='99'||k.substr(20,3)==='999');}
+var USO_EXIGE_CIIU='020199,'+'020101,020102,020103,020104,020105,020106,020201,020202,020203,020204,020205,020301,020303,030101,030102,030103,030104,030105,030106,030107,030108,030109,030110,030111,030112,030113,030114,030115,030116,030117,030118,030119,030120,030121,030122,030199,040102,040103,040104,040105,040199,040201,040202,040203,040204,040205,040206,040299,040301,040302,040303,040304,040305,040306,040307,040399,050101,050102,050103,050104,050105,050199,050201,050202,050203,050204,050299,050301,050302,050303,050304,050305,050401,050402,050403,050404,050499,050501,050502,050503,050504,060101,060199,060201,060202,060203,060204,060301,060302,060303,060399,060401,060501,060701,060799,060801,060802,060803,060899,060901';
+function c2usoCiiuFinal(board,code,piso){
+  if(c2esComun(code))return {cumple:true,txt:'uso común: el CIIU no aplica'};
+  var ua=c2filaDespues(board,code,'UA');if(!ua)return null;
+  var uso=String(ua.codigodeuso||'').replace(/\D/g,'');
+  if(uso===USO_SIN_CIIU)return {cumple:true,txt:'comercial no identificado no lleva CIIU',nota:'Falso error del validador: la marca debería ser NO APLICA'};
+  if(USO_EXIGE_CIIU.split(',').indexOf(uso)<0)return {cumple:true,txt:'el uso '+(uso||'(vacío)')+' no exige CIIU'};
+  var lin=c2filasDespues(board,'CON',code);if(!lin)return null;
+  var p=String(piso||'').replace(/^0+/,'');
+  if(p)lin=lin.filter(function(l){return String(l.npiso||'').replace(/^0+/,'')===p;});
+  if(!lin.length)return null;
+  var conCiiu=lin.filter(function(l){return String(l['codigodeactividadeconomica(ciiu)']||l.codigodeactividadeconomicaciiu||'').trim();});
+  if(conCiiu.length)return {cumple:true,txt:'la unidad tiene CIIU'};
+  var obra=lin.every(function(l){return /CONSTRUCCION|INCONCLUS|RUINA/.test(c2up(l.ecc));});
+  if(obra)return {cumple:true,txt:'obra no terminada (ECC): sin actividad que declarar'};
+  return {cumple:false,txt:'R3A (el uso '+uso+' exige CIIU y la unidad no lo tiene)'};
+}
+function c2condPredioFinal(board,code){
+  var f=c2filaDespues(board,code,'UA');if(!f)return null;
+  function canon(v){return c2up(v).replace(/^\d+\s*-\s*/,'').replace(/[^A-Z0-9]/g,'');}
+  var c=canon(f.clasificaciondelpredio),q=canon(f.prediocatastralen),out=[];
+  if(!c||!q)out.push('R3 (clasificación o predio catastral en vacíos)');
+  else{
+    if((c==='PREDIOENEDIFICIO')!==(q==='PREDIOENEDIFICIO')&&!(c==='PREDIOENEDIFICIO'&&q==='AIRES'))out.push('R1 (PREDIO EN EDIFICIO debe ir en ambos campos)');
+    if((c==='TERRENOSINCONSTRUIR'||c==='PARQUE')&&q!=='PREDIOINDEPENDIENTE')out.push('R2 (terreno o parque solo admite PREDIO INDEPENDIENTE)');
+  }
+  return {cumple:!out.length,txt:out.length?out.join(', '):'clasificación y predio catastral en coherentes'};
+}
+/* Obras complementarias (Anexo III.1 Lima-Callao 2025) */
+var OBR_UM=(function(){var m={};function a(cs,v){cs.forEach(function(c){m[c]=v;});}function r(x,y){var o=[];for(var i=x;i<=y;i++)o.push(i);return o;}
+  a(r(1,16),'m2');a(r(17,32),'m3');a(r(33,36),'m2');a([37,38,39,42,43,45],'m3');a([40,41,44,46,47,48,49],'und');a(r(50,53),'m2');a(r(54,63),'m3');a(r(64,69),'und');
+  a(r(70,73),'ml');a(r(74,80),'pza');a(r(81,84),'m2');a(r(85,87),'ml');a(r(88,90),'m2');a([91,92],'pza');a([93,94],'ml');m[95]='m2';m[96]='m3';return m;})();
+var OBR_MEP=(function(){var m={};function a(cs,v){cs.forEach(function(c){m[c]=v;});}function r(x,y){var o=[];for(var i=x;i<=y;i++)o.push(i);return o;}
+  a([1,17,19,20,23,24,25,27,29,30,31,33,34,35,36,37,40,41,42,43,45,46,47,48,49].concat(r(54,63),r(70,80),[93,94,95,96]),['01']);
+  a([3,4,5,7,9,26,32,38,50,51,52,53,82,83],['02']);a([6,8,18,21,22,28,39,81,84].concat(r(10,16),r(64,69),r(85,92)),['03']);a([2,44],['01','03']);return m;})();
+var OBR_EXC_R1=[1,21,28,33,35,36,56,78,54,55,64,65,66];
+function c2obrUM(v){var s=c2up(v).toLowerCase().replace(/\.$/,'').replace('²','2').replace('³','3');if(s==='m'||s==='ml')return 'ml';if(/^(und|unid|unidad|pza|pieza)$/.test(s))return 'und';return s;}
+function c2obrMEP(v){var s=c2up(v),d=s.replace(/\D/g,'');if(d)return d.padStart(2,'0').slice(-2);if(/CONCRETO/.test(s))return '01';if(/LADRILLO/.test(s))return '02';if(/ADOBE|QUINCHA|MADERA/.test(s))return '03';return s;}
+function c2obrasFinal(board,code,soloProducto){
+  var obras=c2filasDespues(board,'OBR',code);if(!obras||!obras.length)return null;
+  var out=[];
+  obras.forEach(function(o){
+    var cod=parseInt(o.codigo,10),pt=parseFloat(String(o.productototal||'').replace(',','.')),um=c2obrUM(o.unidaddemedida),uca=!!String(o.uca||'').trim();
+    if(!uca&&pt===1&&/^(m2|m3|ml)$/.test(um)&&OBR_EXC_R1.indexOf(cod)<0)out.push('R1 obra '+cod+' (producto total = 1)');
+    if(soloProducto)return;
+    var umOk=OBR_UM[cod];if(umOk&&um!==umOk&&!(umOk==='und'&&um==='und'))out.push('R2 obra '+cod+' (unidad debe ser '+umOk+')');
+    var mepOk=OBR_MEP[cod];if(mepOk&&o.mep!==undefined&&mepOk.indexOf(c2obrMEP(o.mep))<0)out.push('R5 obra '+cod+' (MEP debe ser '+mepOk.join(' o ')+')');
+  });
+  return {cumple:!out.length,txt:out.length?out.slice(0,3).join(', ')+(out.length>3?' +'+(out.length-3):''):'obras conformes'};
+}
+/* VAL_CRC: estructura de la edificación con todos los CRC del DESPUÉS (sin uso común 99/999) */
+function c2crcFinal(board,code,msg){
+  if(!code||code.length!==24)return null;
+  var filas=c2filasDespues(board,'UA',code.substr(0,16));if(!filas||!filas.length)return null;
+  var ks=filas.map(function(f){return f.__crc;}).filter(function(k){return k.length===24&&!c2esComun(k);});
+  if(!ks.length)return null;
+  var soloSalto=/SALTO/.test(c2up(msg)),out=[];
+  var ent=Array.from(new Set(ks.map(function(k){return parseInt(k.substr(16,2),10);}))).sort(function(a,b){return a-b;});
+  if(!soloSalto&&ent[0]!==1)out.push('R1 (entrada no inicia en 01)');
+  for(var i=1;i<ent.length;i++)if(ent[i]!==ent[i-1]+1){out.push('R2 (entradas no correlativas)');break;}
+  var grupos={};ks.forEach(function(k){var g=k.substr(16,4);(grupos[g]=grupos[g]||[]).push(parseInt(k.substr(20,3),10));});
+  Object.keys(grupos).forEach(function(g){
+    var u=Array.from(new Set(grupos[g])).sort(function(a,b){return a-b;});
+    if(!soloSalto&&u[0]!==1)out.push('R4 (unidad no inicia en 001, entrada-piso '+g+')');
+    for(var j=1;j<u.length;j++)if(u[j]!==u[j-1]+1){out.push('R5 (unidades no correlativas, entrada-piso '+g+')');break;}
+  });
+  if(!soloSalto){
+    var pisos=ks.map(function(k){return parseInt(k.substr(18,2),10);});
+    var sot=pisos.filter(function(p){return p>=81&&p<=89;});
+    if(sot.length&&sot.indexOf(81)<0)out.push('R6 (sótano no inicia en 81)');
+    if(ks.length===1&&pisos[0]!==1&&!(pisos[0]>=81))out.push('R3 (edificación de una fila con piso distinto de 01)');
+  }
+  out=Array.from(new Set(out));
+  return {cumple:!out.length,txt:out.length?out.slice(0,3).join(', ')+(out.length>3?' +'+(out.length-3):''):'estructura del CRC conforme'};
+}
+function c2estadoFinal(board,row,code){
+  var v=c2mapKey(row.validator);if(!code)return null;
+  if(v==='VAL_TITULAR_INSCRIPCION')return code.length===24?c2titularFinal(board,code,row.message):null;
+  if(v==='VAL_USO_CIIU')return code.length===24?c2usoCiiuFinal(board,code,row.piso):null;
+  if(v==='VAL_COND_PREDIO_EN'||/FI\.24\.03/.test(row.message||''))return code.length===24?c2condPredioFinal(board,code):null;
+  if(v==='VAL_PRODUCTO')return code.length===24?c2obrasFinal(board,code,true):null;
+  if(v==='VAL_MEP_MEDIDA_PRODUCTO')return code.length===24?c2obrasFinal(board,code,false):null;
+  if(v==='VAL_CRC')return c2crcFinal(board,code,row.message);
+  return null;
 }
 function c2state(s){s=c2clean(s).toUpperCase().replace(/\s+/g,' ');return s==='OTROS CAMBIOS'?'OTRO CAMBIO':s;}
 function c2technician(value,sheet){
@@ -2740,9 +2834,9 @@ function c2rows(){
       if(cls.suggestion)addNote('Sugerencia: '+cls.suggestion+(hits.length?' (cambió '+names(hits)+')':''));
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
     if(soloDV)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
-    if(status==='⚠ SIN CAMBIO EN SICUN'&&c2mapKey(row.validator)==='VAL_TITULAR_INSCRIPCION'&&code&&code.length===24){
-      var tfin=c2titularFinal(BOARD_(),code,row.message);
-      if(tfin){if(tfin.cumple){status=C2_CUMPLE;addNote('Cumple en SICUN: '+tfin.txt);}else addNote('Sigue en SICUN: '+tfin.txt);}}
+    if(status==='⚠ SIN CAMBIO EN SICUN'){
+      var tfin=c2estadoFinal(BOARD_(),row,code);
+      if(tfin){if(tfin.cumple){status=C2_CUMPLE;addNote('Cumple en SICUN: '+tfin.txt);if(tfin.nota)addNote(tfin.nota);}else addNote('Sigue en SICUN: '+tfin.txt);}}
     var otra=null;if((status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
       if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&!c2ruidoSicun(e);}:function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
       if(otra)status=row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}

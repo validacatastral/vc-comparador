@@ -54,7 +54,7 @@ assert.strictEqual(r[0].result,'✔ VERIFICADO','c: '+r[0].result);assert.strict
 assert.strictEqual(r[1].result,'ℹ NO APLICA pero SICUN cambió','c NO APLICA: '+r[1].result);
 assert.strictEqual(r[2].result,'✔ VERIFICADO');
 // …y la propia unidad que solo cambió en OTRO piso (CRC+PISO) no cuenta como "otra unidad": sigue ⚠ SIN CAMBIO
-r=run(board([unidad(U1),unidad(U2)],[unidad(U1,null,'85.00'),unidad(U2)]),[fila('VAL_USO_CIIU',U1,'APLICA','2')]);
+r=run(board([unidad(U1),unidad(U2)],[unidad(U1,null,'85.00'),unidad(U2)]),[fila('VAL_PISO_CATEGORIA_TECHO',U1,'APLICA','2')]   /* sin estado final: prueba solo la regla de otro piso */);
 assert.strictEqual(r[0].result,'⚠ SIN CAMBIO EN SICUN','c otro piso propio: '+r[0].result);assert(/otro piso cambió/.test(r[0].note),r[0].note);
 console.log('ok c · propia unidad → como hoy (✔ / ℹ / ⚠ con otro piso propio)');
 

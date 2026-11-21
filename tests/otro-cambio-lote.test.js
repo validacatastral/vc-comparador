@@ -1,4 +1,5 @@
-/* Fila marcada OTRO CAMBIO: cuenta CUALQUIER cambio real de otra unidad del lote (✔ CAMBIÓ (otra unidad del lote), verificado), salvo ruido de SICUN
+/* (uso 020105 sin CIIU: la unidad NO cumple en el estado final, así se prueba la regla de otra unidad)
+   Fila marcada OTRO CAMBIO: cuenta CUALQUIER cambio real de otra unidad del lote (✔ CAMBIÓ (otra unidad del lote), verificado), salvo ruido de SICUN
    ('% de Bien Común' vacío ↔ 0, trámite). APLICA sigue exigiendo los campos esperados del validador (#26).
    Uso: node tests/otro-cambio-lote.test.js */
 'use strict';
@@ -16,7 +17,7 @@ var KEY='Código de Referencia Catastral', USO='Código De Uso', BC='% de Bien C
 var HUA=[KEY,USO,'Tipo de Interior',BC];
 var HCON=[KEY,'N° Piso','Fecha Construcción','Código De Actividad Económica (CIIU)'];
 function o(h,v){var r={};h.forEach(function(c,i){r[c]=v[i];});return r;}
-function unidad(k,u){u=u||{};return {UA:[o(HUA,[k,u.uso||'020304',u.tint==null?'TIENDA':u.tint,u.bc==null?'':u.bc])],
+function unidad(k,u){u=u||{};return {UA:[o(HUA,[k,u.uso||'020105',u.tint==null?'TIENDA':u.tint,u.bc==null?'':u.bc])],
   CON:[o(HCON,[k,'1',u.fecha||'2010-01-01',u.ciiu==null?'    ':u.ciiu])]};}
 function board(antes,despues){
   return [['UA',HUA],['CON',HCON]].map(function(p){var c={preset:{id:p[0],key:KEY},A:{headers:p[1],rows:[]},B:{headers:p[1],rows:[]}};
