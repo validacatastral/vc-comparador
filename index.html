@@ -2093,7 +2093,6 @@ function reportSheets(ctx,split,mask){
   function splitCols(k){ return k.length===24 ? [k.slice(6,8),k.slice(8,11),k.slice(11,14),k.slice(14,16),k.slice(16,18),k.slice(18,20),k.slice(20,23)] : (k.length===14 ? [k.slice(6,8),k.slice(8,11),k.slice(11,14),"","","",""] : ["","","","","","",""]); }
   var SPLIT_HEAD = ["Sector","Manzana","Lote","Edificación","Entrada","Piso","Unidad"];
   var resumen = [
-    ["COMPARADOR DE REPORTES SICUN — ValidaCatastral ©diegocampos"],[],
     ["Reporte", ctx.preset.nombre],["Llave", Rr.key],
     ["Archivo ANTES", ctx.A.name],["Descarga ANTES", backupStamp(ctx.A)],["Backup SICUN ANTES", sicunStamp(ctx.A)],["Filas ANTES", ctx.A.rows.length],
     ["Archivo DESPUÉS", ctx.B.name],["Descarga DESPUÉS", backupStamp(ctx.B)],["Backup SICUN DESPUÉS", sicunStamp(ctx.B)],["Filas DESPUÉS", ctx.B.rows.length],[],
@@ -2219,7 +2218,7 @@ exportReport=function(split){return withDetailFilter(function(){return originalE
 exportMarked=function(){return withDetailFilter(originalExportMarked);};
 var originalWriteStyledWorkbook=writeStyledWorkbook;
 writeStyledWorkbook=function(sheets,filename){
-  if(POLY_ACTIVE){filename=filename.replace(/^(COMPARA_(?:CRCcol_)?|AVANCE_|REPORTE_MZ_|MARCADO_)/,'$1'+POLY_ACTIVE.code+'_');sheets.forEach(function(sh){if(sh.name==='RESUMEN'||sh.name==='AVANCE'){sh.aoa.splice(2,0,['Polígono',POLY_ACTIVE.code]);if(sh.headerRow>=2)sh.headerRow++;if(sh.totalRow>=2)sh.totalRow++;}});}
+  if(POLY_ACTIVE){filename=filename.replace(/^(COMPARA_(?:CRCcol_)?|AVANCE_|REPORTE_MZ_|MARCADO_)/,'$1'+POLY_ACTIVE.code+'_');sheets.forEach(function(sh){if(sh.name==='RESUMEN'||sh.name==='AVANCE'){var at=sh.name==='RESUMEN'?0:2;sh.aoa.splice(at,0,['Polígono',POLY_ACTIVE.code]);if(sh.headerRow>=at)sh.headerRow++;if(sh.totalRow>=at)sh.totalRow++;}});}
   return originalWriteStyledWorkbook(sheets,filename);
 };
 
@@ -2765,8 +2764,8 @@ function pubReporteDatos(source,poly,code,rows,files){
     });
     ctx.RES=compareCtx(ctx);
     var sheets=reportSheets(ctx,false,true);
-    sheets[0].aoa.splice(2,0,['Polígono',code]);
-    return sheets.concat(c2sheets(rows,files)).map(function(sheet){
+    sheets[0].aoa.splice(0,0,['Polígono',code]);
+    return c2sheets(rows,files).concat(sheets).map(function(sheet){
       var head=sheet.aoa[sheet.headerRow];
       if(!head)return sheet;
       return Object.assign({},sheet,{aoa:sheet.aoa.map(function(row,i){
