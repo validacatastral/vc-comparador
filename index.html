@@ -2407,7 +2407,10 @@ function c2titularAplicables(msg){
 function c2titularFinal(board,code,msg){
   var f=c2filaDespues(board,code,'UA');if(!f)return null;
   var aplic=c2titularAplicables(msg),siguen=c2titularReglas(f,code).filter(function(r){return aplic.indexOf(r)>=0;});
-  return {cumple:!siguen.length,reglas:siguen,txt:siguen.length?siguen.map(function(r){return r+' ('+TIT_REGLAS[r]+')';}).join(', '):'ya no aplica '+aplic.join('/')};
+  var otras=c2titularReglas(f,code).filter(function(r){return aplic.indexOf(r)<0;});
+  return {cumple:!siguen.length,reglas:siguen,txt:siguen.length?siguen.map(function(r){return r+' ('+TIT_REGLAS[r]+')';}).join(', '):'ya no aplica '+aplic.join('/'),
+    extra:otras.map(function(r){return r+' ('+TIT_REGLAS[r]+')';}).join(', '),
+    actual:{condiciondeltitular:f.condiciondeltitular,formadeadquisicion:f.formadeadquisicion,tipodedocumento:f.tipodedocumento,tipodepartidaregistral:f.tipodepartidaregistral,numerodepartidaregistral:f.numerodepartidaregistral}};
 }
 /* ===== Estado final en SICUN · otros validadores (reglas de los HTML VAL_USO_CIIU, VAL_COND_PREDIO_EN,
    VAL_OBRAS_COMPLEN y VAL_CRC, ©diegocampos). Mismo criterio que titulares: solo cuando el cruce queda ⚠ SIN CAMBIO. */
@@ -2419,16 +2422,18 @@ function c2filasDespues(board,rep,pref){
 function c2esComun(k){return k.length===24&&(k.substr(16,2)==='99'||k.substr(18,2)==='99'||k.substr(20,3)==='999');}
 var USO_EXIGE_CIIU='020199,'+'020101,020102,020103,020104,020105,020106,020201,020202,020203,020204,020205,020301,020303,030101,030102,030103,030104,030105,030106,030107,030108,030109,030110,030111,030112,030113,030114,030115,030116,030117,030118,030119,030120,030121,030122,030199,040102,040103,040104,040105,040199,040201,040202,040203,040204,040205,040206,040299,040301,040302,040303,040304,040305,040306,040307,040399,050101,050102,050103,050104,050105,050199,050201,050202,050203,050204,050299,050301,050302,050303,050304,050305,050401,050402,050403,050404,050499,050501,050502,050503,050504,060101,060199,060201,060202,060203,060204,060301,060302,060303,060399,060401,060501,060701,060799,060801,060802,060803,060899,060901';
 function c2usoCiiuFinal(board,code,piso){
-  if(c2esComun(code))return {cumple:true,txt:'uso común: el CIIU no aplica'};
   var ua=c2filaDespues(board,code,'UA');if(!ua)return null;
   var uso=String(ua.codigodeuso||'').replace(/\D/g,'');
+  var lin0=(c2filasDespues(board,'CON',code)||[]).filter(function(l){var p=String(piso||'').replace(/^0+/,'');return !p||String(l.npiso||'').replace(/^0+/,'')===p;});
+  var act={codigodeuso:uso,codigodeactividadeconomicaciiu:lin0.map(function(l){return String(l.codigodeactividadeconomicaciiu||'').trim();}).filter(Boolean)[0]||''};
+  var R=c2usoCiiuEval(code,uso,lin0);if(R)R.actual=act;return R;
+}
+function c2usoCiiuEval(code,uso,lin){
+  if(c2esComun(code))return {cumple:true,txt:'uso común: el CIIU no aplica'};
   if(uso===USO_SIN_CIIU)return {cumple:true,txt:'comercial no identificado no lleva CIIU',nota:'Falso error del validador: la marca debería ser NO APLICA'};
   if(USO_EXIGE_CIIU.split(',').indexOf(uso)<0)return {cumple:true,txt:'el uso '+(uso||'(vacío)')+' no exige CIIU'};
-  var lin=c2filasDespues(board,'CON',code);if(!lin)return null;
-  var p=String(piso||'').replace(/^0+/,'');
-  if(p)lin=lin.filter(function(l){return String(l.npiso||'').replace(/^0+/,'')===p;});
   if(!lin.length)return null;
-  var conCiiu=lin.filter(function(l){return String(l['codigodeactividadeconomica(ciiu)']||l.codigodeactividadeconomicaciiu||'').trim();});
+  var conCiiu=lin.filter(function(l){return String(l.codigodeactividadeconomicaciiu||'').trim();});
   if(conCiiu.length)return {cumple:true,txt:'la unidad tiene CIIU'};
   var obra=lin.every(function(l){return /CONSTRUCCION|INCONCLUS|RUINA/.test(c2up(l.ecc));});
   if(obra)return {cumple:true,txt:'obra no terminada (ECC): sin actividad que declarar'};
@@ -2443,7 +2448,7 @@ function c2condPredioFinal(board,code){
     if((c==='PREDIOENEDIFICIO')!==(q==='PREDIOENEDIFICIO')&&!(c==='PREDIOENEDIFICIO'&&q==='AIRES'))out.push('R1 (PREDIO EN EDIFICIO debe ir en ambos campos)');
     if((c==='TERRENOSINCONSTRUIR'||c==='PARQUE')&&q!=='PREDIOINDEPENDIENTE')out.push('R2 (terreno o parque solo admite PREDIO INDEPENDIENTE)');
   }
-  return {cumple:!out.length,txt:out.length?out.join(', '):'clasificación y predio catastral en coherentes'};
+  return {cumple:!out.length,txt:out.length?out.join(', '):'clasificación y predio catastral en coherentes',actual:{clasificaciondelpredio:f.clasificaciondelpredio,prediocatastralen:f.prediocatastralen}};
 }
 /* Obras complementarias (Anexo III.1 Lima-Callao 2025) */
 var OBR_UM=(function(){var m={};function a(cs,v){cs.forEach(function(c){m[c]=v;});}function r(x,y){var o=[];for(var i=x;i<=y;i++)o.push(i);return o;}
@@ -2455,17 +2460,19 @@ var OBR_MEP=(function(){var m={};function a(cs,v){cs.forEach(function(c){m[c]=v;
 var OBR_EXC_R1=[1,21,28,33,35,36,56,78,54,55,64,65,66];
 function c2obrUM(v){var s=c2up(v).toLowerCase().replace(/\.$/,'').replace('²','2').replace('³','3');if(s==='m'||s==='ml')return 'ml';if(/^(und|unid|unidad|pza|pieza)$/.test(s))return 'und';return s;}
 function c2obrMEP(v){var s=c2up(v),d=s.replace(/\D/g,'');if(d)return d.padStart(2,'0').slice(-2);if(/CONCRETO/.test(s))return '01';if(/LADRILLO/.test(s))return '02';if(/ADOBE|QUINCHA|MADERA/.test(s))return '03';return s;}
-function c2obrasFinal(board,code,soloProducto){
+function c2obrasFinal(board,code,soloProducto,ini){
   var obras=c2filasDespues(board,'OBR',code);if(!obras||!obras.length)return null;
-  var out=[];
+  var cod0=ini&&ini.codigo?parseInt(ini.codigo,10):NaN;if(!isNaN(cod0)){var mis=obras.filter(function(o){return parseInt(o.codigo,10)===cod0;});if(mis.length)obras=mis;}
+  var out=[],extra=[];
   obras.forEach(function(o){
     var cod=parseInt(o.codigo,10),pt=parseFloat(String(o.productototal||'').replace(',','.')),um=c2obrUM(o.unidaddemedida),uca=!!String(o.uca||'').trim();
     if(!uca&&pt===1&&/^(m2|m3|ml)$/.test(um)&&OBR_EXC_R1.indexOf(cod)<0)out.push('R1 obra '+cod+' (producto total = 1)');
-    if(soloProducto)return;
-    var umOk=OBR_UM[cod];if(umOk&&um!==umOk&&!(umOk==='und'&&um==='und'))out.push('R2 obra '+cod+' (unidad debe ser '+umOk+')');
-    var mepOk=OBR_MEP[cod];if(mepOk&&o.mep!==undefined&&mepOk.indexOf(c2obrMEP(o.mep))<0)out.push('R5 obra '+cod+' (MEP debe ser '+mepOk.join(' o ')+')');
+    var dest=soloProducto?extra:out;
+    var umOk=OBR_UM[cod];if(umOk&&um!==umOk&&!(umOk==='und'&&um==='und'))dest.push('R2 obra '+cod+' (unidad debe ser '+umOk+')');
+    var mepOk=OBR_MEP[cod];if(mepOk&&o.mep!==undefined&&mepOk.indexOf(c2obrMEP(o.mep))<0)dest.push('R5 obra '+cod+' (MEP debe ser '+mepOk.join(' o ')+')');
   });
-  return {cumple:!out.length,txt:out.length?out.slice(0,3).join(', ')+(out.length>3?' +'+(out.length-3):''):'obras conformes'};
+  return {cumple:!out.length,txt:out.length?out.slice(0,3).join(', ')+(out.length>3?' +'+(out.length-3):''):'obras conformes',extra:extra.slice(0,3).join(', '),
+    actual:{productototal:obras[0].productototal,unidaddemedida:obras[0].unidaddemedida,mep:obras[0].mep}};
 }
 /* VAL_CRC: misma lógica que VAL_CRC.html. Grupo = edificación (lote+edificación, 16 díg.); unidades por entrada+piso.
    Se excluyen por campo los 99/999 (como el validador), no el CRC entero. */
@@ -2492,13 +2499,20 @@ function c2crcFinal(board,code,msg){
   }
   return {cumple:!out.length,txt:out.length?out.join(', '):'estructura del CRC conforme'};
 }
+/* ¿Cambió la ficha respecto a lo que vio el validador (valores del Excel del revisor)? true / false / null (sin datos para comparar). */
+function c2valIni(v){var t=c2up(v).replace(/^\d+\s*-\s*/,'').replace(/\s+/g,' ').trim(),n=t.replace(',','.');return /^-?\d+(\.\d+)?$/.test(n)&&!/^0\d/.test(n)?String(parseFloat(n)):t;}
+function c2cambioDesdeInicial(ini,act){
+  if(!ini||!act)return null;var ks=Object.keys(act).filter(function(k){return Object.prototype.hasOwnProperty.call(ini,k);});
+  if(!ks.length)return null;
+  return ks.some(function(k){return c2valIni(ini[k])!==c2valIni(act[k]);});
+}
 function c2estadoFinal(board,row,code){
   var v=c2mapKey(row.validator);if(!code)return null;
   if(v==='VAL_TITULAR_INSCRIPCION')return code.length===24?c2titularFinal(board,code,row.message):null;
   if(v==='VAL_USO_CIIU')return code.length===24?c2usoCiiuFinal(board,code,row.piso):null;
   if(v==='VAL_COND_PREDIO_EN'||/FI\.24\.03/.test(row.message||''))return code.length===24?c2condPredioFinal(board,code):null;
-  if(v==='VAL_PRODUCTO')return code.length===24?c2obrasFinal(board,code,true):null;
-  if(v==='VAL_MEP_MEDIDA_PRODUCTO')return code.length===24?c2obrasFinal(board,code,false):null;
+  if(v==='VAL_PRODUCTO')return code.length===24?c2obrasFinal(board,code,true,row.inicial):null;
+  if(v==='VAL_MEP_MEDIDA_PRODUCTO')return code.length===24?c2obrasFinal(board,code,false,row.inicial):null;
   if(v==='VAL_CRC')return c2crcFinal(board,code,row.message);
   return null;
 }
@@ -2521,6 +2535,7 @@ function c2read(wb,name){
     function cell(r,c){return ws[XLSX.utils.encode_cell({r:r,c:c})];}
     function display(r,c){var x=cell(r,c);return x?txt(x.w!=null?x.w:XLSX.utils.format_cell(x)):'';}
     for(col=0;col<=range.e.c;col++)headers.push(c2header(display(range.s.r,col)));
+    var rawHead=[];for(col=0;col<=range.e.c;col++)rawHead.push(c2campo(display(range.s.r,col)));
     function find(re){return headers.findIndex(function(h){return re.test(h);});}
     var state=find(/aplica\s*\/\s*no\s*aplica/i); if(state<0)state=headers.indexOf('estado');
     var obs=find(/^(observacion|observaciones|obs)$/); if(obs<0&&state>=0)obs=state+1;
@@ -2539,7 +2554,7 @@ function c2read(wb,name){
         if(vals.slice(0,3).every(Boolean)){if(vals.slice(3).every(Boolean))partial=vals.join('');else if(vals.slice(3).every(function(x){return !x;}))code=vals.slice(0,3).join('');}
       }
       var p=piso<0?'':c2clean(display(r,piso));if(/^\d+\.0+$/.test(p))p=String(parseInt(p,10));
-      file.rows.push({tecnico:c2technician(encargado<0?'':display(r,encargado),sn),polygon:file.polygon,sheet:sn,validator:validator,rawCode:code,partial:partial,numeric:numeric,piso:p,state:st,observation:observation,message:msg<0?'':c2clean(display(r,msg)),noState:state<0});
+      file.rows.push({tecnico:c2technician(encargado<0?'':display(r,encargado),sn),polygon:file.polygon,sheet:sn,validator:validator,rawCode:code,partial:partial,numeric:numeric,piso:p,state:st,observation:observation,message:msg<0?'':c2clean(display(r,msg)),noState:state<0,inicial:(function(){var o={},fin=msg<0?(state<0?rawHead.length:state):msg;for(var c=1;c<fin;c++)if(rawHead[c])o[rawHead[c]]=c2clean(display(r,c));return o;})()});
     }
     file.sheets.push(sheet);
   });
@@ -2836,7 +2851,11 @@ function c2rows(){
     if(soloDV)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
     if(status==='⚠ SIN CAMBIO EN SICUN'){
       var tfin=c2estadoFinal(BOARD_(),row,code);
-      if(tfin){if(tfin.cumple){status=C2_CUMPLE;addNote('Cumple en SICUN: '+tfin.txt);if(tfin.nota)addNote(tfin.nota);}else addNote('Sigue en SICUN: '+tfin.txt);}}
+      if(tfin){
+        if(!tfin.cumple)addNote('Sigue en SICUN: '+tfin.txt);
+        else if(c2cambioDesdeInicial(row.inicial,tfin.actual)===true){status=C2_CUMPLE;addNote('Cumple en SICUN: '+tfin.txt+' · corregido antes de la descarga ANTES');}
+        else addNote('Sin cambio desde la validación: '+tfin.txt+' según las reglas; posible falso error, si es así marcar NO APLICA');
+        if(tfin.extra)addNote('Ojo, además: '+tfin.extra);}}
     var otra=null;if((status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
       if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&!c2ruidoSicun(e);}:function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
       if(otra)status=row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}
