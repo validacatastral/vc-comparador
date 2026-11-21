@@ -2369,7 +2369,7 @@ function c2filaDespues(board,code,rep){
 function c2up(v){return stripAccents(String(v||'')).toUpperCase().replace(/\s+/g,' ').trim();}
 var TIT_REGLAS={R1:'forma de adquisición sin documento sustentatorio',R2:'bloque registral incompleto',R2P:'POSEEDOR con escritura pública',
   R3A:'código de predio con formato inválido',R3B:'partida electrónica con formato inválido',R3C:'ficha con formato inválido',
-  R4:'sucesión intestada con forma distinta de OTROS',R4H:'sucesión intestada con declaratoria de herederos',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
+  R4:'sucesión intestada con forma distinta de OTROS',R4H:'sucesión intestada con declaratoria de herederos',R6O:'condición OTROS y forma OTROS no llevan documento ni partida',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
   R13:'forma de adquisición vacía'};
 function c2titularReglas(f,code){
   var out=[];if(!f)return out;
@@ -2389,6 +2389,7 @@ function c2titularReglas(f,code){
   if(!lote){
     if(ct==='SUCESION INTESTADA'&&fa!=='OTROS')out.push('R4');
     if(ct==='SUCESION INTESTADA'&&td.indexOf('HEREDEROS')>=0)out.push('R4H');
+    if(ct==='OTROS'&&fa==='OTROS'&&(hayTD||hayTP||hayNP))out.push('R6O');
     if(fa==='POSESION'&&ct!=='POSEEDOR')out.push('R5');
     if(td.indexOf('CONSTANCIA')>=0&&(ct!=='POSEEDOR'||(fa!=='POSESION'&&fa!=='OTROS')))out.push('R5C');
     if(!fa)out.push('R13');
@@ -2398,7 +2399,7 @@ function c2titularReglas(f,code){
 /* Qué reglas corresponden a cada mensaje del validador de la UE. Mensaje no reconocido → todas. */
 function c2titularAplicables(msg){
   var m=c2up(msg),set=[];
-  if(/TIPO DE DOCUMENTO/.test(m))set=set.concat(['R2P','R5C','R1','R4H']);
+  if(/TIPO DE DOCUMENTO/.test(m))set=set.concat(['R2P','R5C','R1','R4H','R6O']);
   if(/FORMA DE ADQUISICION/.test(m)&&/VACI/.test(m))set=set.concat(['R13']);
   else if(/FORMA DE ADQUISICION/.test(m))set=set.concat(['R5','R4','R13']);
   if(/PARTIDA/.test(m))set=set.concat(['R2','R3A','R3B','R3C']);

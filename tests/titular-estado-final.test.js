@@ -78,5 +78,15 @@ console.log('ok i · sin valores iniciales → ⚠');
 // (j) Cumple lo de la UE pero hay otro error (escritura sin partida, R2) → ✔ + "Ojo, además"
 var esc=[K,'OTROS','OTROS','ESCRITURA PÚBLICA','','','CASA HABITACION'];
 r=run(board([esc],[esc]),[fila(K,'APLICA',MSG_TD,{condiciondeltitular:'POSEEDOR',formadeadquisicion:'OTROS',tipodedocumento:'ESCRITURA PÚBLICA'})])[0];
-assert.strictEqual(r.result,'✔ CUMPLE EN SICUN','j: '+r.result);assert(/Ojo, además: R2/.test(r.note),r.note);
-console.log('ok j · cumple lo de la UE + ojo, además R2');
+assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN','j: '+r.result);assert(/Sigue en SICUN: R6O/.test(r.note),r.note);
+console.log('ok j · OTROS + OTROS + escritura pública → ⚠ R6O');
+// (k) OTROS + OTROS sin nada más, corregido desde la validación → ✔
+var oo=[K,'OTROS','OTROS','','','','CASA HABITACION'];
+r=run(board([oo],[oo]),[fila(K,'APLICA',MSG_TD,{condiciondeltitular:'OTROS',formadeadquisicion:'OTROS',tipodedocumento:'ESCRITURA PÚBLICA'})])[0];
+assert.strictEqual(r.result,'✔ CUMPLE EN SICUN','k: '+r.result);
+console.log('ok k · OTROS + OTROS sin documento → ✔');
+// (l) "Ojo, además": cumple lo de la UE pero queda otro error (PROPIETARIO + compra venta + escritura sin partida → R2 fuera del mensaje)
+var r2=[K,'PROPIETARIO','COMPRA VENTA','ESCRITURA PÚBLICA','','','CASA HABITACION'];
+r=run(board([r2],[r2]),[fila(K,'APLICA',MSG_TD,{condiciondeltitular:'POSEEDOR',formadeadquisicion:'COMPRA VENTA',tipodedocumento:'ESCRITURA PÚBLICA'})])[0];
+assert.strictEqual(r.result,'✔ CUMPLE EN SICUN','l: '+r.result);assert(/Ojo, además: R2/.test(r.note),r.note);
+console.log('ok l · cumple lo de la UE + ojo, además R2');
