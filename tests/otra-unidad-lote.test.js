@@ -35,7 +35,7 @@ var VAL='VAL_TITULAR_INSCRIPCION';   /* nivel CRC; observa UA · Condición del 
 
 // (a) Se corrigió OTRA unidad del lote (U2), no la del cruce (U1) → ◐ otra unidad, con CRC y campo (sin valores)
 var r=run(board([unidad(U1),unidad(U2),unidad(OTRO_LOTE)],[unidad(U1),unidad(U2,'POSEEDOR'),unidad(OTRO_LOTE)]),[fila(VAL,U1,'APLICA'),fila(VAL,U1,'OTRO CAMBIO')]);
-assert.strictEqual(r[0].result,T.OTRA,'a APLICA: '+r[0].result);assert.strictEqual(r[1].result,T.OTRA,'a OTRO CAMBIO: '+r[1].result);
+assert.strictEqual(r[0].result,T.OTRA,'a APLICA: '+r[0].result);assert.strictEqual(r[1].result,'✔ CAMBIÓ (otra unidad del lote)','a OTRO CAMBIO (verificado): '+r[1].result);
 assert.strictEqual(T.c2bucket(r[0].result),7);
 assert.strictEqual(r[0].otraUnidad,U2+' (UA · '+COND+')');
 assert.strictEqual(r[0].campos,'UA · '+COND);

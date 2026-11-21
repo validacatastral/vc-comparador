@@ -2620,6 +2620,8 @@ function c2otraUnidad(idx,lot,code,esperado,otroPiso,floors){
   return {detalle:d,texto:'Cambió otra unidad del lote: '+d,campos:Array.from(new Set([].concat.apply([],otras.map(coinciden)))),crcs:otras};
 }
 var C2_OTRA_UNIDAD='◐ CAMBIÓ OTRA UNIDAD DEL LOTE';
+/* OTRO CAMBIO + cambio real en otra unidad del lote = corregido (verificado, no pendiente). Minúsculas a propósito: c2bucket → 0. */
+var C2_OTRO_CAMBIO_LOTE='✔ CAMBIÓ (otra unidad del lote)';
 function c2rows(){
   var files=c2files(), keys=c2keys(), events=[];BOARD_().forEach(function(c){events=events.concat(c2events(c));});
   var gapState=gapNow(), gapIdx={};if(gapState&&!gapState.bloquea)gapState.gaps.forEach(function(g){gapIdx[g.sector+'|'+g.rep]=g;});
@@ -2688,7 +2690,7 @@ function c2rows(){
     if(soloDV)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
     var otra=null;if((status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
       if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&!c2ruidoSicun(e);}:function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
-      if(otra)status=C2_OTRA_UNIDAD;}
+      if(otra)status=row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}
     if(status==='⚠ SIN CAMBIO EN SICUN'&&c2mapKey(row.validator)==='VAL_USO_CIIU'&&c2usoDespues(BOARD_(),code)===USO_SIN_CIIU)addNote('Sugerencia: debería ser NO APLICA (comercial no identificado no lleva CIIU)');
     if(split.otroPiso.length&&!(otra&&otra.otroPiso))addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
     var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch'||c2esDV(e);}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
