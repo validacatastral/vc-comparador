@@ -16,22 +16,24 @@ var T=vm.runInNewContext(src+'\n({pubPayload:pubPayload,pubPublica:pubPublica,pu
 function row(code,state,result,extra){return Object.assign({tecnico:'TEC SINTETICO',sheet:'VAL_USO_CIIU',validator:'VAL_USO_CIIU',fi:'FI-01',code:code,piso:'01',state:state,result:result,
   observation:'titular con DNI '+DNI+' corregir uso',note:'',message:'mensaje '+DNI,change:'TIT · Nombres: '+TITULAR+' → X',changeView:'Otro campo: TIT · Número De Documento: '+DNI+' → 40302010',
   obsChange:'Observación: titular con DNI '+DNI+' ‖ Otro campo: TIT · Nombres: '+TITULAR+' → X'},extra||{});}
+var notaCiiu='Sugerencia: debería ser NO APLICA (comercial no identificado no lleva CIIU)';
 var rows=[
   row(KEY,'APLICA','◐ CAMBIÓ OTRO CAMPO',{note:'Sugerencia: posible OTRO CAMBIO'}),
   row(OTRA,'APLICA','✔ VERIFICADO',{note:'También cambió: CON · Área Verificada'}),   // esperado + extra
-  row('150112190370090101010002','APLICA','⚠ SIN CAMBIO EN SICUN'),
+  row('150112190370090101010002','APLICA','⚠ SIN CAMBIO EN SICUN',{note:notaCiiu}),
   row('150112190370100101010003','NO APLICA','ℹ NO APLICA pero SICUN cambió'),
   row('150112190370110101010004','OTRO CAMBIO','✔ CAMBIÓ'),
   row('150112190370120101010005','APLICA','? NO ENCONTRADO')];
 var p=T.pubPayload('260210019',rows,'clave',true), json=JSON.stringify(p), res=p.filas.map(function(f){return f.resultado;});
 
-// 1) ◐ se publica con su etiqueta propia; ⚠ e ℹ siguen igual; los tres se distinguen entre sí
+// 1) ◐ se publica con su etiqueta propia; ⚠ detalla los observados; los tres se distinguen entre sí
 assert.strictEqual(T.PUB_OTRO_CAMPO,'◐ Cambió otro campo, no el observado');
 var esperado=T.PUB_OTRO_CAMPO+' · se esperaba: CON · Código De Actividad Económica (CIIU)';
 assert.strictEqual(T.c2bucket(esperado),1);
 assert.strictEqual(T.pubResultado(Object.assign({},rows[0],{validator:'SIN_MAPA'})),T.PUB_OTRO_CAMPO);
 assert.strictEqual(T.pubResultado(Object.assign({},rows[0],{validator:'VAL_CRC'})),T.PUB_OTRO_CAMPO+' · se esperaba: CRC · Sector, CRC · Manzana, CRC · Lote +4');
-assert.deepStrictEqual(res,[esperado,'⚠ SIN CAMBIO EN SICUN','ℹ NO APLICA pero SICUN cambió']);
+assert.strictEqual(p.filas[1].nota,notaCiiu);
+assert.deepStrictEqual(res,[esperado,'⚠ Sin cambio en SICUN · sigue igual: CON · Código De Actividad Económica (CIIU) — revisa que se haya guardado','ℹ NO APLICA pero SICUN cambió']);
 assert.strictEqual(new Set(res).size,3);
 var aviso=p.filas[0];
 assert.strictEqual(aviso.codigo,KEY);assert.strictEqual(aviso.estado,'APLICA');assert.strictEqual(aviso.smz,'19-037-007');
@@ -45,7 +47,15 @@ assert.strictEqual(p.filas.length,3);
 assert(!p.filas.some(function(f){return /VERIFICADO|✔|NO ENCONTRADO/.test(f.resultado)||f.codigo===OTRA;}),'verificado no se publica');
 [['✔ VERIFICADO',false],['✔ CAMBIÓ',false],['◐ CAMBIÓ OTRO CAMPO',true],['⚠ SIN CAMBIO EN SICUN',true],['ℹ NO APLICA pero SICUN cambió',true],['? NO ENCONTRADO',false],['ESTADO INVÁLIDO',false],['⏸ Sin comparar (x)',false]]
   .forEach(function(c){assert.strictEqual(T.pubPublica({result:c[0]}),c[1],c[0]);});
-assert.strictEqual(T.pubResultado({result:'⚠ SIN CAMBIO EN SICUN'}),'⚠ SIN CAMBIO EN SICUN');
+[
+  ['VAL_FECHA_PISO','',' · sigue igual: CON · Fecha Construcción'],
+  ['VAL_CATEGORIAS-AREAS_2','Verificar (FI.29.09)',' · sigue igual: CON · ECC, CON · Muros y Columna, CON · Techo +1'],
+  ['SIN_MAPA','','']
+].forEach(function(c){
+  var resultado=T.pubResultado(row(KEY,'APLICA','⚠ SIN CAMBIO EN SICUN',{validator:c[0],message:c[1]}));
+  assert.strictEqual(resultado,'⚠ Sin cambio en SICUN'+c[2]+' — revisa que se haya guardado');
+  assert.strictEqual(T.c2bucket(resultado),2);
+});
 
 // 3) Sin valores SICUN, DNI ni nombres de titulares en el JSON; la columna "Observación vs Antes → Después" no va
 ['INTERIOR ANTES','INTERIOR DESPUÉS',DNI,'40302010',TITULAR,'OTRO NOMBRE SINTETICO','020202','→','Observación:','obsChange','changeView','mensaje'].forEach(function(x){assert(json.indexOf(x)<0,'no debe publicarse: '+x);});
