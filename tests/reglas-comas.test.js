@@ -56,9 +56,9 @@ var e=run([ctx('UA',['Código De Uso'])],fila('VAL_USO_CIIU','OTRO CAMBIO','CIIU
 assert.strictEqual(e.result,'✔ CAMBIÓ');
 console.log('ok e · USO_CIIU OTRO CAMBIO + Código De Uso → '+e.result);
 
-// (f) USO_CIIU sin cambio y uso 020304 en el DESPUÉS → ✔ CUMPLE EN SICUN + nota NO APLICA (falso error); uso que exige CIIU sin líneas → ⚠ sin nota
+// (f) USO_CIIU sin cambio (sin valores iniciales) y uso 020304 → ⚠ + nota posible falso error / marcar NO APLICA; uso que exige CIIU sin líneas → ⚠ sin nota
 var f=run([ctx('UA',[],['Código De Uso'],{'Código De Uso':'020304'}),ctx('CON',[])],fila('VAL_USO_CIIU','APLICA','CIIU no debe estar vacío'));
-assert.strictEqual(f.result,'✔ CUMPLE EN SICUN');assert(/comercial no identificado no lleva CIIU/.test(f.note)&&/debería ser NO APLICA/.test(f.note),f.note);
+assert.strictEqual(f.result,'⚠ SIN CAMBIO EN SICUN');assert(/comercial no identificado no lleva CIIU/.test(f.note)&&/marcar NO APLICA/.test(f.note),f.note);
 var f2=run([ctx('UA',[],['Código De Uso'],{'Código De Uso':'020105'}),ctx('CON',[])],fila('VAL_USO_CIIU','APLICA','CIIU no debe estar vacío'));
 assert.strictEqual(f2.result,'⚠ SIN CAMBIO EN SICUN');assert(!/NO APLICA/.test(f2.note));
 assert(!/020304/.test(f.note+f.campos),'sin valores SICUN en la nota');

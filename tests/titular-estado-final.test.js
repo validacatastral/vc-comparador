@@ -18,7 +18,8 @@ var H=[KEY,'Condición del Titular','Forma de Adquisición','Tipo de Documento',
 function o(v){var r={};H.forEach(function(c,i){r[c]=v[i];});return r;}
 function board(antes,despues){var c={preset:{id:'UA',key:KEY},A:{headers:H,rows:antes.map(o)},B:{headers:H,rows:despues.map(o)}};c.RES=T.compareCtx(c);return [c];}
 var MSG_TD='Inconsistencia, condición de titular incongruente con tipo de documento (FI.12.04)';
-function fila(code,state,msg){return {tecnico:'NIKOL',polygon:'260710146',sheet:'VAL_TITULAR_INSCRIPCION',validator:'VAL_TITULAR_INSCRIPCION',rawCode:code,partial:'',numeric:false,piso:'',state:state,observation:'',message:msg||MSG_TD,noState:false};}
+var INI={condiciondeltitular:'POSEEDOR',formadeadquisicion:'OTROS',tipodedocumento:'ESCRITURA PÚBLICA'};   /* lo que vio el validador */
+function fila(code,state,msg,ini){return {tecnico:'NIKOL',polygon:'260710146',sheet:'VAL_TITULAR_INSCRIPCION',validator:'VAL_TITULAR_INSCRIPCION',rawCode:code,partial:'',numeric:false,piso:'',state:state,observation:'',message:msg||MSG_TD,noState:false,inicial:ini||INI};}
 function run(b,rows){T.set(b,[{rows:rows}]);return T.c2rows();}
 var K='150110040500960101010015';
 
@@ -26,7 +27,7 @@ var K='150110040500960101010015';
 var bien=[K,'POSEEDOR','POSESIÓN','','','','CASA HABITACION'];
 var r=run(board([bien],[bien]),[fila(K,'APLICA')])[0];
 assert.strictEqual(r.result,'✔ CUMPLE EN SICUN','a: '+r.result);assert.strictEqual(T.bucket(r.result),0);
-assert(/Cumple en SICUN/.test(r.note),r.note);
+assert(/Cumple en SICUN/.test(r.note)&&/corregido antes de la descarga ANTES/.test(r.note),r.note);
 console.log('ok a · corregido antes del ANTES → '+r.result+' · '+r.note);
 
 // (b) Sigue con POSEEDOR + ESCRITURA PÚBLICA en el DESPUÉS → ⚠ con nota R2P
@@ -65,3 +66,17 @@ console.log('ok f · reglas R4 / R13 / nivel lote');
 r=run(board([mal],[bien]),[fila(K,'APLICA')])[0];
 assert.strictEqual(r.result,'✔ VERIFICADO','g: '+r.result);
 console.log('ok g · con cambio → ✔ VERIFICADO');
+
+// (h) Sin cambio desde la validación (el validador ya vio POSEEDOR/POSESIÓN/sin documento) → NO pasa como bien: ⚠ + posible falso error
+r=run(board([bien],[bien]),[fila(K,'APLICA',MSG_TD,{condiciondeltitular:'POSEEDOR',formadeadquisicion:'POSESIÓN',tipodedocumento:''})])[0];
+assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN','h: '+r.result);assert(/Sin cambio desde la validación/.test(r.note)&&/NO APLICA/.test(r.note),r.note);
+console.log('ok h · sin cambio desde la validación → ⚠ posible falso error');
+// (i) Sin valores iniciales en el Excel → no se puede afirmar que cambió → ⚠ (conservador)
+r=run(board([bien],[bien]),[fila(K,'APLICA',MSG_TD,{})])[0];
+assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN','i: '+r.result);
+console.log('ok i · sin valores iniciales → ⚠');
+// (j) Cumple lo de la UE pero hay otro error (escritura sin partida, R2) → ✔ + "Ojo, además"
+var esc=[K,'OTROS','OTROS','ESCRITURA PÚBLICA','','','CASA HABITACION'];
+r=run(board([esc],[esc]),[fila(K,'APLICA',MSG_TD,{condiciondeltitular:'POSEEDOR',formadeadquisicion:'OTROS',tipodedocumento:'ESCRITURA PÚBLICA'})])[0];
+assert.strictEqual(r.result,'✔ CUMPLE EN SICUN','j: '+r.result);assert(/Ojo, además: R2/.test(r.note),r.note);
+console.log('ok j · cumple lo de la UE + ojo, además R2');

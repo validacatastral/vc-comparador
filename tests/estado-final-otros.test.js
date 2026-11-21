@@ -12,7 +12,8 @@ var stubs='var opts={normalize:true,tolerance:true,ignoreTramite:true};var POLY_
 var T=vm.runInNewContext(stubs+src+'\n({set:function(b,f){BOARD=b;FILES=f;},c2rows:c2rows,compareCtx:compareCtx,bucket:c2bucket});');
 var KEY='Código de Referencia Catastral';
 function ctx(id,H,rows){var o=function(v){var r={};H.forEach(function(c,i){r[c]=v[i];});return r;};var c={preset:{id:id,key:KEY},A:{headers:H,rows:rows.map(o)},B:{headers:H,rows:rows.map(o)}};c.RES=T.compareCtx(c);return c;}
-function fila(val,code,state,msg,piso){return {tecnico:'T',polygon:'260510081',sheet:val,validator:val,rawCode:code,partial:'',numeric:false,piso:piso||'',state:state,observation:'',message:msg||'',noState:false};}
+var INI={codigodeuso:'X',codigodeactividadeconomicaciiu:'X',clasificaciondelpredio:'X',prediocatastralen:'X',productototal:'X',unidaddemedida:'X',mep:'X'};   /* valores iniciales distintos = hubo corrección */
+function fila(val,code,state,msg,piso,ini){return {tecnico:'T',polygon:'260510081',sheet:val,validator:val,rawCode:code,partial:'',numeric:false,piso:piso||'',state:state,observation:'',message:msg||'',noState:false,inicial:ini||INI};}
 function run(b,r){T.set(b,[{rows:[r]}]);return T.c2rows()[0];}
 var K='150110680440060102010015';
 var HUA=[KEY,'Código De Uso','Clasificación Del Predio','Predio Catastral En'], HCON=[KEY,'N° Piso','Código De Actividad Económica (CIIU)','ECC'];
@@ -20,7 +21,9 @@ var MSG_CIIU='Inconsistencia, código de actividad económica (CIIU) no debe est
 
 // USO_CIIU
 var r=run([ctx('UA',HUA,[[K,'020304','CASA HABITACION','PREDIO INDEPENDIENTE']]),ctx('CON',HCON,[[K,'1','    ','TERMINADO']])],fila('VAL_USO_CIIU',K,'OTRO CAMBIO',MSG_CIIU,'1'));
-assert.strictEqual(r.result,'✔ CUMPLE EN SICUN',r.result);assert(/NO APLICA/.test(r.note),r.note);console.log('ok ciiu 020304 → ✔ + nota NO APLICA');
+assert.strictEqual(r.result,'✔ CUMPLE EN SICUN',r.result);console.log('ok ciiu pasó a 020304 → ✔');
+r=run([ctx('UA',HUA,[[K,'020304','CASA HABITACION','PREDIO INDEPENDIENTE']]),ctx('CON',HCON,[[K,'1','    ','TERMINADO']])],fila('VAL_USO_CIIU',K,'OTRO CAMBIO',MSG_CIIU,'1',{codigodeuso:'020304',codigodeactividadeconomicaciiu:''}));
+assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN',r.result);assert(/posible falso error/.test(r.note)&&/NO APLICA/.test(r.note),r.note);console.log('ok ciiu 020304 sin cambio desde la validación → ⚠ falso error / NO APLICA');
 r=run([ctx('UA',HUA,[[K,'020105','CASA HABITACION','PREDIO INDEPENDIENTE']]),ctx('CON',HCON,[[K,'1','    ','TERMINADO']])],fila('VAL_USO_CIIU',K,'APLICA',MSG_CIIU,'1'));
 assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN',r.result);assert(/R3A/.test(r.note));console.log('ok ciiu 020105 sin CIIU → ⚠ R3A');
 r=run([ctx('UA',HUA,[[K,'020105','CASA HABITACION','PREDIO INDEPENDIENTE']]),ctx('CON',HCON,[[K,'1','4711','TERMINADO']])],fila('VAL_USO_CIIU',K,'APLICA',MSG_CIIU,'1'));
@@ -50,14 +53,14 @@ assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN',r.result);assert(/R5 obra 
 var E='1501106804400601';   // ubigeo+sec+mz+lote+edif 01
 var bien=[E+'0101001'+'5',E+'0101002'+'5',E+'0102001'+'5'].map(function(k){return [k,'010101','CASA HABITACION','PREDIO INDEPENDIENTE'];});
 r=run([ctx('UA',HUA,bien)],fila('VAL_CRC',E+'01010015','APLICA','Verificar estructura del CRC (FI.02.04)'));
-assert.strictEqual(r.result,'✔ CUMPLE EN SICUN',r.result);console.log('ok crc correlativo → ✔');
+assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN',r.result);assert(/Sin cambio desde la validación: estructura del CRC conforme/.test(r.note),r.note);console.log('ok crc correlativo sin valores iniciales → ⚠ posible falso error');
 var salto=[E+'0101001'+'5',E+'0101003'+'5'].map(function(k){return [k,'010101','CASA HABITACION','PREDIO INDEPENDIENTE'];});
 r=run([ctx('UA',HUA,salto)],fila('VAL_CRC',E+'01010035','APLICA','Salto de numeración (FI.02.04)'));   /* el salto se marca en la unidad siguiente al hueco (003), como VAL_CRC.html */
 assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN',r.result);assert(/R5/.test(r.note),r.note);console.log('ok crc salto → ⚠ R5');
 // VAL_CRC como el validador: entrada 99 / unidad 999 se excluyen por campo; sótanos 81 correlativos
 var conComun=[E+'0101001'+'5',E+'0101002'+'5',E+'9999999'+'5'].map(function(k){return [k,'010101','CASA HABITACION','PREDIO INDEPENDIENTE'];});
 r=run([ctx('UA',HUA,conComun)],fila('VAL_CRC',E+'01010025','APLICA','Verificar estructura del CRC (FI.02.04)'));
-assert.strictEqual(r.result,'✔ CUMPLE EN SICUN',r.result);console.log('ok crc con 99/999 excluidos → ✔');
+assert(/Sin cambio desde la validación: estructura del CRC conforme/.test(r.note),r.note);console.log('ok crc con 99/999 excluidos → estructura conforme');
 var sot=[E+'0101001'+'5',E+'0182001'+'5'].map(function(k){return [k,'010101','CASA HABITACION','PREDIO INDEPENDIENTE'];});
 r=run([ctx('UA',HUA,sot)],fila('VAL_CRC',E+'01820015','APLICA','Verificar estructura del CRC (FI.02.04)'));
 assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN',r.result);assert(/R6/.test(r.note),r.note);console.log('ok crc sótano 82 sin 81 → ⚠ R6');
