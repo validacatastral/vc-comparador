@@ -48,7 +48,7 @@ var muchos=[];for(var i=0;i<25;i++)muchos.push(ev('UA','Código De Uso',String(i
 assert(/\| \+5 más$/.test(T.c2obsCambios('x',muchos,[])));assert(T.c2obsCambios('x'.repeat(9000),[],[]).length<=5000);
 
 // 5) Excel: UNA columna nueva AL FINAL; las 16 anteriores no se mueven ni se renombran
-var sheets=cut('function c2sheets(){','\n');
+var sheets=cut('function c2sheets(','\n');
 var antes=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota'];
 var head=JSON.parse(sheets.match(/head=(\[[^\]]+\])/)[1].replace(/'/g,'"'));
 assert.deepStrictEqual(head,antes.concat(['Observación vs Antes → Después']));

@@ -1968,6 +1968,9 @@ function xlAutoWidths(aoa, headerRow){
 
 /* sheets: [{name, aoa, headerRow (índice 0-based de la fila de encabezado, o -1), totalRow (índice o -1), pctCols:[idx]}] */
 function writeStyledWorkbook(sheets, filename){
+  return xlWorkbook(sheets, filename);
+}
+function xlWorkbook(sheets, filename){
   var usedNames = {};
   sheets = sheets.map(function(s){
     var base = txt(s.name).replace(/[:\\/?*\[\]]/g, "_").slice(0,31) || "Hoja", name=base, n=2;
@@ -1980,6 +1983,7 @@ function writeStyledWorkbook(sheets, filename){
   if(typeof ExcelJS === "undefined"){ // respaldo: si el CDN falla, exporta plano con SheetJS
     var wb0 = XLSX.utils.book_new();
     sheets.forEach(function(s){ XLSX.utils.book_append_sheet(wb0, XLSX.utils.aoa_to_sheet(s.aoa), s.name); });
+    if(!filename)return XLSX.write(wb0,{bookType:"xlsx",type:"base64"});
     XLSX.writeFile(wb0, filename);
     return;
   }
@@ -2056,6 +2060,14 @@ function writeStyledWorkbook(sheets, filename){
     }
   });
 
+  if(!filename){
+    return wb.xlsx.writeBuffer().then(function(buf){return new Promise(function(resolve,reject){
+      var reader=new FileReader();
+      reader.onload=function(){resolve(reader.result.split(",")[1]);};
+      reader.onerror=function(){reject(reader.error);};
+      reader.readAsDataURL(new Blob([buf]));
+    });});
+  }
   wb.xlsx.writeBuffer().then(function(buf){
     var blob = new Blob([buf], {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
     var url = URL.createObjectURL(blob);
@@ -2071,7 +2083,12 @@ function writeStyledWorkbook(sheets, filename){
 function stampName(){ var ctx = BOARD_()[ACTIVE]; return ctx.preset.nombre.replace(/\s+/g,"_") + "_" + fileDate((ctx.A.files||[ctx.A])[0]).day.slice(2).replace(/-/g,"") + "_vs_" + fileDate((ctx.B.files||[ctx.B])[0]).day.slice(2).replace(/-/g,""); }
 function exportReport(split){
   if(ACTIVE===null || !R()) return;
-  var ctx = BOARD_()[ACTIVE], Rr = R();
+  var sheets=reportSheets(BOARD_()[ACTIVE],split);
+  writeStyledWorkbook(sheets, (split?"COMPARA_CRCcol_":"COMPARA_") + stampName() + ".xlsx");
+}
+function reportSheets(ctx,split,mask){
+  var Rr=ctx.RES;
+  function value(field,v){return mask ? c2enmascarar(field,v) : v;}
   var nn = Rr.nuevos.filter(function(g){return !g._renamed;}).length, nd = Rr.eliminados.filter(function(g){return !g._renamed;}).length;
   function splitCols(k){ return k.length===24 ? [k.slice(6,8),k.slice(8,11),k.slice(11,14),k.slice(14,16),k.slice(16,18),k.slice(18,20),k.slice(20,23)] : (k.length===14 ? [k.slice(6,8),k.slice(8,11),k.slice(11,14),"","","",""] : ["","","","","","",""]); }
   var SPLIT_HEAD = ["Sector","Manzana","Lote","Edificación","Entrada","Piso","Unidad"];
@@ -2088,8 +2105,8 @@ function exportReport(split){
   Rr.mods.forEach(function(m){
     var k = m.key, p = splitCols(k);
     m.cambios.forEach(function(c){
-      if(c.tipo==="celda") mod.push([k].concat(p, ["CELDA", c.campo, c.antes, c.despues, c.filaA, c.filaB]));
-      else { var rf = Rr.diffCols.map(function(f){ var v=txt(c.row[f]); return v ? f+"="+v : null; }).filter(Boolean).join(" | ");
+      if(c.tipo==="celda") mod.push([k].concat(p, ["CELDA", c.campo, value(c.campo,c.antes), value(c.campo,c.despues), c.filaA, c.filaB]));
+      else { var rf = Rr.diffCols.map(function(f){ var v=value(f,txt(c.row[f])); return v ? f+"="+v : null; }).filter(Boolean).join(" | ");
         mod.push([k].concat(p, [c.tipo==="add"?"RENGLÓN AGREGADO":"RENGLÓN RETIRADO","(renglón completo)", c.tipo==="add"?"":rf, c.tipo==="add"?rf:"", c.filaA||"", c.filaB||""])); }
     });
   });
@@ -2110,13 +2127,13 @@ function exportReport(split){
     if(split) ren.push([r.de].concat(splitCols(r.de), [r.a], splitCols(r.a), [r.coincidencia]));
     else ren.push([r.de, r.a, r.coincidencia]);
   });
-  writeStyledWorkbook([
+  return [
     { name:"RESUMEN",     aoa:resumen, headerRow:-1 },
     { name:"MODIFICADOS", aoa:mod,     headerRow:0 },
     { name:"NUEVOS",      aoa:sheetFromGroups(Rr.nuevos),     headerRow:0 },
     { name:"ELIMINADOS",  aoa:sheetFromGroups(Rr.eliminados), headerRow:0 },
     { name:"RENOMBRADOS", aoa:ren,     headerRow:0 }
-  ], (split?"COMPARA_CRCcol_":"COMPARA_") + stampName() + ".xlsx");
+  ];
 }
 function exportMarked(){
   if(ACTIVE===null || !R()) return;
@@ -2721,9 +2738,50 @@ function c2render(){gapRender();asgRender();var files=c2files(), section=$('c2Se
   rows=rows.filter(function(r){return (!$('c2Technician').value||r.tecnico===$('c2Technician').value)&&(!$('c2Validator').value||r.validator===$('c2Validator').value)&&(!$('c2Result').value||r.result===$('c2Result').value);});
   $('c2Body').innerHTML=rows.map(function(r){var b=c2bucket(r.result);return '<tr>'+[r.polygon,r.sheet,r.tecnico,r.validator+' · '+r.fi].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+c2codeCells(r.code)+[r.piso,r.state,r.message,b===1?r.result+c2EsperadoDetalle(r):b===2?c2SinCambioDetalle(r):r.result,r.changeView,r.observation,r.note].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+'</tr>';}).join('');
 }
-function c2sheets(){var rows=c2rows(),head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota','Observación vs Antes → Después'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,r.result,r.change,r.note,r.obsChange]);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio','Otra unidad del lote']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k].slice(0,7),[summary[k][8]]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);c2files().forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=c2files().reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
-(function(){var original=c2sheets;c2sheets=function(){var sheets=original();sheets.forEach(function(sheet){if(sheet.name!=='CRUCE_REVISOR')return;var head=sheet.aoa[sheet.headerRow],tech=head.indexOf('Técnico'),polygon=head.indexOf('Polígono'),validator=head.indexOf('Validador');sheet.aoa.slice(sheet.headerRow+1).forEach(function(row){row[tech]=c2assign([{polygon:row[polygon],validator:row[validator],tecnico:row[tech]}])[0].tecnico;});});return sheets;};})();
+function c2sheets(rows,files){rows=rows||c2assign(c2rows());files=files||c2files();var head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota','Observación vs Antes → Después'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,r.result,r.change,r.note,r.obsChange]);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio','Otra unidad del lote']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k].slice(0,7),[summary[k][8]]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);files.forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=files.reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
 (function(){var original=writeStyledWorkbook;writeStyledWorkbook=function(sheets,filename){if(c2files().length)sheets=sheets.concat(c2sheets());return original(sheets,filename);};})();
+function c2enmascarar(header,value){
+  if(value==null||value==='')return value;
+  var field=c2campo(header);
+  if(field==='nrodocumentoidentidad'||field==='ruc'){
+    var digits=String(value).replace(/\D/g,'');
+    return String(value).trim()?'•••••'+digits.slice(-3):'';
+  }
+  if(/^(observacion|mensaje|nota)|^quecambio$/.test(field)){
+    return String(value).replace(/\b(?:\d{8}|\d{11})\b/g,function(n){return '•••'+n.slice(-3);});
+  }
+  return value;
+}
+// Captura los datos antes de restaurar la vista o liberar el distrito temporal de Drive.
+function pubReporteDatos(source,poly,code,rows,files){
+  return function(){
+    var ctx=Object.assign({},source), lots=new Set(rows.map(function(r){return r.code.length===8?r.code:r.code.slice(6,14);}));
+    ['A','B'].forEach(function(side){
+      var data=source[side];
+      ctx[side]=Object.assign({},data,{rows:data.rows.filter(function(r){
+        var key=txt(r[ctx.preset.key]);
+        return poly?poly.keys.has(mzKeyOf(key)):lots.has(key.slice(6,14));
+      })});
+    });
+    ctx.RES=compareCtx(ctx);
+    var sheets=reportSheets(ctx,false,true);
+    sheets[0].aoa.splice(2,0,['Polígono',code]);
+    return sheets.concat(c2sheets(rows,files)).map(function(sheet){
+      var head=sheet.aoa[sheet.headerRow];
+      if(!head)return sheet;
+      return Object.assign({},sheet,{aoa:sheet.aoa.map(function(row,i){
+        return i<=sheet.headerRow?row:row.map(function(v,j){return c2enmascarar(head[j],v);});
+      })});
+    });
+  };
+}
+async function pubSubirReporte(url,p,reporte){
+  try{
+    var base64=await xlWorkbook(reporte());
+    await pubPost(url,{accion:'publicarReporte',k:p.k,poligono:p.poligono,nombre:'reporte_'+p.poligono+'.xlsx',base64:base64});
+    return '';
+  }catch(e){return 'No se pudo publicar el reporte de '+p.poligono+' · '+e.message;}
+}
 function loadReviewerFiles(files){
   var district=DISTRICTS[CUR];
   return Promise.all(Array.from(files).map(function(file){return new Promise(function(resolve,reject){
@@ -2785,7 +2843,7 @@ function pubPreparar(key,activo,includeObs){
   var filterNodes=CF_SEGS.concat(LOC_SEGS).map(function(s){return $(s.id);}).concat([$('fPaste'),$('lPaste')]);
   var values=filterNodes.map(function(el){return el.value;}), filters=FILTER_STATE;
   var ids=['polySelect','c2Validator','c2Technician','c2Result'], selections=ids.map(function(id){return $(id).value;});
-  var out={opciones:[],payloads:{},totales:{},warnings:''};
+  var out={opciones:[],payloads:{},reportes:{},totales:{},warnings:''};
   try{
     // Comparar copias completas, sin reconstruir controles ni los reportes de la vista.
     POLY_ACTIVE=null;FILTER_STATE={f:[new Set(),new Set(),new Set()],l:[new Set(),new Set(),new Set()]};
@@ -2805,11 +2863,15 @@ function pubPreparar(key,activo,includeObs){
       var sectors=u?u.sectors:excel.sectors;
       return {code:p,sectors:sectors,ilegibles:u?0:excel.ilegibles,sinUniverso:!!u&&!u.keys.size,totales:out.totales[p],faltantes:pubFaltantes(district.descarga,sectors)};});
     out.opciones=pubOpciones(items,loaded,activo||'');
+    var source=BOARD_()[ACTIVE];
+    if(!source||!source.RES)source=BOARD_().find(function(c){return c.RES;});
     out.opciones.forEach(function(o,i){if(!o.habilitado)return;var sectors=items[i].sectors,detalle=gap.gaps.filter(function(g){return g.tipo==='parcial'&&sectors.has(g.sector.slice(-2));}).map(function(g){return g.texto.replace(/^⚠ /,'');});
       // Fechas por sector: sectores excluidos (cuentan como parcial) y sectores con fecha distinta (solo detalle).
       var fs=pubFechasSector(district.fechasSector,district.excluidos,sectors),extra={parcial:detalle.length>0||!!(fs&&fs.excluidos.length),parcialDetalle:detalle.concat(fs?fs.excluidos.concat(fs.detalle):[])};
       if(fs){extra.antes=fs.antes;extra.despues=fs.despues;}
-      out.payloads[o.code]=pubPayload(o.code,rows.filter(function(r){return r.polygon===o.code;}),key,includeObs,extra);});
+      var selected=rows.filter(function(r){return r.polygon===o.code;});
+      out.payloads[o.code]=pubPayload(o.code,selected,key,includeObs,extra);
+      out.reportes[o.code]=pubReporteDatos(source,POLYGONS.find(function(p){return p.code===o.code;}),o.code,selected,c2files().filter(function(f){return f.polygon===o.code;}));});
   }finally{
     if(district)district.board=board;POLY_ACTIVE=active;FILTER_STATE=filters;
     filterNodes.forEach(function(el,i){el.value=values[i];});$('c2NoAplica').checked=noAplica;
@@ -2824,7 +2886,7 @@ async function pubPost(url,payload){
   return data;
 }
 (function(){
-  var opciones=[],payloads={},totales={},url='',busy=false,warnings='',consulta=0;
+  var opciones=[],payloads={},reportes={},totales={},url='',busy=false,warnings='',consulta=0;
   function panel(){ $('pubPanel').classList.remove('hidden');$('pubSettings').setAttribute('aria-expanded','true'); }
   // Recuperar la preferencia antes de guardar la clave en el almacenamiento elegido.
   try{$('pubRemember').checked=!!(localStorage.getItem('vc-cmp-pub-key')||'').trim();$('pubUrl').value=localStorage.getItem('vc-cmp-pub-url')||'';$('pubKey').value=sessionStorage.getItem('vc-cmp-pub-key')||localStorage.getItem('vc-cmp-pub-key')||'';}catch(e){}
@@ -2865,11 +2927,12 @@ async function pubPost(url,payload){
     opciones=[];payloads={};totales={};warnings='';
     try{
       var parsed=new URL(url);if(parsed.protocol!=='https:'||!parsed.pathname.endsWith('/exec'))throw new Error('La URL debe usar HTTPS y terminar en /exec.');
-      var prep=pubPreparar(key,POLY_ACTIVE?POLY_ACTIVE.code:'',$('pubObs').checked);opciones=prep.opciones;payloads=prep.payloads;totales=prep.totales;warnings=prep.warnings;
+      var prep=pubPreparar(key,POLY_ACTIVE?POLY_ACTIVE.code:'',$('pubObs').checked);opciones=prep.opciones;payloads=prep.payloads;reportes=prep.reportes;totales=prep.totales;warnings=prep.warnings;
     }catch(e){opciones=[];$('pubStatus').textContent=e.message;}
     finally{c2render();}
     if(opciones.length){render();$('pubDialog').showModal();}
   });
+  $('pubDialog').addEventListener('close',function(){reportes={};});
   $('pubCancel').addEventListener('click',function(){if(!busy)$('pubDialog').close();});
   $('pubDialog').addEventListener('cancel',function(e){if(busy)e.preventDefault();});
   $('pubSend').addEventListener('click',async function(){
@@ -2877,7 +2940,8 @@ async function pubPost(url,payload){
     var elegidos=pubElegidos(opciones,marcados()).filter(function(code){return payloads[code]&&!pubSeguro(payloads[code].totales);});
     if(busy||!elegidos.length)return;var publicados=0;busy=true;this.disabled=true;$('pubCancel').disabled=true;$('pubList').querySelectorAll('input').forEach(function(x){x.disabled=true;});
     try{for(var n=0;n<elegidos.length;n++){var p=payloads[elegidos[n]];
-      try{await pubPost(url,p);guardarUltima(p);publicados++;status('Publicado: '+p.poligono+' · '+p.filas.length+' filas · '+new Date().toLocaleString('es-PE'));}
+      try{await pubPost(url,p);guardarUltima(p);publicados++;status('Publicado: '+p.poligono+' · '+p.filas.length+' filas · '+new Date().toLocaleString('es-PE'));
+        var aviso=await pubSubirReporte(url,p,reportes[p.poligono]);if(aviso)status('⚠ '+aviso);}
       catch(e){status('Error: '+p.poligono+' · '+e.message+(n<elegidos.length-1?' · No se enviaron: '+elegidos.slice(n+1).join(', '):''));break;}}}
     finally{busy=false;$('pubCancel').disabled=false;opciones=[];$('pubDialog').close();if(publicados)pendRecargar();}
   });
@@ -3387,7 +3451,7 @@ function loteResultado(code,prep){
   if(!o)return {code:code,estado:'omitido',motivo:'sin cruce: falta el Excel del revisor'};
   if(!o.habilitado)return {code:code,estado:'omitido',motivo:/^faltan S/.test(o.motivo)?'sectores incompletos: '+o.motivo:o.motivo};
   if(!p||!t||!t.filas)return {code:code,estado:'omitido',motivo:'sin cruce: el Excel del revisor no tiene filas revisadas que cruzar'};
-  return {code:code,estado:'listo',parcial:!!p.parcial,detalle:(p.parcialDetalle||[]).slice(),pendientes:pubPendientes(p.totales),desglose:pubDesglose(p.totales),filas:t.filas,antes:p.antes,despues:p.despues,publicado:false,intentos:0,payload:p};
+  return {code:code,estado:'listo',parcial:!!p.parcial,detalle:(p.parcialDetalle||[]).slice(),pendientes:pubPendientes(p.totales),desglose:pubDesglose(p.totales),filas:t.filas,antes:p.antes,despues:p.despues,publicado:false,intentos:0,payload:p,reporte:prep.reportes&&prep.reportes[code]};
 }
 /* Reintento con espera creciente: el bloqueo de 30 s del Apps Script hace fallar publicarPendientes si hay otra ejecución.
    Un error de clave no se reintenta. Devuelve {ok,intentos,error}; nunca lanza. */
@@ -3404,16 +3468,19 @@ async function loteReintento(fn,opciones){
 /* Bucle del lote: UNO POR UNO. Un polígono con error queda en el resumen y no detiene a los demás.
    procesar(code) → resultado de loteResultado · publicar(payload) → promesa (o null para solo comparar).
    Solo se guarda la línea de resumen de cada polígono; filas y payload se sueltan. */
-async function loteCorrer(codes,procesar,publicar,progreso,reintento){
+async function loteCorrer(codes,procesar,publicar,progreso,reintento,subirReporte){
   var out=[];
   for(var n=0;n<codes.length;n++){var code=codes[n],r;
     if(progreso)progreso(n,codes.length,code,'comparando');
     try{r=await procesar(code);
       if(r.estado==='listo'&&publicar&&!(r.sinDescargar&&r.sinDescargar.length)){if(progreso)progreso(n,codes.length,code,'publicando');
         var payload=r.payload,t=await loteReintento(function(){return publicar(payload);},Object.assign({aviso:function(i,ms,msg){if(progreso)progreso(n,codes.length,code,'reintento '+i+' en '+Math.round(ms/1000)+' s ('+msg+')');}},reintento||{}));
-        r.intentos=t.intentos;if(t.ok)r.publicado=true;else{r.estado='omitido';r.motivo='error al publicar tras '+t.intentos+' intento'+(t.intentos===1?'':'s')+': '+t.error;}}
+        r.intentos=t.intentos;if(t.ok){
+          r.publicado=true;
+          if(subirReporte){var aviso=await subirReporte(payload,r.reporte);if(aviso)r.aviso=[r.aviso,aviso].filter(Boolean).join(' · ');}
+        }else{r.estado='omitido';r.motivo='error al publicar tras '+t.intentos+' intento'+(t.intentos===1?'':'s')+': '+t.error;}}
     }catch(e){r={code:code,estado:'omitido',motivo:'error: '+(txt(e&&e.message)||'desconocido')};}
-    if(r)delete r.payload;out.push(r);r=null;
+    if(r){delete r.payload;delete r.reporte;}out.push(r);r=null;
     await new Promise(function(resolve){setTimeout(resolve,0);});
   }
   if(progreso)progreso(codes.length,codes.length,'','fin');
@@ -3564,7 +3631,7 @@ async function loteIndice(folder){
     var hechos=await loteCorrer(elegidos,
       L.modo==='manual'?function(code){var r=loteResultado(code,L.prep);delete L.prep.payloads[code];return r;}:procesarDrive,
       publicar?function(payload){payload.k=key;return pubPost(url,payload);}:null,
-      function(n,total,code,fase){$('loteProgress').value=n;$('loteProgressText').textContent=fase==='fin'?total+' de '+total+' · Lote terminado.':'Polígono '+(n+1)+' de '+total+' · '+code+' · '+fase;});
+      function(n,total,code,fase){$('loteProgress').value=n;$('loteProgressText').textContent=fase==='fin'?total+' de '+total+' · Lote terminado.':'Polígono '+(n+1)+' de '+total+' · '+code+' · '+fase;},null,function(p,reporte){return pubSubirReporte(url,p,reporte);});
     var host=$('loteResumen');host.textContent='';linea(host,'Resumen · '+DISTRICTS[CUR].name+' · UBIGEO '+L.ubigeo);
     loteResumen(hechos.concat(previos)).lineas.forEach(function(t){linea(host,t);});
     // Lo ya recorrido no se vuelve a enviar: hay que buscar de nuevo para repetir.
