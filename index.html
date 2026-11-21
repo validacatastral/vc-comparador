@@ -822,21 +822,27 @@ var CAMPOS_VALIDADOR = {
     observados:{CON:['Código De Actividad Económica (CIIU)']}, relacionados:{UA:['Código De Uso','Descripción Del Uso']}},
   VAL_USO_PISO:{level:'CRC', fi:'FI.25.06',
     observados:{UA:['Código De Uso','Descripción Del Uso','Clasificación Del Predio','Predio Catastral En'],CON:[]}, relacionados:{CON:['N° Piso']}},
-  VAL_PRODUCTO:{level:'CRC', fi:'',   /* "Verificar producto de obra complementaria"; MEP, Unidad de Medida, Código, Descripción, ECS y ECC cuentan como otro campo */
+  /* Sin relacionados a propósito (revisión Comas): un relacionado cuenta como acierto (✔ con APLICA), y estos campos NO resuelven
+     la observación por sí solos → deben dar ◐ otro campo (APLICA) o ✔ CAMBIÓ (OTRO CAMBIO).
+     VAL_PRODUCTO: MEP, Unidad de Medida, Código, Descripción, ECS y ECC no corrigen el producto total.
+     VAL_COND_PREDIO_EN: cambiar el uso (Código / Descripción Del Uso) no corrige la clasificación vs predio catastral en.
+     (VAL_USO_CIIU conserva sus relacionados de uso para no alterar Independencia.) */
+  VAL_PRODUCTO:{level:'CRC', fi:'',   /* "Verificar producto de obra complementaria" */
     observados:{OBR:['Producto Total']}, relacionados:{}},
   VAL_COND_PREDIO_EN:{level:'CRC', fi:'FI.24.03',   /* "clasificación del predio no coincide con predio catastral en" */
-    observados:{UA:['Clasificación Del Predio','Predio Catastral En']}, relacionados:{UA:['Código De Uso','Descripción Del Uso']}}
+    observados:{UA:['Clasificación Del Predio','Predio Catastral En']}, relacionados:{}}
 };
 /* CAMPOS_POR_FI: mapa según la regla FI citada en el mensaje del validador (una hoja puede traer varias reglas, unidas con " | ").
    Si el mensaje cita uno o más FI de esta tabla, el mapa de la fila es la unión de esos mapas.
    'validadores' = hojas con mapa propio que toman este FI; una hoja sin mapa propio lo toma siempre; las demás conservan su mapa. */
 var CAMPOS_POR_FI = {
-  'FI.29.09':{level:'CRC+PISO', fi:'FI.29.09', validadores:['VAL_CATEGORIAS-AREAS'],   /* ECC y categorías constructivas; ECS NO es parte de la regla → otro campo */
+  'FI.29.09':{level:'CRC+PISO', fi:'FI.29.09', validadores:['VAL_CATEGORIAS-AREAS'],   /* ECC y categorías constructivas. ECS (estado de conservación) NO es parte de la regla:
+                                                                                         fuera de relacionados para que solo-ECS dé ◐ (APLICA) / ✔ CAMBIÓ (OTRO CAMBIO) */
     observados:{CON:['ECC','Muros y Columna','Techo','Puertas y Ventanas']}, relacionados:{CON:['N° Piso']}},
   'FI.31.02':{level:'CRC+PISO', fi:'FI.31.02', validadores:['VAL_CATEGORIAS-AREAS'],   /* área construida: igual que VAL_CATEGORIAS-AREAS */
     observados:{CON:['Área Verificada']}, relacionados:{CON:['Muros y Columna','Techo','Puertas y Ventanas','N° Piso']}},
-  'FI.24.03':{level:'CRC', fi:'FI.24.03', validadores:['VAL_COND_PREDIO_EN'],
-    observados:{UA:['Clasificación Del Predio','Predio Catastral En']}, relacionados:{UA:['Código De Uso','Descripción Del Uso']}}
+  'FI.24.03':{level:'CRC', fi:'FI.24.03', validadores:['VAL_COND_PREDIO_EN'],   /* igual que VAL_COND_PREDIO_EN: el uso cuenta como otro campo */
+    observados:{UA:['Clasificación Del Predio','Predio Catastral En']}, relacionados:{}}
 };
 var C2_MAP = CAMPOS_VALIDADOR;
 

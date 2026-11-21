@@ -74,7 +74,10 @@ console.log('ok g · VAL_PRODUCTO Producto Total → '+g.result+' · solo MEP �
 // (h) VAL_COND_PREDIO_EN cambia Predio Catastral En → ✔
 var h=run([ctx('UA',['Predio Catastral En'])],fila('VAL_COND_PREDIO_EN','APLICA','La clasificación del predio no coincide con predio catastral en (FI.24.03)'));
 assert.strictEqual(h.result,'✔ VERIFICADO');
-console.log('ok h · VAL_COND_PREDIO_EN Predio Catastral En → '+h.result);
+var MCP='La clasificación del predio no coincide con predio catastral en (FI.24.03)';
+var h2=run([ctx('UA',['Código De Uso'])],fila('VAL_COND_PREDIO_EN','APLICA',MCP)), h3=run([ctx('UA',['Descripción Del Uso'])],fila('VAL_COND_PREDIO_EN','OTRO CAMBIO',MCP));
+assert.strictEqual(h2.result,'◐ CAMBIÓ OTRO CAMPO');assert.strictEqual(h3.result,'✔ CAMBIÓ');
+console.log('ok h · VAL_COND_PREDIO_EN Predio Catastral En → '+h.result+' · solo uso: APLICA '+h2.result+' · OTRO CAMBIO '+h3.result);
 
 // (i) sufijo _N genérico
 assert.strictEqual(T.c2map('VAL_TITULARES_3'),T.M.VAL_TITULARES);
