@@ -2467,30 +2467,30 @@ function c2obrasFinal(board,code,soloProducto){
   });
   return {cumple:!out.length,txt:out.length?out.slice(0,3).join(', ')+(out.length>3?' +'+(out.length-3):''):'obras conformes'};
 }
-/* VAL_CRC: estructura de la edificación con todos los CRC del DESPUÉS (sin uso común 99/999) */
+/* VAL_CRC: misma lógica que VAL_CRC.html. Grupo = edificación (lote+edificación, 16 díg.); unidades por entrada+piso.
+   Se excluyen por campo los 99/999 (como el validador), no el CRC entero. */
 function c2crcFinal(board,code,msg){
   if(!code||code.length!==24)return null;
   var filas=c2filasDespues(board,'UA',code.substr(0,16));if(!filas||!filas.length)return null;
-  var ks=filas.map(function(f){return f.__crc;}).filter(function(k){return k.length===24&&!c2esComun(k);});
-  if(!ks.length)return null;
-  var soloSalto=/SALTO/.test(c2up(msg)),out=[];
-  var ent=Array.from(new Set(ks.map(function(k){return parseInt(k.substr(16,2),10);}))).sort(function(a,b){return a-b;});
-  if(!soloSalto&&ent[0]!==1)out.push('R1 (entrada no inicia en 01)');
-  for(var i=1;i<ent.length;i++)if(ent[i]!==ent[i-1]+1){out.push('R2 (entradas no correlativas)');break;}
-  var grupos={};ks.forEach(function(k){var g=k.substr(16,4);(grupos[g]=grupos[g]||[]).push(parseInt(k.substr(20,3),10));});
-  Object.keys(grupos).forEach(function(g){
-    var u=Array.from(new Set(grupos[g])).sort(function(a,b){return a-b;});
-    if(!soloSalto&&u[0]!==1)out.push('R4 (unidad no inicia en 001, entrada-piso '+g+')');
-    for(var j=1;j<u.length;j++)if(u[j]!==u[j-1]+1){out.push('R5 (unidades no correlativas, entrada-piso '+g+')');break;}
-  });
-  if(!soloSalto){
-    var pisos=ks.map(function(k){return parseInt(k.substr(18,2),10);});
-    var sot=pisos.filter(function(p){return p>=81&&p<=89;});
-    if(sot.length&&sot.indexOf(81)<0)out.push('R6 (sótano no inicia en 81)');
-    if(ks.length===1&&pisos[0]!==1&&!(pisos[0]>=81))out.push('R3 (edificación de una fila con piso distinto de 01)');
+  var ks=filas.map(function(f){return f.__crc;}).filter(function(k){return k.length===24;});if(!ks.length)return null;
+  function nueve(v){return /^9+$/.test(v);} function sotano(v){return /^8[1-9]$/.test(v);}
+  var soloSalto=/SALTO/.test(c2up(msg)),out=[],ent=code.substr(16,2),pis=code.substr(18,2),uni=code.substr(20,3);
+  var o=Array.from(new Set(ks.map(function(k){return k.substr(16,2);}).filter(function(e){return !nueve(e);}))).sort();
+  if(!nueve(ent))for(var w=0;w<o.length;w++){var esp=String(w+1).padStart(2,'0');if(o[w]!==esp){out.push(w===0?'R1 (entrada no inicia en 01)':'R2 (entradas no correlativas: falta '+esp+')');break;}}
+  var c=ks.filter(function(k){return !nueve(k.substr(16,2));});
+  if(!soloSalto&&!nueve(pis)&&!sotano(pis)&&c.length===1&&pis!=='01')out.push('R3 (edificación de una fila con piso distinto de 01)');
+  if(!nueve(uni)){
+    var u=Array.from(new Set(ks.filter(function(k){return k.substr(16,4)===ent+pis;}).map(function(k){return k.substr(20,3);}).filter(function(x){return !nueve(x);}))).sort();
+    if(!soloSalto&&u[0]!=='001')out.push('R4 (unidad no inicia en 001)');
+    var x=u.indexOf(uni);
+    if(x>0&&parseInt(uni,10)-parseInt(u[x-1],10)!==1)out.push('R5 (unidades no correlativas: '+u[x-1]+' → '+uni+')');
+    else if(x===0&&parseInt(uni,10)>1&&soloSalto)out.push('R5 (unidades inician en '+uni+')');
   }
-  out=Array.from(new Set(out));
-  return {cumple:!out.length,txt:out.length?out.slice(0,3).join(', ')+(out.length>3?' +'+(out.length-3):''):'estructura del CRC conforme'};
+  if(!soloSalto&&sotano(pis)){
+    var sots=Array.from(new Set(ks.map(function(k){return k.substr(18,2);}).filter(sotano))).sort();
+    if(!(sots[0]==='81'&&sots.every(function(v,n){return parseInt(v,10)===81+n;})))out.push('R6 (sótano no inicia en 81 o no es correlativo)');
+  }
+  return {cumple:!out.length,txt:out.length?out.join(', '):'estructura del CRC conforme'};
 }
 function c2estadoFinal(board,row,code){
   var v=c2mapKey(row.validator);if(!code)return null;

@@ -52,5 +52,17 @@ var bien=[E+'0101001'+'5',E+'0101002'+'5',E+'0102001'+'5'].map(function(k){retur
 r=run([ctx('UA',HUA,bien)],fila('VAL_CRC',E+'01010015','APLICA','Verificar estructura del CRC (FI.02.04)'));
 assert.strictEqual(r.result,'✔ CUMPLE EN SICUN',r.result);console.log('ok crc correlativo → ✔');
 var salto=[E+'0101001'+'5',E+'0101003'+'5'].map(function(k){return [k,'010101','CASA HABITACION','PREDIO INDEPENDIENTE'];});
-r=run([ctx('UA',HUA,salto)],fila('VAL_CRC',E+'01010015','APLICA','Salto de numeración (FI.02.04)'));
+r=run([ctx('UA',HUA,salto)],fila('VAL_CRC',E+'01010035','APLICA','Salto de numeración (FI.02.04)'));   /* el salto se marca en la unidad siguiente al hueco (003), como VAL_CRC.html */
 assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN',r.result);assert(/R5/.test(r.note),r.note);console.log('ok crc salto → ⚠ R5');
+// VAL_CRC como el validador: entrada 99 / unidad 999 se excluyen por campo; sótanos 81 correlativos
+var conComun=[E+'0101001'+'5',E+'0101002'+'5',E+'9999999'+'5'].map(function(k){return [k,'010101','CASA HABITACION','PREDIO INDEPENDIENTE'];});
+r=run([ctx('UA',HUA,conComun)],fila('VAL_CRC',E+'01010025','APLICA','Verificar estructura del CRC (FI.02.04)'));
+assert.strictEqual(r.result,'✔ CUMPLE EN SICUN',r.result);console.log('ok crc con 99/999 excluidos → ✔');
+var sot=[E+'0101001'+'5',E+'0182001'+'5'].map(function(k){return [k,'010101','CASA HABITACION','PREDIO INDEPENDIENTE'];});
+r=run([ctx('UA',HUA,sot)],fila('VAL_CRC',E+'01820015','APLICA','Verificar estructura del CRC (FI.02.04)'));
+assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN',r.result);assert(/R6/.test(r.note),r.note);console.log('ok crc sótano 82 sin 81 → ⚠ R6');
+// POSEEDOR + OTROS es válido (R5 solo aplica a POSESIÓN sin POSEEDOR)
+var Tt=vm.runInNewContext(stubs+src+'\n({reglas:c2titularReglas});');
+assert.strictEqual(JSON.stringify(Tt.reglas({condiciondeltitular:'POSEEDOR',formadeadquisicion:'OTROS',tipodedocumento:''},K)),'[]');
+assert.strictEqual(JSON.stringify(Tt.reglas({condiciondeltitular:'PROPIETARIO',formadeadquisicion:'POSESIÓN',tipodedocumento:''},K)),JSON.stringify(['R5']));
+console.log('ok titular POSEEDOR+OTROS → sin error · PROPIETARIO+POSESIÓN → R5');
