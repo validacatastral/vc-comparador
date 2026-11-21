@@ -10,7 +10,7 @@ var src=[cut('var CAMPOS_VALIDADOR','/* ============ Configuración de reportes'
   cut('function c2bucket','function c2summary'),cut('var PUB_LABELS','/* Prepara la publicación')].join('\n');
 var stubs='var opts={normalize:true,tolerance:true,ignoreTramite:true};var POLY_ACTIVE=null, BOARD=[], FILES=[];function BOARD_(){return BOARD;}function c2files(){return FILES;}function gapNow(){return null;}'+
   'function filterActive(){return false;}function filterPass(){return true;}function mzKeyOf(k){return k.slice(6,8)+"|"+k.slice(8,11);}function $(id){return {checked:true,value:""};}';
-var T=vm.runInNewContext(stubs+src+'\n({set:function(b,f){BOARD=b;FILES=f;},c2rows:c2rows,c2map:c2map,c2mapRow:c2mapRow,c2val:c2val,M:CAMPOS_VALIDADOR,FI:CAMPOS_POR_FI});');
+var T=vm.runInNewContext(stubs+src+'\n({set:function(b,f){BOARD=b;FILES=f;},c2rows:c2rows,c2map:c2map,c2mapRow:c2mapRow,c2val:c2val,M:CAMPOS_VALIDADOR,FI:CAMPOS_POR_FI,pubResultado:pubResultado});');
 
 var KEY='Código de Referencia Catastral', PISO='N° Piso', CODE='150112190370070101010015';
 function ctx(id,cambios,headersB,rowB){var a={},b=Object.assign({},rowB||{});a[KEY]=CODE;a[PISO]='1';b[KEY]=CODE;b[PISO]='1';
@@ -87,3 +87,9 @@ assert.strictEqual(T.c2map('VAL_CATEGORIAS-AREAS_2'),T.M['VAL_CATEGORIAS-AREAS']
 assert.strictEqual(T.c2map('VAL_USO_CIIU_2'),T.M.VAL_USO_CIIU);
 assert.strictEqual(T.c2map('VAL_INEXISTENTE_2'),null);
 console.log('ok i · VAL_TITULARES_3/4, CATEGORIAS-AREAS_2, USO_CIIU_2 → mapa base');
+
+// (j) aviso ◐ publicado usa el mapa de la fila (FI del mensaje), no el del nombre de hoja
+var j=run([ctx('CON',['ECS'])],fila('VAL_CATEGORIAS-AREAS_2','APLICA',M2909)), pj=T.pubResultado(j);
+assert.strictEqual(j.result,'◐ CAMBIÓ OTRO CAMPO');
+assert(/se esperaba: CON · ECC/.test(pj),pj);assert(!/Área Verificada/.test(pj),pj);
+console.log('ok j · pubResultado FI.29.09 solo ECS → '+pj);
