@@ -1,4 +1,4 @@
-/* Fila marcada OTRO CAMBIO: cuenta CUALQUIER cambio real de otra unidad del lote (◐ otra unidad), salvo ruido de SICUN
+/* Fila marcada OTRO CAMBIO: cuenta CUALQUIER cambio real de otra unidad del lote (✔ CAMBIÓ (otra unidad del lote), verificado), salvo ruido de SICUN
    ('% de Bien Común' vacío ↔ 0, trámite). APLICA sigue exigiendo los campos esperados del validador (#26).
    Uso: node tests/otro-cambio-lote.test.js */
 'use strict';
@@ -10,7 +10,7 @@ var src=[cut('var CAMPOS_VALIDADOR','/* ============ Configuración de reportes'
   cut('var CRC_PARTS','function crcHtml'),cut('function c2norm','function c2state'),cut('function c2keys','function c2summary')].join('\n');
 var stubs='var opts={normalize:true,tolerance:true,ignoreTramite:true};var POLY_ACTIVE=null, BOARD=[], FILES=[];function BOARD_(){return BOARD;}function c2files(){return FILES;}function gapNow(){return null;}'+
   'function filterActive(){return false;}function filterPass(){return true;}function mzKeyOf(k){return k.slice(6,8)+"|"+k.slice(8,11);}function $(id){return {checked:true,value:""};}';
-var T=vm.runInNewContext(stubs+src+'\n({set:function(b,f){BOARD=b;FILES=f;},c2rows:c2rows,compareCtx:compareCtx,OTRA:C2_OTRA_UNIDAD});');
+var T=vm.runInNewContext(stubs+src+'\n({set:function(b,f){BOARD=b;FILES=f;},c2rows:c2rows,compareCtx:compareCtx,OTRA:C2_OTRO_CAMBIO_LOTE,bucket:c2bucket});');
 
 var KEY='Código de Referencia Catastral', USO='Código De Uso', BC='% de Bien Común - Terreno Legal';
 var HUA=[KEY,USO,'Tipo de Interior',BC];
@@ -29,7 +29,8 @@ var L='15011068044006', U1=L+'0102010015', U2=L+'0101010015';
 // (a) OTRO CAMBIO + otra unidad cambia un campo no esperado (Fecha Construcción) → ◐ otra unidad
 var r=run(board([unidad(U1),unidad(U2)],[unidad(U1),unidad(U2,{fecha:'2015-05-01'})]),[fila(U1,'OTRO CAMBIO')]);
 assert.strictEqual(r[0].result,T.OTRA,'a: '+r[0].result);assert(r[0].otraUnidad.indexOf(U2)>=0&&/Fecha Construcción/.test(r[0].otraUnidad),r[0].otraUnidad);
-console.log('ok a · OTRO CAMBIO + otra unidad cambia fecha → ◐ · '+r[0].otraUnidad);
+assert.strictEqual(T.bucket(r[0].result),0,'a bucket verificado');
+console.log('ok a · OTRO CAMBIO + otra unidad cambia fecha → ✔ CAMBIÓ (otra unidad) · '+r[0].otraUnidad);
 // (b) APLICA con el mismo cambio → sigue ⚠ (regla de campos esperados intacta)
 r=run(board([unidad(U1),unidad(U2)],[unidad(U1),unidad(U2,{fecha:'2015-05-01'})]),[fila(U1,'APLICA')]);
 assert.strictEqual(r[0].result,'⚠ SIN CAMBIO EN SICUN','b: '+r[0].result);
@@ -45,4 +46,4 @@ console.log('ok d · OTRO CAMBIO + lote sin cambios → ⚠');
 // (e) OTRO CAMBIO + otra unidad borra Tipo de Interior → ◐ (cambio real)
 r=run(board([unidad(U1),unidad(U2)],[unidad(U1),unidad(U2,{tint:''})]),[fila(U1,'OTRO CAMBIO')]);
 assert.strictEqual(r[0].result,T.OTRA,'e: '+r[0].result);
-console.log('ok e · OTRO CAMBIO + otra unidad cambia tipo de interior → ◐');
+console.log('ok e · OTRO CAMBIO + otra unidad cambia tipo de interior → ✔ CAMBIÓ (otra unidad)');
