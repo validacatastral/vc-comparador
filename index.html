@@ -796,7 +796,7 @@ input, select, textarea, button {max-width:100%;}
    Claves de reporte: UA, CON (rep_CONS), OBR (rep_OBC), REC (rep_RECAP), TIT, ING; CRC = componentes del código.
    Un reporte en observados con lista vacía (CON:[]) cuenta solo renglones agregados/retirados.
    Nombres contrastados con las cabeceras SICUN del 14/11/2026; al comparar se ignoran mayúsculas, tildes, espacios y signos.
-   VAL_TITULARES cubre VAL_TITULARES_1/2/3 y VAL_CATEGORIAS-AREAS cubre VAL_CATEGORIAS-AREAS_2. */
+   Sufijo _N genérico: VAL_X_<número> usa el mapa de VAL_X (VAL_TITULARES_1..4, VAL_CATEGORIAS-AREAS_2, …). */
 var CAMPOS_VALIDADOR = {
   VAL_CRC:{level:'CRC', fi:'FI.02.04',
     observados:{CRC:['Sector','Manzana','Lote','Edificación','Entrada','Piso','Unidad']}, relacionados:{UA:['Tipo de Interior','Número de Interior']}},   /* "Inconsistencia por estructura" se corrige vía interior */
@@ -821,7 +821,22 @@ var CAMPOS_VALIDADOR = {
   VAL_USO_CIIU:{level:'CRC+PISO', fi:'FI.32.03',
     observados:{CON:['Código De Actividad Económica (CIIU)']}, relacionados:{UA:['Código De Uso','Descripción Del Uso']}},
   VAL_USO_PISO:{level:'CRC', fi:'FI.25.06',
-    observados:{UA:['Código De Uso','Descripción Del Uso','Clasificación Del Predio','Predio Catastral En'],CON:[]}, relacionados:{CON:['N° Piso']}}
+    observados:{UA:['Código De Uso','Descripción Del Uso','Clasificación Del Predio','Predio Catastral En'],CON:[]}, relacionados:{CON:['N° Piso']}},
+  VAL_PRODUCTO:{level:'CRC', fi:'',   /* "Verificar producto de obra complementaria"; MEP, Unidad de Medida, Código, Descripción, ECS y ECC cuentan como otro campo */
+    observados:{OBR:['Producto Total']}, relacionados:{}},
+  VAL_COND_PREDIO_EN:{level:'CRC', fi:'FI.24.03',   /* "clasificación del predio no coincide con predio catastral en" */
+    observados:{UA:['Clasificación Del Predio','Predio Catastral En']}, relacionados:{UA:['Código De Uso','Descripción Del Uso']}}
+};
+/* CAMPOS_POR_FI: mapa según la regla FI citada en el mensaje del validador (una hoja puede traer varias reglas, unidas con " | ").
+   Si el mensaje cita uno o más FI de esta tabla, el mapa de la fila es la unión de esos mapas.
+   'validadores' = hojas con mapa propio que toman este FI; una hoja sin mapa propio lo toma siempre; las demás conservan su mapa. */
+var CAMPOS_POR_FI = {
+  'FI.29.09':{level:'CRC+PISO', fi:'FI.29.09', validadores:['VAL_CATEGORIAS-AREAS'],   /* ECC y categorías constructivas; ECS NO es parte de la regla → otro campo */
+    observados:{CON:['ECC','Muros y Columna','Techo','Puertas y Ventanas']}, relacionados:{CON:['N° Piso']}},
+  'FI.31.02':{level:'CRC+PISO', fi:'FI.31.02', validadores:['VAL_CATEGORIAS-AREAS'],   /* área construida: igual que VAL_CATEGORIAS-AREAS */
+    observados:{CON:['Área Verificada']}, relacionados:{CON:['Muros y Columna','Techo','Puertas y Ventanas','N° Piso']}},
+  'FI.24.03':{level:'CRC', fi:'FI.24.03', validadores:['VAL_COND_PREDIO_EN'],
+    observados:{UA:['Clasificación Del Predio','Predio Catastral En']}, relacionados:{UA:['Código De Uso','Descripción Del Uso']}}
 };
 var C2_MAP = CAMPOS_VALIDADOR;
 
@@ -2298,8 +2313,27 @@ function gapRender(){
 function c2norm(s){return stripAccents(txt(s)).toLowerCase().replace(/[–—]/g,'-').replace(/\s+/g,' ').trim();}
 function c2header(s){return c2norm(s).replace(/\}+\s*$/,'').trim();}
 function c2clean(s){return txt(s).trim().replace(/\}+\s*$/,'').trim();}
-function c2val(name){var v=txt(name).trim().toUpperCase().replace(/\s+/g,' '); if(!/^VAL_CATEGORIAS-AREAS(?:_\d+)?$/i.test(v))v=v.replace(/-[^-]+$/,'');return v.replace(/^VAL_TITULARES_[123]$/,'VAL_TITULARES');}
-function c2map(v){return C2_MAP[v] || (/^VAL_CATEGORIAS-AREAS(?:_\d+)?$/.test(v)?C2_MAP['VAL_CATEGORIAS-AREAS']:null);}
+function c2val(name){var v=txt(name).trim().toUpperCase().replace(/\s+/g,' '); if(!/^VAL_CATEGORIAS-AREAS(?:_\d+)?$/i.test(v))v=v.replace(/-[^-]+$/,'');return v.replace(/^VAL_TITULARES_[1-4]$/,'VAL_TITULARES');}
+function c2map(v){var m=/^(VAL_.+?)_\d+$/.exec(v);return C2_MAP[v] || (m&&C2_MAP[m[1]]) || null;}   /* VAL_X_<número> → mapa de VAL_X */
+function c2mapKey(v){var m=/^(VAL_.+?)_\d+$/.exec(v);return C2_MAP[v]?v:m&&C2_MAP[m[1]]?m[1]:'';}
+/* Mapa de una fila: por FI del mensaje (CAMPOS_POR_FI, unión si cita varios) o, si no, por nombre de hoja. */
+function c2mapRow(row){
+  var own=c2mapKey(row.validator), fis=Array.from(new Set((txt(row.message).match(/F[IB]\.\d{2}\.\d{2}/gi)||[]).map(function(f){return f.toUpperCase();})));
+  var maps=fis.map(function(f){return CAMPOS_POR_FI[f];}).filter(function(m){return m&&(!own||m.validadores.indexOf(own)>=0);});
+  if(!maps.length)return c2map(row.validator);
+  if(maps.length===1)return maps[0];
+  var out={level:maps.every(function(m){return m.level===maps[0].level;})?maps[0].level:'CRC',fi:maps.map(function(m){return m.fi;}).join(' | '),observados:{},relacionados:{}};
+  maps.forEach(function(m){['observados','relacionados'].forEach(function(kind){Object.keys(m[kind]||{}).forEach(function(rep){var list=out[kind][rep]||(out[kind][rep]=[]);
+    m[kind][rep].forEach(function(f){if(!list.some(function(x){return c2campo(x)===c2campo(f);}))list.push(f);});});});});
+  return out;
+}
+/* VAL_USO_CIIU: uso 020304 (comercial no identificado) en el DESPUÉS no lleva CIIU → sugerir NO APLICA (no cambia el resultado). */
+var USO_SIN_CIIU='020304';
+function c2usoDespues(board,code){
+  var c=board.find(function(x){return x.preset&&x.preset.id==='UA'&&x.B&&x.B.headers;});if(!c||!code)return '';
+  var h=c.B.headers.find(function(x){return c2campo(x)==='codigodeuso';});if(!h)return '';
+  var r=c.B.rows.find(function(x){return normKey(x[c.preset.key])===code;});return r?txt(r[h]).trim():'';
+}
 function c2state(s){s=c2clean(s).toUpperCase().replace(/\s+/g,' ');return s==='OTROS CAMBIOS'?'OTRO CAMBIO':s;}
 function c2technician(value,sheet){
   var name=txt(value).replace(/\s+/g,'').toUpperCase();
@@ -2561,7 +2595,7 @@ function c2rows(){
   var lados=null, huellas=null, lotCache={}, lotIdx=null;function lotMatch(l){if(!huellas)huellas=c2huellas(BOARD_());return lotCache[l]||(lotCache[l]=c2matchUnits(huellas.A,huellas.B,l));}
   var all=[];files.forEach(function(file){file.rows.forEach(function(row){
     if(row.noState||(!row.state||row.state==='PENDIENTE'))return;
-    var invalid=['APLICA','NO APLICA','OTRO CAMBIO'].indexOf(row.state)<0, code=c2resolve(row,keys), map=c2map(row.validator), level=map?map.level:(code.length===8?'LOTE':'CRC');
+    var invalid=['APLICA','NO APLICA','OTRO CAMBIO'].indexOf(row.state)<0, code=c2resolve(row,keys), map=c2mapRow(row), level=map?map.level:(code.length===8?'LOTE':'CRC');
     var lotUbigeos=code.length===8?new Set(keys.filter(function(k){return k.slice(6,8)===code.slice(0,2);}).map(function(k){return k.slice(0,6);})):null;
     var lotCode=code.length===8?(lotUbigeos.size===1?Array.from(lotUbigeos)[0]+code:''):code.slice(0,14);
     function sameLot(k){return code.length===8?k.slice(6,14)===code:(lotCode && k.slice(0,14)===lotCode);}
@@ -2624,6 +2658,7 @@ function c2rows(){
     var otra=null;if((status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
       if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
       if(otra)status=C2_OTRA_UNIDAD;}
+    if(status==='⚠ SIN CAMBIO EN SICUN'&&c2mapKey(row.validator)==='VAL_USO_CIIU'&&c2usoDespues(BOARD_(),code)===USO_SIN_CIIU)addNote('Sugerencia: debería ser NO APLICA (comercial no identificado no lleva CIIU)');
     if(split.otroPiso.length&&!(otra&&otra.otroPiso))addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
     var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch'||c2esDV(e);}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
     if(otra)campos=otra.campos.join(' | ');   /* campos de las OTRAS unidades (solo nombres) */
