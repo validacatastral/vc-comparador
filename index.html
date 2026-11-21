@@ -2581,6 +2581,15 @@ function c2lotIndex(board,events){
    texto = detalle con "Cambió otra unidad del lote: " delante (columna "Qué cambió"). Solo nombres de campo, nunca valores SICUN.
    esperado(e): solo cuentan los cambios de las otras unidades en los MISMOS campos esperados de la fila (reporte · campo, observados y relacionados);
    el detalle muestra solo esos campos. La renumeración no usa este filtro. */
+/* OTRO CAMBIO acepta cualquier cambio real de otra unidad del lote, salvo ruido de SICUN:
+   campos de trámite/IGNORE y '% de Bien Común' que solo pasa de vacío a 0 (recálculo automático). */
+function c2ruidoSicun(e){
+  if(IGNORE_ALWAYS.indexOf(e.field)>=0||TRAMITE.indexOf(e.field)>=0)return true;
+  if(/bien com/i.test(stripAccents(String(e.field||'')))){
+    var a=String(e.before==null?'':e.before).trim(),b=String(e.after==null?'':e.after).trim(),cero=/^0+([.,]0+)?$/;
+    if((a===''&&cero.test(b))||(b===''&&cero.test(a)))return true;}
+  return false;
+}
 function c2otraUnidad(idx,lot,code,esperado,otroPiso,floors){
   var x=idx&&lot?idx.get(lot):null;if(!x)return null;
   var own=code&&code.length===24?code:'';
@@ -2678,7 +2687,7 @@ function c2rows(){
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
     if(soloDV)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
     var otra=null;if((status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
-      if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
+      if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&!c2ruidoSicun(e);}:function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
       if(otra)status=C2_OTRA_UNIDAD;}
     if(status==='⚠ SIN CAMBIO EN SICUN'&&c2mapKey(row.validator)==='VAL_USO_CIIU'&&c2usoDespues(BOARD_(),code)===USO_SIN_CIIU)addNote('Sugerencia: debería ser NO APLICA (comercial no identificado no lleva CIIU)');
     if(split.otroPiso.length&&!(otra&&otra.otroPiso))addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
