@@ -345,7 +345,7 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 
 Hay 55 reglas activas del adjunto y tres reglas vigentes de titularidad recuperadas de main. Se prueban con y sin cambios. Para terreno sin construir y parque se evalúa únicamente R2. Un valor de predio catastral en vacío también incumple R2. Los demás tipos de predio conservan sus controles de clasificación y tipo de edificación.
 
-Cuando el Excel trae un CRC ilegible, el estado es «? NO ENCONTRADO». La nota de CRUCE_REVISOR dice «CRC ilegible en el Excel (no tiene 24 dígitos) — revisar el archivo». Los identificadores de lote de ocho dígitos siguen su cruce habitual.
+Cuando Excel trunca el CRC, se intenta reconstruirlo con las columnas catastrales. Una coincidencia única del código parcial permite cruzar la unidad normalmente. Si la unidad sigue sin identificarse, la fila se publica en Pendientes de atención como «? NO ENCONTRADO». La nota de CRUCE_REVISOR dice «CRC ilegible en el Excel (no tiene 24 dígitos) — revisar el archivo». Los identificadores de lote de ocho dígitos siguen su cruce habitual.
 
 Un código de regla explícito en el mensaje selecciona esa observación. Para el mensaje general de incoherencia entre clasificación y predio se mantienen R1–R3. Las demás observaciones del mismo registro pueden aparecer en «Ojo, además». VAL_PRODUCTO considera R1 y R3 (metrado y capacidad). El mensaje específico de MEP considera R5. Las dos hojas usan el mismo catálogo de obras.
 
@@ -365,7 +365,7 @@ Cuando falta una columna, C2 conserva la distinción entre dato ausente y celda 
 | Parque o terreno con uso distinto o con tipo de edificación | Con PREDIO INDEPENDIENTE cumple. Con otro valor o vacío solo corresponde R2. La prueba de R9 usa SUB ESTACIÓN. |
 | Predio independiente con once unidades | El conteo dejó de generar R7. |
 | Tanque elevado anterior al último piso | La fecha corresponde al validador de fechas. En obras permanece la prueba R7P para parapetos. |
-| CRC truncado, en notación científica o con ceros perdidos | El aviso de lectura sustituye las expectativas E1 y LON. La fila queda fuera de publicación. |
+| CRC truncado, en notación científica o con ceros perdidos | El aviso de lectura sustituye las expectativas E1 y LON. Si la reconstrucción falla, la fila cuenta como pendiente publicado. La nota de lectura queda en CRUCE_REVISOR. |
 | Obra 50 con producto 1 o MEP incorrecto | La nota contiene R1 o R5 y omite el código de obra de la ficha. |
 | Interior corregido y DV renombrado en piso 02 | La construcción de la unidad nueva está solo en piso 01. R6C deja la fila pendiente de publicación. |
 

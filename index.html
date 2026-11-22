@@ -2307,8 +2307,7 @@ function pubLoaded(present){var ok=new Set();Object.keys(present||{}).forEach(fu
 /* Sectores de un polígono que NO está en el universo, leídos del Excel del revisor (todas las filas, revisadas o no).
    Si hay códigos ilegibles no se puede saber si está completo: se informa cuántos. */
 function pubSectoresExcel(files){var sectors=new Set(),ilegibles=0;(files||[]).forEach(function(f){f.rows.forEach(function(r){
-  if(r.crcIlegible){ilegibles++;return;}
-  if(!r.numeric&&/^\d{24}$/.test(r.rawCode))sectors.add(r.rawCode.slice(6,8));else if(!r.numeric&&/^\d{8}$/.test(r.rawCode))sectors.add(r.rawCode.slice(0,2));else if(r.partial)sectors.add(r.partial.slice(0,2));else ilegibles++;});});return {sectors:sectors,ilegibles:ilegibles};}
+  if(!r.numeric&&/^\d{24}$/.test(r.rawCode))sectors.add(r.rawCode.slice(6,8));else if(!r.numeric&&!r.crcIlegible&&r.idLote!==false&&/^\d{8}$/.test(r.rawCode))sectors.add(r.rawCode.slice(0,2));else if(r.partial)sectors.add(r.partial.slice(0,2));else ilegibles++;});});return {sectors:sectors,ilegibles:ilegibles};}
 /* Seguro: nunca se publica un polígono si más del 50% de sus filas quedó "Inválido/incompleto" o "No encontrado". Devuelve el motivo o ''. */
 function pubSeguro(t){var malas=((t||{}).noEncontrado||0)+((t||{}).invalido||0);return t&&t.filas>0&&malas*2>t.filas?malas+' de '+t.filas+' inválidas o no encontradas':'';}
 /* Faltantes de descarga (Cargar desde Drive) que tocan a un polígono. descarga: [{sector:'SS',texto}] del distrito · sectors: Set('SS'). */
@@ -2328,10 +2327,10 @@ function pubElegidos(opciones,marcados){var set=new Set(marcados||[]);return (op
 /* Última publicación por polígono. lista: respuesta de GET ?api=pendientes → [{poligono,publicado,antes,despues,totales}].
    Pendientes = totales.pendientes, o sinCambio + noAplicaConCambio (igual que vc-pendientes). Devuelve {código:{fecha,pendientes,filas,antes,despues}}. */
 function pubUltimasApi(lista){if(!Array.isArray(lista))throw new Error('Formato de pendientes no reconocido.');var out={};function n(v){v=Number(v);return isFinite(v)&&v>=0?v:0;}
-  lista.forEach(function(x){if(!x||!txt(x.poligono).trim())return;var t=x.totales||{};out[txt(x.poligono).trim()]={fecha:txt(x.publicado).trim()||'sin fecha',pendientes:t.pendientes!=null?n(t.pendientes):n(t.sinCambio)+n(t.noAplicaConCambio!=null?t.noAplicaConCambio:t.noAplica)+n(t.sigueMal),filas:t.filas!=null?n(t.filas):null,antes:txt(x.antes).trim(),despues:txt(x.despues).trim(),desglose:t.sinCambio!=null?pubDesglose(t):''};});return out;}
+  lista.forEach(function(x){if(!x||!txt(x.poligono).trim())return;var t=x.totales||{};out[txt(x.poligono).trim()]={fecha:txt(x.publicado).trim()||'sin fecha',pendientes:t.pendientes!=null?n(t.pendientes):n(t.sinCambio)+n(t.noAplicaConCambio!=null?t.noAplicaConCambio:t.noAplica)+n(t.sigueMal)+n(t.crcIlegible),filas:t.filas!=null?n(t.filas):null,antes:txt(x.antes).trim(),despues:txt(x.despues).trim(),desglose:t.sinCambio!=null?pubDesglose(t):''};});return out;}
 /* Mismo criterio en lo nuevo y en la última publicación: pendientes = ⚠ + ℹ; los avisos ◐ se muestran aparte en el desglose. */
 function pubDesglose(t){function n(v){v=Number(v);return isFinite(v)&&v>=0?v:0;}t=t||{};return '⚠ '+n(t.sinCambio)+' · ℹ '+n(t.noAplicaConCambio!=null?t.noAplicaConCambio:t.noAplica)+' · ◐ '+n(t.otroCampo)+(n(t.sigueMal)?' · ◐ sigue mal '+n(t.sigueMal):'');}
-function pubPendientes(t){function n(v){v=Number(v);return isFinite(v)&&v>=0?v:0;}t=t||{};return n(t.sinCambio)+n(t.noAplicaConCambio)+n(t.sigueMal);}
+function pubPendientes(t){function n(v){v=Number(v);return isFinite(v)&&v>=0?v:0;}t=t||{};return n(t.sinCambio)+n(t.noAplicaConCambio)+n(t.sigueMal)+n(t.crcIlegible);}
 /* Texto de la última publicación: manda el servidor (api); si no respondió (api=null) se usa lo guardado en este navegador como respaldo. */
 function pubUltimaTexto(code,api,local){var u=api?api[code]:(local||{})[code],nota=api?'':' (respaldo de este navegador: el servidor no respondió)';
   if(!u)return 'Última publicación: '+(api?'nunca publicado':'sin registro'+nota);
@@ -3567,19 +3566,21 @@ function c2read(wb,name){
     if(state<0)file.totals.noState++;
     function index(names){return headers.findIndex(function(h){return names.indexOf(h)>=0;});}
     var columnaCRC=/crc|referenciacatastral/.test(rawHead[0])&&!/lote/.test(rawHead[0]);
-    var parts=[index(['sector']),index(['mz','manzana']),index(['lote']),index(['edifica','edificacion']),index(['entrada']),index(['piso']),index(['unidad'])];
+    var parts=[index(['sector']),index(['mz','manzana']),index(['lote']),index(['edif','edifica','edificacion']),index(['entrada']),index(['piso']),index(['unidad'])];
     for(var r=range.s.r+1;r<=range.e.r;r++){
       if([0,1,2].every(function(c){return !c2clean(display(r,c));}))continue;
       sheet.rows++;file.totals.valid++;
       var st=state<0?'':c2state(display(r,state)), observation=obs<0?'':c2clean(display(r,obs)), code=c2clean(display(r,0)), a=cell(r,0), numeric=(!!a&&a.t==='n'&&code.replace(/\D/g,'').length>=8)||/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)[eE][+-]?\d+$/.test(code);
       if(state>=0){if(!st||st==='PENDIENTE')file.totals.empty++;else {file.totals.reviewed++;if(st==='APLICA')file.totals.aplica++;else if(st==='NO APLICA')file.totals.no++;else if(st==='OTRO CAMBIO')file.totals.otro++;else file.totals.invalid++;}}
-      var crcIlegible=columnaCRC&&!/^\d{24}$/.test(code);
-      var partial=''; if(!crcIlegible && !numeric && !/^\d{24}$|^\d{8}$/.test(code) && parts.slice(0,3).every(function(i){return i>=0 && /^\d+$/.test(c2clean(display(r,i)));})){
-        var vals=parts.map(function(i,j){var v=i<0?'':c2clean(display(r,i));return v && /^\d+$/.test(v)?v.padStart([2,3,3,2,2,2,3][j],'0'):'';});
-        if(vals.slice(0,3).every(Boolean)){if(vals.slice(3).every(Boolean))partial=vals.join('');else if(vals.slice(3).every(function(x){return !x;}))code=vals.slice(0,3).join('');}
+      var idLote=!columnaCRC&&!numeric&&/^\d{8}$/.test(code);
+      var partial='';
+      if(!idLote && (numeric||!/^\d{24}$/.test(code))){
+        var construido=c2codigoPartes(parts.map(function(i){return i<0?'':c2clean(display(r,i));}));
+        if(construido.length===8){code=construido;idLote=true;numeric=false;}
+        else partial=construido;
       }
       var p=piso<0?'':c2clean(display(r,piso));if(/^\d+\.0+$/.test(p))p=String(parseInt(p,10));
-      file.rows.push({tecnico:c2technician(encargado<0?'':display(r,encargado),sn),polygon:file.polygon,sheet:sn,validator:validator,rawCode:code,partial:partial,crcIlegible:crcIlegible,numeric:numeric,piso:p,state:st,observation:observation,message:msg<0?'':c2clean(display(r,msg)),noState:state<0,inicial:(function(){var o={},fin=msg<0?(state<0?rawHead.length:state):msg;for(var c=1;c<fin;c++)if(rawHead[c])o[rawHead[c]]=c2clean(display(r,c));return o;})()});
+      file.rows.push({tecnico:c2technician(encargado<0?'':display(r,encargado),sn),polygon:file.polygon,sheet:sn,validator:validator,rawCode:code,partial:partial,idLote:idLote,numeric:numeric,piso:p,state:st,observation:observation,message:msg<0?'':c2clean(display(r,msg)),noState:state<0,inicial:(function(){var o={},fin=msg<0?(state<0?rawHead.length:state):msg;for(var c=1;c<fin;c++)if(rawHead[c])o[rawHead[c]]=c2clean(display(r,c));return o;})()});
     }
     file.sheets.push(sheet);
   });
@@ -3587,7 +3588,31 @@ function c2read(wb,name){
 }
 function c2files(){return CUR<0?[]:(DISTRICTS[CUR].c2||[]);}
 function c2keys(){var keys=new Set();BOARD_().forEach(function(c){['A','B'].forEach(function(side){if(c[side])c[side].rows.forEach(function(r){var k=txt(r[c.preset.key]).trim();if(/^\d{14}$|^\d{24}$/.test(k))keys.add(k);});});});return Array.from(keys);}
-function c2resolve(row,keys){if(row.numeric||row.crcIlegible)return '';if(/^\d{24}$|^\d{8}$/.test(row.rawCode))return row.rawCode;if(row.partial){var hits=keys.filter(function(k){return k.length===24&&k.slice(6,23)===row.partial;});return hits.length===1?hits[0]:'';}return '';}
+function c2codigoPartes(valores){
+  var anchos=[2,3,3,2,2,2,3];
+  var partes=valores.map(function(v,i){
+    v=txt(v).trim();
+    return /^\d+$/.test(v)&&v.length<=anchos[i]?v.padStart(anchos[i],'0'):'';
+  });
+  if(partes.every(Boolean))return partes.join('');
+  if(partes.slice(0,3).every(Boolean)&&valores.slice(3).every(function(v){return !txt(v).trim();}))return partes.slice(0,3).join('');
+  return '';
+}
+function c2resolve(row,keys){
+  if(!row.numeric&&!row.crcIlegible){
+    if(/^\d{24}$/.test(row.rawCode)||(row.idLote!==false&&/^\d{8}$/.test(row.rawCode)))return row.rawCode;
+  }
+  var parcial=row.partial;
+  // Los Excel ya cargados pueden conservar los componentes en inicial sin un parcial calculado.
+  if(!parcial&&row.idLote===undefined&&row.inicial){
+    var f=row.inicial;
+    parcial=c2codigoPartes([f.sector,f.mz||f.manzana,f.lote,f.edif||f.edifica||f.edificacion,f.entrada,f.piso,f.unidad]);
+    if(parcial.length===8)return parcial;
+  }
+  if(!parcial)return '';
+  var hits=keys.filter(function(k){return k.length===24&&k.slice(6,23)===parcial;});
+  return hits.length===1?hits[0]:'';
+}
 function c2floor(v){var s=txt(v).trim();return /^\d+(?:\.0+)?$/.test(s)?String(parseInt(s,10)):s;}
 function c2events(ctx){var out=[],res=ctx.RES;if(!res)return out;
   function push(k,field,before,after,rowA,rowB,type){out.push({key:k,report:ctx.preset.id,field:field,before:txt(before),after:txt(after),rowA:rowA,rowB:rowB,type:type});}
@@ -3894,7 +3919,7 @@ function c2rows(){
     if(otra)campos=otra.campos.join(' | ');   /* campos de las OTRAS unidades (solo nombres) */
     var changes=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}).map(function(e){return e.report+' · '+e.field+': '+e.before+' → '+e.after;});
     var change=(resumen?resumen+(changes.length?' | ':''):'')+changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':'');
-    all.push(Object.assign({},row,{code:code||row.rawCode,fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,campos:campos,change:[otra?otra.texto:'',change].filter(Boolean).join(' | '),note:note,
+    all.push(Object.assign({},row,{code:code||row.rawCode,crcIlegible:!code&&status==='? NO ENCONTRADO',fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,campos:campos,change:[otra?otra.texto:'',change].filter(Boolean).join(' | '),note:note,
       changeView:[otra?otra.texto:'',resumen,c2cambios(hits,otros,5)].filter(Boolean).join(' | '),obsChange:c2obsCambios(row.observation,hits,otros),otraUnidad:otra?otra.detalle:''}));
   });});return all;
 }
@@ -4007,7 +4032,7 @@ $('c2Clear').addEventListener('click',function(){if(CUR>=0)DISTRICTS[CUR].c2=[];
 /* Publicación: proyección explícita de datos, sin valores SICUN ni mensaje del validador. */
 var PUB_LABELS=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio'];
 var PUB_COUNTS=['verificado','otroCampo','sinCambio','noEncontrado','invalido','noAplicaConCambio'];
-function pubCounts(rows){rows=rows.filter(function(r){return c2bucket(r.result)!==6;});var out={filas:rows.length};PUB_COUNTS.forEach(function(k){out[k]=0;});rows.forEach(function(r){var b=c2bucket(r.result);if(b===7)out.otraUnidad=(out.otraUnidad||0)+1;else if(b===8)out.sigueMal=(out.sigueMal||0)+1;else out[PUB_COUNTS[b]]++;});return out;}   /* ◐ otra unidad (7): total aparte, solo si hay; sin esas filas los totales salen idénticos a antes */
+function pubCounts(rows){rows=rows.filter(function(r){return c2bucket(r.result)!==6;});var out={filas:rows.length};PUB_COUNTS.forEach(function(k){out[k]=0;});rows.forEach(function(r){var b=c2bucket(r.result);if(b===7)out.otraUnidad=(out.otraUnidad||0)+1;else if(b===8)out.sigueMal=(out.sigueMal||0)+1;else out[PUB_COUNTS[b]]++;if(b===3&&r.crcIlegible)out.crcIlegible=(out.crcIlegible||0)+1;});return out;}   /* ◐ otra unidad (7): total aparte, solo si hay; sin esas filas los totales salen idénticos a antes */
 function pubGroup(rows,key){var groups=Object.create(null);rows.forEach(function(r){var k=r[key]||'SIN ASIGNAR';(groups[k]||(groups[k]=[])).push(r);});Object.keys(groups).forEach(function(k){groups[k]=pubCounts(groups[k]);});return groups;}
 function pubFields(row,events){
   if(typeof row.campos==='string')return row.campos; /* mismos campos que decidieron el estado (filtrados por piso) */
@@ -4021,7 +4046,7 @@ function pubFields(row,events){
    Los ✔ verificados (esperado + extra) no se publican. El aviso ◐ sale con etiqueta propia para distinguirlo en el JSON y en la página pública. */
 var PUB_OTRO_CAMPO='◐ Cambió otro campo, no el observado', PUB_OTRA_UNIDAD='◐ Cambió otra unidad del lote';
 /* ◐ otra unidad (7): aviso aparte; el detalle (CRC y campos, sin valores) va en 'resultado' porque el Apps Script descarta campos nuevos de la fila. */
-function pubPublica(r){var bucket=c2bucket(r.result);return bucket===1||bucket===2||bucket===5||bucket===7||bucket===8;}
+function pubPublica(r){var bucket=c2bucket(r.result);return (r.crcIlegible&&bucket===3)||bucket===1||bucket===2||bucket===5||bucket===7||bucket===8;}
 function c2ObservadosDetalle(row,prefijo){
   var map=c2mapRow(row);
   var campos=map?c2expected({observados:map.observados}):[];
@@ -4038,7 +4063,7 @@ function pubPayload(polygon,rows,key,includeObs,extra){
   if(!dates.A.size||!dates.B.size)throw new Error('Se necesita al menos una fecha de descarga ANTES y DESPUÉS en los reportes comparados.');
   function range(side){var days=Array.from(dates[side]).sort(),format=function(d){return d.split('-').reverse().join('/');};return format(days[0])+(days.length>1?' – '+format(days[days.length-1]):'');}
   /* Con fechas por sector (Drive automático) manda extra.antes/despues: la más antigua usada y la más reciente. */
-  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:extra&&extra.antes||range('A'),despues:extra&&extra.despues||range('B'),totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.filter(pubPublica).map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);var fila={poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:pubResultado(r),campos:pubFields(r,events)};if(includeObs)fila.obs=txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500);fila.nota=txt(r.note);return fila;}),
+  return {accion:'publicarPendientes',k:key,poligono:polygon,antes:extra&&extra.antes||range('A'),despues:extra&&extra.despues||range('B'),totales:pubCounts(rows),porValidador:pubGroup(rows,'validator'),porTecnico:pubGroup(rows,'tecnico'),filas:rows.filter(pubPublica).map(function(r){var code=r.code,smz=code.length===8?code:code.slice(6,14);var fila={poligono:polygon,tecnico:r.tecnico,hoja:r.sheet,validador:r.validator,fi:r.fi,codigo:code,smz:smz.slice(0,2)+'-'+smz.slice(2,5)+'-'+smz.slice(5,8),piso:r.piso,estado:r.state,resultado:pubResultado(r),campos:pubFields(r,events)};if(includeObs)fila.obs=txt(r.observation).replace(/\d{8,}/g,'••••').slice(0,500);fila.nota=r.crcIlegible?'':txt(r.note);if(r.crcIlegible)fila.smz='';return fila;}),
     /* Campos nuevos al final: cruce parcial (faltó un reporte en una fecha) y filas sin comparar, fuera de los conteos. */
     parcial:!!(extra&&extra.parcial),parcialDetalle:extra&&extra.parcialDetalle||[],sinComparar:sinComparar};
 }
