@@ -10,7 +10,7 @@ var stubs='var opts={normalize:true,tolerance:true,ignoreTramite:true};var POLY_
 var T=vm.runInNewContext(stubs+src+'\n({set:function(b,f){BOARD=b;FILES=f;},c2rows:c2rows,compareCtx:compareCtx,estado:c2estadoFinal,titular:c2titularReglas,crc:c2crcFinal,bucket:c2bucket});');
 var KEY='Código de Referencia Catastral';
 function ctx(id,H,rows){var o=function(v){var r={};H.forEach(function(c,i){r[c]=v[i];});return r;};var c={preset:{id:id,key:KEY},A:{headers:H,rows:rows.map(o)},B:{headers:H,rows:rows.map(o)}};c.RES=T.compareCtx(c);return c;}
-var INI={codigodeuso:'X',codigodeactividadeconomicaciiu:'X',clasificaciondelpredio:'X',prediocatastralen:'X',productototal:'X',unidaddemedida:'X',mep:'X'};   /* valores iniciales distintos = hubo corrección */
+var INI={codigodeuso:'999999',codigodeactividadeconomicaciiu:'9999',clasificaciondelpredio:'X',prediocatastralen:'X',productototal:'X',unidaddemedida:'X',mep:'X'};   /* valores iniciales distintos = hubo corrección */
 function fila(val,code,state,msg,piso,ini){return {tecnico:'T',polygon:'260510081',sheet:val,validator:val,rawCode:code,partial:'',numeric:false,piso:piso||'',state:state,observation:'',message:msg||'',noState:false,inicial:ini||INI};}
 function run(b,r){T.set(b,[{rows:[r]}]);return T.c2rows()[0];}
 module.exports={T,ctx,KEY,fila,run,cut,stubs,src};

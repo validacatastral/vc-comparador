@@ -21,6 +21,8 @@ assert.strictEqual(c('','-',US),false,'vacío vs -');
 assert.strictEqual(c('','4711',CI),true,'vacío vs código');
 assert.strictEqual(c('01 - CASA HABITACION','CASA HABITACION','clasificaciondelpredio'),false,'descripción con y sin código');
 assert.strictEqual(c('15/06/2020','2020-06-15','fechaconstruccion'),false,'fecha con fechaComparable');
+assert.strictEqual(c('8510','ENSEÑANZA PREPRIMARIA',CI),null,'solo código vs solo descripción → no se sabe');
+assert.strictEqual(c('ENSEÑANZA SECUNDARIA','4711',CI),null,'al revés → no se sabe');
 console.log('ok normalización');
 
 // solo campos de la regla
@@ -50,6 +52,11 @@ assert(/cambió antes de la descarga ANTES: CIIU/.test(r.note),r.note);assert(!/
   var s=run(uso('050101',x[0]),fila('VAL_USO_CIIU',K,'APLICA',x[1],'1',{}));
   assert.strictEqual(s.result,'⚠ SIN CAMBIO EN SICUN',s.result);assert.strictEqual(T.bucket(s.result),2);
   assert(/sin valor inicial comparable/.test(s.note),s.note);
+});
+// solo código vs solo descripción → null: queda ⚠ con nota, ni ◐ ni ✔
+[['4711',{[CI]:'VENTA AL POR MENOR'}],['8510',{[CI]:'ENSEÑANZA PREPRIMARIA'}]].forEach(function(x){
+  var s=run(uso('050101',x[0]),fila('VAL_USO_CIIU',K,'APLICA','[R3A]','1',x[1]));
+  assert.strictEqual(s.result,'⚠ SIN CAMBIO EN SICUN',s.result);assert(/sin valor inicial comparable/.test(s.note),s.note);
 });
 console.log('ok paso 3 (b / c / a / null → ⚠)');
 console.log('inicial-robusto: ok');

@@ -3652,14 +3652,15 @@ function c2valCmp(v,campo){
   if(/^-?\d+([.,]\d+)?$/.test(t))return {cod:String(parseFloat(t.replace(',','.')))};
   return {desc:t};
 }
-/* ¿Difiere el campo? true / false. Con código en ambos lados se compara solo el código; si no, la descripción; si no, el texto. */
+/* ¿Difiere el campo? true / false / null. Con código en ambos lados se compara solo el código; si no, la descripción;
+   un lado solo código y el otro solo descripción → null (no se sabe). */
 function c2difiereCampo(a,b,campo){
   if(campo==='fechaconstruccion')return C2_FECHA.fechaComparable(a)!==C2_FECHA.fechaComparable(b);
   var x=c2valCmp(a,campo),y=c2valCmp(b,campo);
   if(x.vacio||y.vacio)return !(x.vacio&&y.vacio);
   if(x.cod!==undefined&&y.cod!==undefined)return x.cod!==y.cod;
   if(x.desc&&y.desc)return x.desc!==y.desc;
-  return (x.cod||x.desc)!==(y.cod||y.desc);
+  return null;
 }
 /* ¿Cambió la ficha respecto a lo que vio el validador (valores del Excel del revisor)? Solo los campos de la regla (campos).
    true si al menos uno difiere (sus claves van a out) / false / null (sin campos de la regla o sin datos para comparar). */
@@ -3667,9 +3668,10 @@ function c2cambioDesdeInicial(ini,act,campos,out){
   if(!ini||!act||!campos||!campos.length)return null;
   var ks=campos.filter(function(k){return act[k]!==undefined&&Object.prototype.hasOwnProperty.call(ini,k);});
   if(!ks.length)return null;
-  var dif=ks.filter(function(k){return c2difiereCampo(ini[k],act[k],k);});
+  var res=ks.map(function(k){return c2difiereCampo(ini[k],act[k],k);});
+  var dif=ks.filter(function(k,i){return res[i]===true;});
   if(out)dif.forEach(function(k){out.push(k);});
-  return dif.length>0;
+  return dif.length?true:res.some(function(v){return v===false;})?false:null;
 }
 /* VAL_FECHA_PISO · regla anual del motor original de Diego (©diegocampos). */
 var C2_FECHA=(function(){
