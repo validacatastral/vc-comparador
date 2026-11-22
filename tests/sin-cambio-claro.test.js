@@ -64,14 +64,21 @@ var t=T.pubCounts([a,b,c,d,s]);
 assert.strictEqual(t.sigueMal,1);assert.strictEqual(t.sinCambio,3);assert.strictEqual(t.verificado,1);
 console.log('ok totales · sigueMal '+t.sigueMal+' · sinCambio '+t.sinCambio);
 
-// R3D: acción fija, sin "debería ser"
-var r3d=run(uso('050101','8510','02 - EN CONSTRUCCIÓN'),fila('VAL_USO_CIIU',K,'APLICA','[R3D] línea con CIIU en obra','1',ini('050101','8510')));
-var t3=T.pubResultado(r3d);
-assert.strictEqual(t3,SC+' · no se corrigió, sigue mal: línea con CIIU en obra no terminada (R3D) · qué hacer: sin CIIU (sustentar ECC) o corregir el ECC');
-console.log('ok R3D · '+t3);
+// Una observación anterior puede seguir citando R3D.
+var obra=uso('050101','8510','02 - EN CONSTRUCCIÓN');
+var sinCambio=run(obra,fila('VAL_USO_CIIU',K,'APLICA','[R3D]','1',ini('050101','8510')));
+assert.strictEqual(T.pubResultado(sinCambio),T.pubResultado(c));
+var corregida=run(obra,fila('VAL_USO_CIIU',K,'APLICA','[R3D]','1',ini('050101','4711')));
+assert.strictEqual(corregida.result,'✔ CUMPLE EN SICUN');
+for(const mensaje of ['[R3D] [R4A]','[R3D]','Revisar CIIU']){
+  var mixta=run(uso('050101','4711','INCONCLUSA'),fila('VAL_USO_CIIU',K,'APLICA',mensaje,'1',ini('050101','4711')));
+  assert.strictEqual(T.pubResultado(mixta),tb);
+  assert.doesNotMatch(mixta.note,/R3D|Ojo, además/);
+}
 
 // varias reglas: una acción por regla, separadas por "; ", sin repetir
 assert.strictEqual(T.queHacer({reglas:['R4A','R4B','R1']},'USO'),' · qué hacer: cambiar el CIIU o el uso; registrarlo');
+assert.strictEqual(T.queHacer({reglas:['R3B','R8C','R1']},'USO'),' · qué hacer: poner el CIIU o explicar en Observaciones por qué no; poner el CIIU o explicar en Observaciones; registrarlo');
 assert.strictEqual(T.queHacer({reglas:['R5']},'TIT'),' · qué hacer: la condición debe ser POSEEDOR');
 assert.strictEqual(T.queHacer({reglas:['R99']},'USO'),'');
 
@@ -94,6 +101,7 @@ var activos={
   CRC:codigos(cut('function c2crcFinal','var C2_FECHA=(function'),/push\('(R\d+[A-Z]?)'\)/g),
   FECHA:codigos(cut('function c2fechaPisoFinal','function c2estadoFinal'),/'(R\d+[A-Z]?)'/g)
 };
+activos.USO.delete('R3D'); // excluida por decisión de Diego
 for(const [g,set] of Object.entries(activos)){assert(set.size>0,g);for(const k of set)assert(T.RA[g]&&T.RA[g][k],g+' '+k+' sin acción');}
 
 // prefijos y Excel con el mismo texto que se publica

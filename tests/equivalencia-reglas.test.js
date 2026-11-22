@@ -82,7 +82,7 @@ function uso(u='050101',ciiu='8510',otras=[],ecc='TERMINADO',unidades=[u]){
   if(!ua.length)ua.push({crc:K2,uso:u});
   return {base,cruces:{unid:ua},piso:'1',board:()=>[reporte('CON',base),reporte('UA',ua)],rep:'CON',campo:'ciiu'};
 }
-for(const [r,datos] of Object.entries({R1:uso(''),R2:uso('999998'),R3A:uso('050101',''),R3B:uso('050101','',['8510']),R3C:uso('050101','',[],'02 - EN CONSTRUCCIÓN'),R3D:uso('050101','8510',[],'INCONCLUSA'),R4A:uso('050101','4711'),R4B:uso('050101','4711',['8510']),R5:uso('050101','8510',[],'TERMINADO',[]),R6:uso('050101','8510',[],'TERMINADO',['050101','020101']),R7:uso('020304',''),R8A:uso('020199',''),R8B:uso('020199','4711'),R8C:uso('020199','',['4711']),R9:uso('020304','4711'),R10:uso('050101','9998')}))verificar('USO',r,datos,uso(),{falso:['R3C','R7'].includes(r)});
+for(const [r,datos] of Object.entries({R1:uso(''),R2:uso('999998'),R3A:uso('050101',''),R3B:uso('050101','',['8510']),R3C:uso('050101','',[],'02 - EN CONSTRUCCIÓN'),R4A:uso('050101','4711'),R4B:uso('050101','4711',['8510']),R5:uso('050101','8510',[],'TERMINADO',[]),R6:uso('050101','8510',[],'TERMINADO',['050101','020101']),R7:uso('020304',''),R8A:uso('020199',''),R8B:uso('020199','4711'),R8C:uso('020199','',['4711']),R9:uso('020304','4711'),R10:uso('050101','9998')}))verificar('USO',r,datos,uso(),{falso:['R3C','R7'].includes(r)});
 function condicion(delta={},cantidad=1){
   const base=Array.from({length:cantidad},(_,i)=>({crc:clave('01','01',String(i+1).padStart(3,'0')),clasif:'CASA HABITACIÓN',pce:'PREDIO INDEPENDIENTE',tedif:'CASA',cuso:'010101',__sin:{},...delta}));
   return {base,board:()=>[reporte('UA',base)],rep:'UA',campo:'clasif'};
@@ -139,6 +139,7 @@ function excluida(tipo,datos,regla){
     c.RES=T.compareCtx(c);
   }
 }
+excluida('USO',uso('050101','8510',[],'INCONCLUSA'),'R3D');
 excluida('COND',condicion({},11),'R7');
 for(const clasif of ['TERRENO SIN CONSTRUIR','PARQUE']){
   excluida('COND',condicion({clasif,cuso:'010101',tedif:'PABELLÓN'}),'R14');
