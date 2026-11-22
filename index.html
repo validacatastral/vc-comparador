@@ -8,18 +8,25 @@
   sin autorización expresa del autor.
   ============================================================
 -->
-<html lang="es" data-vctheme="vcwarm">
+<html lang="es" data-vctheme="vclight">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="author" content="ValidaCatastral ©diegocampos">
 <title>Comparador de Reportes SICUN · VALIDA CATASTRAL</title>
+<script>
+try {
+  var savedTheme = localStorage.getItem("vc-cmp-theme");
+  if (["vclight","vcdark","vcwarm","neon"].includes(savedTheme))
+    document.documentElement.setAttribute("data-vctheme", savedTheme);
+} catch (e) {}
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@500;600&display=swap');
 
-/* ===== TEMA 1 · NEON (por defecto) ===== */
+/* ===== TEMA 1 · NEON ===== */
 :root{
   --bg-void:#07090d;--bg-deep:#0c1015;--bg-panel:#10151c;--bg-card:#151b23;--bg-hover:#1b232d;
   --border:#23303f;--border-soft:#1a2430;
@@ -44,7 +51,7 @@ html[data-vctheme="vclight"]{
   --bg-void:#fafafa;--bg-deep:#f1f1f2;--bg-panel:#ffffff;--bg-card:#f5f5f6;--bg-hover:#ececee;
   --border:#e3e3e6;--border-soft:#ebebee;
   --accent:#0f6e56;--accent-2:#128a68;--purple:#5f51c9;--green:#0f6e56;--amber:#925f0e;--red:#b54a4a;
-  --text-prime:#19191b;--text-mute:#56565d;--text-dim:#9a9aa0;
+  --text-prime:#19191b;--text-mute:#56565d;--text-dim:#66666d;--danger:var(--red);
   --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Inter',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;
   --accent-wash:rgba(15,110,86,.08);--red-wash:rgba(181,74,74,.08);--purple-wash:rgba(95,81,201,.07);
   --glow:none;
@@ -399,6 +406,9 @@ footer .cr b{color:var(--accent);font-weight:500;}
 .rbtn:hover:not(:disabled){border-color:var(--accent);color:var(--accent);}
 .rbtn.ready{background:var(--accent);color:var(--bg-void);border-color:var(--accent);}
 .rbtn.ready:hover{background:var(--accent-2);color:var(--bg-void);}
+#pubStart{background:#1b6b52;border-color:#1b6b52;color:white;font-size:14px;font-weight:700;padding:11px 20px;}
+#pubStart:hover:not(:disabled){background:#14533f;border-color:var(--accent);color:white;}
+#pubStart:focus-visible{outline:3px solid var(--accent);outline-offset:3px;}
 .rbtn:disabled{opacity:.35;cursor:not-allowed;}
 .rrow .rmini{grid-column:1 / -1;font-family:var(--font-mono);font-size:11.5px;color:var(--text-mute);padding-top:10px;margin-top:2px;border-top:1px dashed var(--border);display:flex;gap:16px;flex-wrap:wrap;align-items:center;}
 .rrow .rmini.bad{color:var(--red);}
@@ -457,7 +467,7 @@ input, select, textarea, button {max-width:100%;}
   </div>
   <div class="topbar-right">
     <span class="pill" id="polyPill">Sin polígono</span><span id="clock">--:--:--</span>
-    <button class="pill" id="themeBtn" type="button" title="Cambiar tema"><span class="dot"></span><span id="themeName">Cálido</span></button>
+    <button class="pill" id="themeBtn" type="button" title="Cambiar tema"><span class="dot"></span><span id="themeName">Claro</span></button>
   </div>
 </div>
 
@@ -496,7 +506,7 @@ input, select, textarea, button {max-width:100%;}
       <p id="drvResumen" style="white-space:pre-line;font-size:12px;font-family:var(--font-mono)"></p>
       <label><input type="checkbox" id="drvManual"> Elegir fechas a mano</label>
       <div id="drvManualBox" hidden><label>ANTES <select id="drvBefore"></select></label><label>DESPUÉS <select id="drvAfter"></select></label></div>
-      <p>D · Se crea un distrito de trabajo nuevo con la selección para conservar tus cargas previas.</p><button type="button" id="drvLoad">Cargar y comparar</button>
+      <p>D · La carga actualiza el distrito de trabajo de Drive que corresponde a estas fechas.</p><button type="button" id="drvLoad">Cargar y comparar</button>
     </div>
     <p role="status" id="drvProgressText" aria-live="polite"></p><progress id="drvProgress" max="1" value="0" style="width:100%"></progress>
     <p id="drvError" role="alert" style="color:var(--danger,#e66)"></p><div id="drvMissing"></div><button type="button" id="drvRetry" hidden>Reintentar faltantes</button><button type="button" id="drvClose">Cerrar</button>
@@ -771,12 +781,15 @@ input, select, textarea, button {max-width:100%;}
 /* ValidaCatastral ©diegocampos — Todos los derechos reservados. */
 (function(){
   "use strict";
-  var THEMES=[["vcwarm","C\u00e1lido"],["neon","Neon"],["vcdark","Oscuro VC"],["vclight","Claro"]], tIdx=0;
+  var THEMES=[["vcwarm","C\u00e1lido"],["neon","Neon"],["vcdark","Oscuro VC"],["vclight","Claro"]];
+  var tIdx=THEMES.findIndex(function(t){return t[0]===document.documentElement.getAttribute("data-vctheme");});
   var themeBtn=document.getElementById("themeBtn"), themeName=document.getElementById("themeName");
+  themeName.textContent=THEMES[tIdx][1];
   themeBtn.addEventListener("click",function(){
     tIdx=(tIdx+1)%THEMES.length;
     document.documentElement.setAttribute("data-vctheme",THEMES[tIdx][0]);
     themeName.textContent=THEMES[tIdx][1];
+    try{localStorage.setItem("vc-cmp-theme",THEMES[tIdx][0]);}catch(e){}
   });
   var clock=document.getElementById("clock");
   function tick(){ var d=new Date(),p=function(n){return String(n).padStart(2,"0");}; clock.textContent=p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds()); }
@@ -3502,6 +3515,13 @@ async function drvPasoFechas(){
   $('drvStepC').hidden=false;drvSaveLast();
 }
 $('drvDates').addEventListener('click',function(){drvAction(drvPasoFechas);});
+// Los distritos de trabajo viven en memoria. Solo los creados desde Drive tienen driveKey.
+function drvActualizarDistrito(distritos, nuevo){
+  var i=distritos.findIndex(function(d){return d.driveKey===nuevo.driveKey;});
+  if(i<0)return distritos.push(nuevo)-1;
+  distritos[i]=nuevo;
+  return i;
+}
 /* Carga y compara. Un archivo que falla se reintenta y, si sigue fallando, se lista como faltante sin cortar la carga.
    retry: baja solo los faltantes del plan en memoria (lo ya descargado sigue en el distrito creado; nada va a localStorage). */
 async function drvCargar(retry){
@@ -3540,12 +3560,12 @@ async function drvCargar(retry){
   var cab={};todos.forEach(function(x){var k=x.preset.id+'|'+x.side;if(cab[k]&&cab[k]!==x.headers)throw new Error('Encabezados incompatibles: '+k);cab[k]=x.headers;});
   if(!plan.target){
     await polyDriveSelection();
-    // Se incorpora a un distrito nuevo para conservar cualquier carga manual previa.
     var source=DISTRICTS[DRV.district],name=$('drvDistrict').selectedOptions[0].textContent+' · Drive '+a+' → '+b+(plan.auto?' (por sector)':'');
-    plan.target={name:name,board:newBoard(),tec:{},c2:(source.c2||[]).slice()};
+    plan.target={name:name,driveKey:JSON.stringify([$('drvDistrict').value,a,b]),board:newBoard(),tec:{},c2:(source.c2||[]).slice()};
     // Fechas por sector (automático): las usa la publicación (antes/después y parcialDetalle).
     if(plan.auto){plan.target.fechasSector={};Object.keys(plan.auto.porSector).forEach(function(s){var o=plan.auto.porSector[s];plan.target.fechasSector[s]={antes:o.antes,despues:o.despues,incompleto:o.incompleto};});plan.target.excluidos=plan.auto.excluidos.slice();}
-    drvSaveLast({polygon:$('drvPolygon').value,polygonName:$('drvPolygon').selectedOptions[0]?$('drvPolygon').selectedOptions[0].textContent:'',district:$('drvDistrict').value,districtName:$('drvDistrict').selectedOptions[0].textContent,sectors:plan.selected.slice(),fechas:plan.auto?'auto':'manual',antes:a,despues:b});DISTRICTS.push(plan.target);switchDist(DISTRICTS.length-1);
+    drvSaveLast({polygon:$('drvPolygon').value,polygonName:$('drvPolygon').selectedOptions[0]?$('drvPolygon').selectedOptions[0].textContent:'',district:$('drvDistrict').value,districtName:$('drvDistrict').selectedOptions[0].textContent,sectors:plan.selected.slice(),fechas:plan.auto?'auto':'manual',antes:a,despues:b});
+    switchDist(drvActualizarDistrito(DISTRICTS,plan.target));
   }else{var at=DISTRICTS.indexOf(plan.target);if(at<0)throw new Error('El distrito de esta carga ya no existe. Vuelve a buscar fechas.');if(CUR!==at)switchDist(at);}
   // Solo se incorporan los archivos nuevos; los ya cargados siguen en el distrito.
   var grouped={};todos.forEach(function(x){if(!x.file)return;var k=x.preset.id+'|'+x.side;(grouped[k]||(grouped[k]=[])).push(x);});
