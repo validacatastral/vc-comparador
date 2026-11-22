@@ -33,7 +33,7 @@ assert.strictEqual(T.c2bucket(esperado),1);
 assert.strictEqual(T.pubResultado(Object.assign({},rows[0],{validator:'SIN_MAPA'})),T.PUB_OTRO_CAMPO);
 assert.strictEqual(T.pubResultado(Object.assign({},rows[0],{validator:'VAL_CRC'})),T.PUB_OTRO_CAMPO+' · se esperaba: CRC · Sector, CRC · Manzana, CRC · Lote +4');
 assert.strictEqual(p.filas[1].nota,notaCiiu);
-assert.deepStrictEqual(res,[esperado,'⚠ Sin cambio en SICUN · sigue igual: CON · Código De Actividad Económica (CIIU) — revisa que se haya guardado','ℹ NO APLICA pero SICUN cambió']);
+assert.deepStrictEqual(res,[esperado,'⚠ Sin cambio en SICUN · sigue igual: CON · Código De Actividad Económica (CIIU) — revisa que se haya guardado','ℹ NO APLICA pero SICUN cambió · qué hacer: cambiar la marca a APLICA u OTRO CAMBIO']);
 assert.strictEqual(new Set(res).size,3);
 var aviso=p.filas[0];
 assert.strictEqual(aviso.codigo,KEY);assert.strictEqual(aviso.estado,'APLICA');assert.strictEqual(aviso.smz,'19-037-007');

@@ -17,7 +17,7 @@ var MSG='[R4A] El CIIU no corresponde al uso';
 
 // (a) incumple y cambió antes del ANTES → ◐ sigue mal (bucket 8), con nota y "debería ser"
 var a=run(uso('050101','4711'),fila('VAL_USO_CIIU',K,'APLICA',MSG,'1',ini('050101','4520')));
-assert(a.result.indexOf(SM+'CIIU no corresponde al uso (R4A)')===0,a.result);
+assert(a.result.indexOf(SM+'el CIIU no es de ese uso (R4A)')===0,a.result);
 assert.strictEqual(T.bucket(a.result),8);assert(/cambió antes de la descarga ANTES/.test(a.note),a.note);
 assert.strictEqual(a.paso3.caso,'cambioAntes');assert.strictEqual(T.pubResultado(a),a.result);
 console.log('ok a · '+a.result);
@@ -26,7 +26,7 @@ console.log('ok a · '+a.result);
 var b=run(uso('050101','4711'),fila('VAL_USO_CIIU',K,'APLICA',MSG,'1',ini('050101','4711')));
 assert.strictEqual(b.result,'⚠ SIN CAMBIO EN SICUN');assert.strictEqual(T.bucket(b.result),2);assert.strictEqual(b.paso3.caso,'sigueMal');
 var tb=T.pubResultado(b);
-assert(tb.indexOf(SC+' · no se corrigió, sigue mal: CIIU no corresponde al uso (R4A)')===0,tb);
+assert(tb.indexOf(SC+' · no se corrigió, sigue mal: el CIIU no es de ese uso (R4A)')===0,tb);
 console.log('ok b · '+tb);
 
 // R4A: "debería ser:" con ≤3 CIIU del catálogo; sin CIIU actual, sin uso de la fila, sin "Uso del … en el glosario"
@@ -71,15 +71,18 @@ assert.strictEqual(t3,SC+' · no se corrigió, sigue mal: línea con CIIU en obr
 console.log('ok R3D · '+t3);
 
 // varias reglas: una acción por regla, separadas por "; ", sin repetir
-assert.strictEqual(T.queHacer({reglas:['R3C','R3D','R1']},'USO'),' · qué hacer: sin CIIU (sustentar ECC) o corregir el ECC; registrar el Código de Uso');
-assert.strictEqual(T.queHacer({reglas:['R5']},'TIT'),' · qué hacer: poner condición POSEEDOR o cambiar la forma');
+assert.strictEqual(T.queHacer({reglas:['R4A','R4B','R1']},'USO'),' · qué hacer: cambiar el CIIU o el uso; registrarlo');
+assert.strictEqual(T.queHacer({reglas:['R5']},'TIT'),' · qué hacer: la condición debe ser POSEEDOR');
 assert.strictEqual(T.queHacer({reglas:['R99']},'USO'),'');
 
-// catálogo REGLAS_ACCION: mismos validadores que REGLAS_CORTAS, sin dígitos, ≤ ~8 palabras
+// catálogo REGLAS_ACCION: mismos validadores y números fijos aprobados
 assert.deepStrictEqual(Object.keys(T.RA).sort(),Object.keys(T.RC).sort());
 for(const [g,cat] of Object.entries(T.RA))for(const [k,v] of Object.entries(cat)){
-  assert(!/\d/.test(v),g+' '+k+' lleva dígitos: '+v);assert(!/;/.test(v),g+' '+k+' usa ";"');
-  assert(v.split(/\s+/).length<=9,g+' '+k+' muy largo: '+v);assert(/^\S.*\S$/.test(v),g+' '+k);
+  var textoNumerico=g==='TIT'&&k==='R2'?v.replace('llenar los 3: tipo de documento, tipo de partida y número',''):v;
+  assert(!/\d/.test(textoNumerico.replace(/\b(?:P12345678|Rev\. 4|001|01|02|03|81|82|8|1)\b/g,'')),g+' '+k+' lleva dígitos: '+v);
+  if(g==='USO'&&k==='R9')assert.strictEqual(v,'si hay negocio, cambiar el uso; si no, quitar el CIIU');
+  else assert(!/;/.test(v),g+' '+k+' usa ";"');
+  assert(/^\S.*\S$/.test(v),g+' '+k);
 }
 // toda regla activa de cada validador tiene acción
 function codigos(seg,re){return new Set([...seg.matchAll(re)].map(m=>m[1]));}

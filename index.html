@@ -2423,70 +2423,69 @@ function c2filaDespues(board,code,rep){
   var o={};c.B.headers.forEach(function(h){o[c2campo(h)]=txt(r[h]).replace(/\s+/g,' ').trim();});return o;
 }
 function c2up(v){return stripAccents(String(v||'')).toUpperCase().replace(/\s+/g,' ').trim();}
-var TIT_REGLAS={R1:'forma de adquisición sin documento sustentatorio',R2:'bloque registral incompleto',R2P:'POSEEDOR con escritura pública',
-  R3A:'código de predio con formato inválido',R3B:'partida electrónica con formato inválido',R3C:'ficha con formato inválido',
-  R4:'sucesión intestada con forma distinta de OTROS',R4H:'sucesión intestada con declaratoria de herederos',R6O:'condición OTROS y forma OTROS no llevan documento ni partida',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
-  R3F:'ficha de ocho dígitos',R13:'forma de adquisición vacía'};
+var TIT_REGLAS={R1:'tiene forma de adquisición pero no tiene documento',R2:'datos de partida incompletos',R2P:'dice POSEEDOR pero tiene escritura pública',
+  R3A:'código de predio mal escrito',R3B:'partida electrónica mal escrita',R3C:'número de ficha mal escrito',
+  R4:'sucesión intestada',R4H:'sucesión intestada pero ya hay declaratoria de herederos',R6O:'condición OTROS y forma OTROS',R5:'forma POSESIÓN',R5C:'constancia de posesión con titular que no es poseedor',
+  R3F:'ficha con 8 dígitos',R13:'falta la forma de adquisición'};
 /* Catálogo único de textos cortos por validador + código (el mismo código significa cosas distintas según el validador).
    Solo describe la regla: nunca lleva valores de SICUN (CIIU, usos, áreas, fechas, nombres, DNI). TIT reutiliza TIT_REGLAS. */
 var REGLAS_CORTAS={
   TIT:TIT_REGLAS,
-  USO:{R1:'unidad sin Código de Uso',R2:'Código de Uso fuera del glosario',R3A:'uso exige CIIU y ninguna línea lo tiene',
-    R3B:'línea sin CIIU, otras líneas sí tienen',R3C:'línea sin CIIU en obra no terminada',R3D:'línea con CIIU en obra no terminada',
-    R4A:'CIIU no corresponde al uso',R4B:'CIIU no corresponde al uso',R5:'CRC no está en Unidades Administrativas',
-    R6:'CRC con usos distintos en Unidades',R7:'comercial no identificado: local desocupado',R8A:'uso residual sin CIIU en ninguna línea',
-    R8B:'uso residual con CIIU: revisar el uso',R8C:'uso residual: línea sin CIIU, otras sí',R9:'local desocupado pero la línea declara CIIU',
-    R10:'CIIU no existe en Rev. 4'},
-  COND:{R1:'predio en edificio no está en ambos campos',R2:'terreno o parque debe ser predio independiente',
-    R3:'clasificación o predio catastral en vacío',R4:'predio catastral en fuera de la tabla',
-    R5:'predio comercial con clasificación no comercial',R6:'predio en edificio con una sola unidad',
-    R8:'clasificación OTROS con uso de clasificación propia',R9:'clasificación sin construcción con tipo de edificación',
-    R10:'tipo de edificación vacío',R10C:'cementerio sin tipo de edificación',R11:'predio en edificio sin tipo EDIFICIO o BLOCK',
-    R12:'casa habitación en EDIFICIO o BLOCK',R13:'tipo de edificación PABELLÓN'},
-  OBR:{R1:'producto total igual a uno: verificar metrado',R2:'unidad de medida distinta a la del anexo',
-    R3:'capacidad no corresponde al código',R4:'obra repetida en el predio',R5:'MEP no corresponde al material',
-    R6:'ECC debe ser terminado',R7P:'fecha anterior al primer piso'},
-  CRC:{R1:'entrada no inicia en la primera',R2:'entradas no correlativas',R3:'edificación de una fila no está en primer piso',
-    R4:'unidad no inicia en la primera',R5:'unidades no correlativas',R6:'sótano no inicia en el primero',
-    R6A:'sótano sin construcción en pisos superiores',R6B:'piso inferior tiene la construcción principal',
-    R6C:'sin líneas constructivas en el piso del CRC'},
-  FECHA:{R1:'año anterior al de los pisos inferiores'}
+  USO:{R1:'la unidad no tiene código de uso',R2:'código de uso que no existe en el glosario',R3A:'el uso es de actividad económica y ninguna línea tiene CIIU',
+    R3B:'esta línea no tiene CIIU y las otras sí',R3C:'línea en obra sin terminar y sin CIIU',R3D:'línea con CIIU en obra no terminada',
+    R4A:'el CIIU no es de ese uso',R4B:'el CIIU no es de ese uso',R5:'el CRC no está en Unidades Administrativas',
+    R6:'la misma unidad tiene usos distintos',R7:'comercio no identificado (local cerrado)',R8A:'uso genérico (comercio / otros) y ninguna línea tiene CIIU',
+    R8B:'uso genérico (comercio / otros) pero ya hay CIIU',R8C:'uso genérico, esta línea sin CIIU y otras sí',R9:'el uso dice local desocupado pero la línea tiene CIIU',
+    R10:'el CIIU no existe'},
+  COND:{R1:'predio en edificio marcado solo en un campo',R2:'terreno sin construir o parque',
+    R3:'falta clasificación o «predio catastral en»',R4:'«predio catastral en» = OTROS',
+    R5:'predio comercial con clasificación que no es comercial',R6:'dice predio en edificio pero el lote tiene una sola unidad',
+    R8:'clasificación OTROS, pero el uso tiene su propia clasificación',R9:'sin construcción pero con tipo de edificación',
+    R10:'falta el tipo de edificación',R10C:'cementerio sin tipo de edificación',R11:'predio en edificio con otro tipo de edificación',
+    R12:'casa habitación con tipo EDIFICIO o BLOCK',R13:'tipo PABELLÓN'},
+  OBR:{R1:'metrado total = 1',R2:'unidad de medida distinta a la del anexo',
+    R3:'la capacidad no corresponde al código',R4:'obra registrada dos veces',R5:'material, estado o clasificación (MEP) no coincide',
+    R6:'tanque de plástico',R7P:'obra más antigua que el primer piso'},
+  CRC:{R1:'las entradas no empiezan en 01',R2:'las entradas saltan números',R3:'edificación de una sola fila que no está en el piso 01',
+    R4:'las unidades no empiezan en 001',R5:'las unidades saltan números',R6:'los sótanos no empiezan en 81',
+    R6A:'sótano sin construcción arriba',R6B:'la construcción principal está en otro piso',
+    R6C:'el piso del CRC no tiene construcciones'},
+  FECHA:{R1:'este piso tiene un año anterior al del piso de abajo'}
 };
-/* Qué corregir por regla: misma estructura que REGLAS_CORTAS. Acción fija, en imperativo, sin valores de SICUN (ni dígitos).
-   Advertencia sin corrección clara → "verificar y sustentar en Observaciones". */
+/* Qué corregir por regla: misma estructura que REGLAS_CORTAS. Acción fija, sin valores de SICUN. */
 var REGLAS_ACCION={
-  TIT:{R1:'agregar documento sustentatorio o corregir la forma',R2:'completar documento, tipo y número de partida',
-    R2P:'cambiar la condición o el tipo de documento',R3A:'corregir el formato del código de predio',
-    R3B:'corregir el formato de la partida electrónica',R3C:'corregir el formato de la ficha',
-    R3F:'verificar si es partida electrónica',R4:'forma de adquisición debe ser OTROS',
-    R4H:'cambiar la condición: hay declaratoria de herederos',R6O:'quitar documento y partida registral',
-    R5:'poner condición POSEEDOR o cambiar la forma',R5C:'cambiar el documento o poner POSEEDOR',
-    R13:'llenar la forma de adquisición'},
-  USO:{R1:'registrar el Código de Uso',R2:'usar un Código de Uso del glosario',R3A:'declarar el CIIU que corresponde al uso',
-    R3B:'declarar el CIIU o sustentar en Observaciones',R3C:'sin CIIU (sustentar ECC) o corregir el ECC',
-    R3D:'sin CIIU (sustentar ECC) o corregir el ECC',R4A:'corregir el CIIU o cambiar el uso',
-    R4B:'corregir el CIIU o cambiar el uso',R5:'registrar el CRC en Unidades Administrativas',
-    R6:'dejar un solo uso por unidad',R7:'verificar y sustentar en Observaciones',
-    R8A:'declarar el CIIU o cambiar el uso',R8B:'cambiar al uso específico del CIIU',
-    R8C:'declarar el CIIU o sustentar en Observaciones',R9:'quitar el CIIU o cambiar el uso',
-    R10:'usar un CIIU vigente del catálogo'},
-  COND:{R1:'poner PREDIO EN EDIFICIO en ambos campos',R2:'debe ser PREDIO INDEPENDIENTE',
-    R3:'llenar clasificación y predio catastral en',R4:'usar un código específico de la tabla',
-    R5:'corregir clasificación o predio catastral en',R6:'verificar si es PREDIO INDEPENDIENTE',
-    R8:'cambiar a la clasificación propia del uso',R9:'quitar el tipo de edificación',
-    R10:'llenar el tipo de edificación',R10C:'verificar y sustentar en Observaciones',
-    R11:'tipo de edificación debe ser EDIFICIO o BLOCK',R12:'verificar si es PREDIO EN EDIFICIO',
-    R13:'verificar y sustentar en Observaciones'},
-  OBR:{R1:'verificar metrado y sustentar en Observaciones',R2:'usar la unidad de medida del anexo',
-    R3:'corregir el código o la capacidad',R4:'eliminar la obra repetida',
-    R5:'usar el MEP que corresponde al material',R6:'ECC debe ser TERMINADO',
-    R7P:'revisar fecha: no anterior al primer piso'},
-  CRC:{R1:'renumerar la entrada desde la primera',R2:'renumerar las entradas en forma correlativa',
-    R3:'renumerar el piso al primero',R4:'renumerar la unidad desde la primera',
-    R5:'renumerar las unidades en forma correlativa',R6:'renumerar el sótano desde el primero',
-    R6A:'revisar el piso del CRC y la construcción',R6B:'pasar el CRC al piso de la construcción principal',
-    R6C:'registrar líneas constructivas o corregir el piso'},
-  FECHA:{R1:'revisar año de construcción del piso'}
+  TIT:{R1:'poner el documento que lo sustenta',R2:'llenar los 3: tipo de documento, tipo de partida y número',
+    R2P:'con escritura es propietario: cambiar la condición',R3A:'debe ser P + 8 dígitos (ej. P12345678)',
+    R3B:'deben ser 8 dígitos',R3C:'revisar el número de ficha',
+    R3F:'probablemente es partida electrónica: cambiar el tipo',R4:'la forma de adquisición debe ser OTROS',
+    R4H:'cambiar la condición del titular',R6O:'quitar documento y partida',
+    R5:'la condición debe ser POSEEDOR',R5C:'poner POSEEDOR o cambiar el documento',
+    R13:'llenarla'},
+  USO:{R1:'registrarlo',R2:'elegir uno del glosario',R3A:'poner el CIIU del negocio',
+    R3B:'poner el CIIU o explicar en Observaciones por qué no',R3C:'explicar en Observaciones, o corregir el estado de conservación si sí está terminada',
+    R3D:'sin CIIU (sustentar ECC) o corregir el ECC',R4A:'cambiar el CIIU o el uso',
+    R4B:'cambiar el CIIU o el uso',R5:'registrarlo',
+    R6:'dejar un solo uso',R7:'explicar en Observaciones',
+    R8A:'poner el CIIU del negocio o un uso específico',R8B:'cambiar el uso al que corresponde a ese CIIU',
+    R8C:'poner el CIIU o explicar en Observaciones',R9:'si hay negocio, cambiar el uso; si no, quitar el CIIU',
+    R10:'elegir uno válido del catálogo'},
+  COND:{R1:'poner PREDIO EN EDIFICIO en clasificación y en «predio catastral en»',R2:'debe ser PREDIO INDEPENDIENTE',
+    R3:'llenarlos',R4:'buscar si hay un código específico',
+    R5:'corregir la clasificación',R6:'revisar si es PREDIO INDEPENDIENTE',
+    R8:'usar esa clasificación',R9:'quitar el tipo de edificación',
+    R10:'llenarlo',R10C:'revisar si tiene construcciones y explicar',
+    R11:'el tipo debe ser EDIFICIO o BLOCK',R12:'revisar si en realidad es predio en edificio',
+    R13:'confirmar que lo sea y explicar'},
+  OBR:{R1:'revisar la medida y explicar si es correcto',R2:'usar la del anexo',
+    R3:'corregir código o capacidad',R4:'eliminar la repetida',
+    R5:'corregir según el anexo',R6:'el estado de conservación debe ser TERMINADO',
+    R7P:'revisar la fecha'},
+  CRC:{R1:'numerarlas 01, 02, 03…',R2:'numerarlas 01, 02, 03…',
+    R3:'pasarla al piso 01',R4:'numerarlas en orden desde 001',
+    R5:'numerarlas en orden desde 001',R6:'numerarlos 81, 82…',
+    R6A:'revisar el piso del CRC',R6B:'pasar el CRC a ese piso',
+    R6C:'registrarlas o corregir el piso'},
+  FECHA:{R1:'revisar el año de construcción'}
 };
 function c2titularReglas(f,code){
   var out=[];if(!f||!/^\d{24}$/.test(code))return out;
@@ -4341,7 +4340,7 @@ function c2SinCambioDetalle(row){var p=row.paso3||{};
   if(p.caso==='sigueMal'){var g=c2grupoRegla(row),t={reglas:p.reglas||[],esperado:p.esperado};return '⚠ Sin cambio en SICUN · no se corrigió, sigue mal: '+c2reglasTxt(t,g)+c2queHacer(t,g);}
   if(p.caso==='falsoError')return '⚠ Sin cambio en SICUN · el dato ya cumple la regla: posible falso error, si es así marcar NO APLICA';
   return '⚠ Sin cambio en SICUN'+c2ObservadosDetalle(row,' · sigue igual: ')+' — revisa que se haya guardado';}
-function pubResultado(r){var b=c2bucket(r.result);if(b===2)return c2SinCambioDetalle(r);return b===1?PUB_OTRO_CAMPO+c2EsperadoDetalle(r):b===7?PUB_OTRA_UNIDAD+(r.otraUnidad?' · '+r.otraUnidad:''):r.result;}
+function pubResultado(r){var b=c2bucket(r.result);if(b===2)return c2SinCambioDetalle(r);if(r.result.startsWith('ℹ NO APLICA pero SICUN cambió'))return r.result+' · qué hacer: cambiar la marca a APLICA u OTRO CAMBIO';return b===1?PUB_OTRO_CAMPO+c2EsperadoDetalle(r):b===7?PUB_OTRA_UNIDAD+(r.otraUnidad?' · '+r.otraUnidad:''):r.result;}
 function pubPayload(polygon,rows,key,includeObs,extra){
   rows=c2assign(rows);var sinComparar=rows.filter(function(r){return c2bucket(r.result)===6;}).length;
   var dates={A:new Set(),B:new Set()},events=[];

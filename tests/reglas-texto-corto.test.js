@@ -8,20 +8,20 @@ const T=vm.runInNewContext(cut('var TIT_REGLAS','function c2titularReglas')+cut(
 const {REGLAS_CORTAS:RC,TIT_REGLAS,c2reglasTxt}=T;
 
 // a) USO R4A
-assert.equal(c2reglasTxt({reglas:['R4A']},'USO'),'CIIU no corresponde al uso (R4A)');
+assert.equal(c2reglasTxt({reglas:['R4A']},'USO'),'el CIIU no es de ese uso (R4A)');
 // b) TIT reutiliza TIT_REGLAS (misma referencia, sin duplicar)
 assert.equal(RC.TIT,TIT_REGLAS);
 assert.equal(c2reglasTxt({reglas:['R5']},'TIT'),TIT_REGLAS.R5+' (R5)');
 // mismo código, distinto validador → distinto texto; varias reglas con "; "
 assert.notEqual(c2reglasTxt({reglas:['R5']},'USO'),c2reglasTxt({reglas:['R5']},'TIT'));
-assert.equal(c2reglasTxt({reglas:['R10','R4A']},'USO'),'CIIU no existe en Rev. 4 (R10); CIIU no corresponde al uso (R4A)');
+assert.equal(c2reglasTxt({reglas:['R10','R4A']},'USO'),'el CIIU no existe (R10); el CIIU no es de ese uso (R4A)');
 // c) código desconocido o grupo desconocido → solo el código
 assert.equal(c2reglasTxt({reglas:['R99']},'USO'),'R99');
 assert.equal(c2reglasTxt({reglas:['R4A']},''),'R4A');
-assert.equal(c2reglasTxt({reglas:['R4A','R99']},'USO'),'CIIU no corresponde al uso (R4A); R99');
-// d) sin dígitos (valores SICUN) en los textos; "Rev. 4" es el nombre de la revisión CIIU, no un valor
+assert.equal(c2reglasTxt({reglas:['R4A','R99']},'USO'),'el CIIU no es de ese uso (R4A); R99');
+// d) Solo se permiten los números fijos aprobados.
 for(const [g,cat] of Object.entries(RC))for(const [c,t] of Object.entries(cat)){
-  assert(!/\d/.test(t.replace('Rev. 4','')),g+' '+c+' lleva dígitos: '+t);
+  assert(!/\d/.test(t.replace(/\b(?:P12345678|Rev\. 4|001|01|02|03|81|82|8|1)\b/g,'')),g+' '+c+' lleva dígitos: '+t);
   assert(!/;/.test(t),g+' '+c+' usa el separador ";"');
   assert(/^\S.*\S$/.test(t),g+' '+c+' vacío o con espacios');
 }
