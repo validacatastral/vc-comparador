@@ -61,7 +61,7 @@ console.log('ok titular POSEEDOR+OTROS → sin error · PROPIETARIO+POSESIÓN �
 /* ===== Cambió pero sigue mal: las reglas del paso 3 también se aplican a ✔ VERIFICADO / ✔ CAMBIÓ (propia unidad).
    Cumple → ✔ igual; incumple → "◐ Cambió pero sigue mal: <regla>" (bucket 8, pendiente). Datos sintéticos. */
 function ctx2(id,H,rowsA,rowsB){var o=function(v){var r={};H.forEach(function(c,i){r[c]=v[i];});return r;};var c={preset:{id:id,key:KEY},A:{headers:H,rows:rowsA.map(o)},B:{headers:H,rows:rowsB.map(o)}};c.RES=T.compareCtx(c);return c;}
-function sm(r,regla,msg){assert.strictEqual(r.result,'◐ Cambió pero sigue mal: '+regla,msg+': '+r.result);assert.strictEqual(T.bucket(r.result),8);}
+function sm(r,regla,msg){assert.strictEqual(String(r.result).replace(/^(◐ Cambió pero sigue mal: ).*\(([A-Z0-9]+)\)$/,'$1$2'),'◐ Cambió pero sigue mal: '+regla,msg+': '+r.result);assert.strictEqual(T.bucket(r.result),8);}
 function ok(r,res,msg){assert.strictEqual(r.result,res,msg+': '+r.result);assert.strictEqual(T.bucket(r.result),0);}
 // TITULAR_INSCRIPCION
 var HT=[KEY,'Condición del Titular','Forma de Adquisición','Tipo de Documento','Tipo de Partida Registral','Número de Partida Registral','Clasificación Del Predio'];

@@ -2399,7 +2399,10 @@ var C2_CUMPLE='✔ CUMPLE EN SICUN';
 var C2_SIGUE_MAL='◐ Cambió pero sigue mal: ';
 /* Solo se juzga si el DESPUÉS trae las columnas de la regla (columna ausente ≠ valor vacío). MEP es opcional en la propia regla. */
 function c2tieneCampos(t){var a=t.actual||{};return Object.keys(a).every(function(k){return a[k]!==undefined||k==='mep';});}
-function c2reglasTxt(t){var rs=t.reglas||Array.from(new Set((String(t.txt||'').match(/\bR\d+[A-Z]?\b/g)||[])));return rs.join(', ')||'regla del validador';}
+/* Texto corto publicable por regla: "texto (CÓDIGO)"; varias con "; ". Código fuera del catálogo → solo el código. */
+function c2reglasTxt(t,grupo){var rs=t.reglas||Array.from(new Set((String(t.txt||'').match(/\bR\d+[A-Z]?\b/g)||[])));
+  var cat=REGLAS_CORTAS[grupo]||{};
+  return rs.map(function(r){return Object.prototype.hasOwnProperty.call(cat,r)?cat[r]+' ('+r+')':r;}).join('; ')||'regla del validador';}
 function c2filaDespues(board,code,rep){
   var c=board.find(function(x){return x.preset&&x.preset.id===rep&&x.B&&x.B.headers;});if(!c||!code)return null;
   var r=c.B.rows.find(function(x){return normKey(x[c.preset.key])===code;});if(!r)return null;
@@ -2410,6 +2413,31 @@ var TIT_REGLAS={R1:'forma de adquisición sin documento sustentatorio',R2:'bloqu
   R3A:'código de predio con formato inválido',R3B:'partida electrónica con formato inválido',R3C:'ficha con formato inválido',
   R4:'sucesión intestada con forma distinta de OTROS',R4H:'sucesión intestada con declaratoria de herederos',R6O:'condición OTROS y forma OTROS no llevan documento ni partida',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
   R3F:'ficha de ocho dígitos',R13:'forma de adquisición vacía'};
+/* Catálogo único de textos cortos por validador + código (el mismo código significa cosas distintas según el validador).
+   Solo describe la regla: nunca lleva valores de SICUN (CIIU, usos, áreas, fechas, nombres, DNI). TIT reutiliza TIT_REGLAS. */
+var REGLAS_CORTAS={
+  TIT:TIT_REGLAS,
+  USO:{R1:'unidad sin Código de Uso',R2:'Código de Uso fuera del glosario',R3A:'uso exige CIIU y ninguna línea lo tiene',
+    R3B:'línea sin CIIU, otras líneas sí tienen',R3C:'línea sin CIIU en obra no terminada',R3D:'línea con CIIU en obra no terminada',
+    R4A:'CIIU no corresponde al uso',R4B:'CIIU no corresponde al uso',R5:'CRC no está en Unidades Administrativas',
+    R6:'CRC con usos distintos en Unidades',R7:'comercial no identificado: local desocupado',R8A:'uso residual sin CIIU en ninguna línea',
+    R8B:'uso residual con CIIU: revisar el uso',R8C:'uso residual: línea sin CIIU, otras sí',R9:'local desocupado pero la línea declara CIIU',
+    R10:'CIIU no existe en Rev. 4'},
+  COND:{R1:'predio en edificio no está en ambos campos',R2:'terreno o parque debe ser predio independiente',
+    R3:'clasificación o predio catastral en vacío',R4:'predio catastral en fuera de la tabla',
+    R5:'predio comercial con clasificación no comercial',R6:'predio en edificio con una sola unidad',
+    R8:'clasificación OTROS con uso de clasificación propia',R9:'clasificación sin construcción con tipo de edificación',
+    R10:'tipo de edificación vacío',R10C:'cementerio sin tipo de edificación',R11:'predio en edificio sin tipo EDIFICIO o BLOCK',
+    R12:'casa habitación en EDIFICIO o BLOCK',R13:'tipo de edificación PABELLÓN'},
+  OBR:{R1:'producto total igual a uno: verificar metrado',R2:'unidad de medida distinta a la del anexo',
+    R3:'capacidad no corresponde al código',R4:'obra repetida en el predio',R5:'MEP no corresponde al material',
+    R6:'ECC debe ser terminado',R7P:'fecha anterior al primer piso'},
+  CRC:{R1:'entrada no inicia en la primera',R2:'entradas no correlativas',R3:'edificación de una fila no está en primer piso',
+    R4:'unidad no inicia en la primera',R5:'unidades no correlativas',R6:'sótano no inicia en el primero',
+    R6A:'sótano sin construcción en pisos superiores',R6B:'piso inferior tiene la construcción principal',
+    R6C:'sin líneas constructivas en el piso del CRC'},
+  FECHA:{R1:'año anterior al de los pisos inferiores'}
+};
 function c2titularReglas(f,code){
   var out=[];if(!f||!/^\d{24}$/.test(code))return out;
   if(c2up(f.clasificaciondelpredio).indexOf('PARQUE')>=0)return out;   /* PARQUE: exento */
@@ -3651,6 +3679,17 @@ function c2estadoFinal(board,row,code){
   if(v==='VAL_CRC')return c2crcFinal(board,code,row.message);
   return null;
 }
+/* Grupo de REGLAS_CORTAS que evalúa la fila; mismo enrutamiento que c2estadoFinal. */
+function c2grupoRegla(row){
+  var v=c2mapKey(row.validator);
+  if(v==='VAL_FECHA_PISO')return 'FECHA';
+  if(v==='VAL_TITULAR_INSCRIPCION')return 'TIT';
+  if(v==='VAL_USO_CIIU')return 'USO';
+  if(v==='VAL_COND_PREDIO_EN'||/FI\.24\.03/.test(row.message||''))return 'COND';
+  if(v==='VAL_PRODUCTO'||v==='VAL_MEP_MEDIDA_PRODUCTO')return 'OBR';
+  if(v==='VAL_CRC')return 'CRC';
+  return '';
+}
 function c2state(s){s=c2clean(s).toUpperCase().replace(/\s+/g,' ');return s==='OTROS CAMBIOS'?'OTRO CAMBIO':s;}
 function c2technician(value,sheet){
   var name=txt(value).replace(/\s+/g,'').toUpperCase();
@@ -4022,7 +4061,7 @@ function c2rows(){
     else if((status==='✔ VERIFICADO'||status==='✔ CAMBIÓ')&&txt(row.message).trim()){   /* cambió, pero ¿quedó bien? reglas del mensaje (paso 3) sobre el DESPUÉS */
       var ren=hits.concat(otros,dvs).filter(function(e){return (e.type==='rename'||e.type==='crcmatch')&&e.before===code&&/^\d{24}$/.test(e.after);})[0];
       var tok=c2estadoFinal(BOARD_(),row,ren?ren.after:code);
-      if(tok&&c2tieneCampos(tok)){if(!tok.cumple)status=C2_SIGUE_MAL+c2reglasTxt(tok);if(tok.extra)addNote('Ojo, además: '+tok.extra);}}
+      if(tok&&c2tieneCampos(tok)){if(!tok.cumple)status=C2_SIGUE_MAL+c2reglasTxt(tok,c2grupoRegla(row));if(tok.extra)addNote('Ojo, además: '+tok.extra);}}
     var otra=null;if(code&&(status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
       if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&!c2ruidoSicun(e);}:function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
       if(otra)status=row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}
