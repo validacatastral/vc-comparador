@@ -2531,7 +2531,7 @@ function c2titularFinal(board,code,msg){
   var todas=Array.from(new Set(filas.flatMap(function(r){return c2titularReglas(r,code);})));
   var siguen=todas.filter(function(r){return aplic.includes(r);});
   var otras=todas.filter(function(r){return !aplic.includes(r);});
-  return {cumple:!siguen.length,reglas:siguen,txt:siguen.length?siguen.map(function(r){return r+' ('+TIT_REGLAS[r]+')';}).join(', '):'ya no aplica '+aplic.join('/'),
+  return {cumple:!siguen.length,reglas:siguen,evaluadas:aplic,txt:siguen.length?siguen.map(function(r){return r+' ('+TIT_REGLAS[r]+')';}).join(', '):'ya no aplica '+aplic.join('/'),
     extra:otras.map(function(r){return r+' ('+TIT_REGLAS[r]+')';}).join(', '),
     actual:{condiciondeltitular:f.condiciondeltitular,formadeadquisicion:f.formadeadquisicion,tipodedocumento:f.tipodedocumento,tipodepartidaregistral:f.tipodepartidaregistral,numerodepartidaregistral:f.numerodepartidaregistral}};
 }
@@ -3452,7 +3452,7 @@ function c2resultado(hits,msg,aplic,actual,conforme,sinDatos){
   var seleccion=explicitos||aplic;
   if(seleccion&&sinDatos&&seleccion.every(function(c){return sinDatos.includes(c);}))return null;
   var reglas=codigos.filter(function(c){return !seleccion||seleccion.includes(c);});
-  return {cumple:!reglas.length,reglas:reglas,txt:reglas.join(', ')||conforme,
+  return {cumple:!reglas.length,reglas:reglas,txt:reglas.join(', ')||conforme,evaluadas:seleccion||null,
     actual:actual,extra:codigos.filter(function(c){return !reglas.includes(c);}).join(', ')};
 }
 function c2usoCiiuFinal(board,code,piso,msg){
@@ -3611,13 +3611,65 @@ function c2crcFinal(board,code,msg){
 }
 /* ¿Cambió la ficha respecto a lo que vio el validador (valores del Excel del revisor)? true / false / null (sin datos para comparar). */
 function c2valIni(v){var t=c2up(v).replace(/^\d+\s*-\s*/,'').replace(/\s+/g,' ').trim(),n=t.replace(',','.');return /^-?\d+(\.\d+)?$/.test(n)&&!/^0\d/.test(n)?String(parseFloat(n)):t;}
-function c2cambioDesdeInicial(ini,act){
-  if(!ini||!act)return null;var ks=Object.keys(act).filter(function(k){return Object.prototype.hasOwnProperty.call(ini,k);});
+/* Campos que evalúa cada regla (claves de tfin.actual). Solo para comparar inicial vs DESPUÉS: no cambia la lógica de las reglas.
+   Regla sin campos en tfin.actual (R4/R6/R7P de obras, CRC) → []: no se puede afirmar que cambió. */
+var C2_CAMPOS_REGLA=(function(){
+  var CT='condiciondeltitular',FA='formadeadquisicion',TD='tipodedocumento',TP='tipodepartidaregistral',NP='numerodepartidaregistral',
+    CI='codigodeactividadeconomicaciiu',US='codigodeuso',CL='clasificaciondelpredio',PC='prediocatastralen',TE='tipodeedificacion';
+  return {
+    TIT:{R1:[FA,TD,TP,NP],R2:[TD,TP,NP],R2P:[CT,TD],R3A:[TP,NP],R3B:[TP,NP],R3C:[TP,NP],R3F:[TP,NP],R4:[CT,FA],R4H:[CT,TD],
+      R6O:[CT,FA,TD,TP,NP],R5:[CT,FA],R5C:[CT,FA,TD],R13:[FA]},
+    USO:{R1:[US],R2:[US],R3A:[CI],R3B:[CI],R3C:[CI],R3D:[CI],R4A:[CI,US],R4B:[CI,US],R5:[US],R6:[US],R7:[US,CI],
+      R8A:[US,CI],R8B:[US,CI],R8C:[US,CI],R9:[US,CI],R10:[CI]},
+    COND:{R1:[CL,PC],R2:[CL,PC],R3:[CL,PC],R4:[PC],R5:[CL,PC],R6:[PC],R8:[CL],R9:[CL,TE],R10:[TE],R10C:[TE],R11:[CL,TE],R12:[CL,TE],R13:[TE]},
+    OBR:{R1:['productototal','unidaddemedida'],R2:['unidaddemedida'],R3:['productototal'],R4:[],R5:['mep'],R6:[],R7P:[]},
+    CRC:{},
+    FECHA:{R1:['fechaconstruccion']}
+  };
+})();
+/* Campos de la regla de la fila: reglas que evaluó c2estadoFinal (mensaje o aplicables); sin selección → todas las del validador. */
+function c2reglaCampos(grupo,evaluadas){
+  var cat=C2_CAMPOS_REGLA[grupo]||{},out=[];
+  (evaluadas||Object.keys(cat)).forEach(function(r){(cat[r]||[]).forEach(function(k){if(out.indexOf(k)<0)out.push(k);});});
+  return out;
+}
+/* Nombre legible del campo para la nota (solo el nombre, nunca el valor). */
+var C2_CAMPO_NOMBRE={condiciondeltitular:'Condición del Titular',formadeadquisicion:'Forma de Adquisición',tipodedocumento:'Tipo de Documento',
+  tipodepartidaregistral:'Tipo de Partida Registral',numerodepartidaregistral:'N° de Partida Registral',codigodeactividadeconomicaciiu:'CIIU',
+  codigodeuso:'Código de Uso',clasificaciondelpredio:'Clasificación del Predio',prediocatastralen:'Predio Catastral En',tipodeedificacion:'Tipo de Edificación',
+  productototal:'Producto Total',unidaddemedida:'Unidad de Medida',mep:'MEP',fechaconstruccion:'Fecha de Construcción'};
+var C2_CAMPOS_CODIGO={codigodeactividadeconomicaciiu:1,codigodeuso:1,clasificaciondelpredio:1,prediocatastralen:1,tipodeedificacion:1,codigo:1};
+/* Normaliza un valor para comparar inicial vs DESPUÉS → {vacio} | {cod, desc}. No reemplaza a c2valIni.
+   "código - descripción" se parte; solo dígitos = código sin ceros iniciales (salvo CRC de 24); 120 = 120.0 = "120,00";
+   "", "-", "—", "NULL", "N/A" vacío (y "0" en campos de código). */
+function c2valCmp(v,campo){
+  var t=c2up(v).replace(/\s+/g,' ').trim();
+  if(/^(-+|—|–|NULL|N\/A)?$/.test(t)||(C2_CAMPOS_CODIGO[campo]&&/^0+$/.test(t)))return {vacio:true};
+  function cod(x){return x.length===24?x:x.replace(/^0+(?=\d)/,'');}
+  var m=t.match(/^(\d+)\s*-\s*(.*)$/);
+  if(m)return {cod:cod(m[1]),desc:m[2].trim()};
+  if(/^\d+$/.test(t))return {cod:cod(t)};
+  if(/^-?\d+([.,]\d+)?$/.test(t))return {cod:String(parseFloat(t.replace(',','.')))};
+  return {desc:t};
+}
+/* ¿Difiere el campo? true / false. Con código en ambos lados se compara solo el código; si no, la descripción; si no, el texto. */
+function c2difiereCampo(a,b,campo){
+  if(campo==='fechaconstruccion')return C2_FECHA.fechaComparable(a)!==C2_FECHA.fechaComparable(b);
+  var x=c2valCmp(a,campo),y=c2valCmp(b,campo);
+  if(x.vacio||y.vacio)return !(x.vacio&&y.vacio);
+  if(x.cod!==undefined&&y.cod!==undefined)return x.cod!==y.cod;
+  if(x.desc&&y.desc)return x.desc!==y.desc;
+  return (x.cod||x.desc)!==(y.cod||y.desc);
+}
+/* ¿Cambió la ficha respecto a lo que vio el validador (valores del Excel del revisor)? Solo los campos de la regla (campos).
+   true si al menos uno difiere (sus claves van a out) / false / null (sin campos de la regla o sin datos para comparar). */
+function c2cambioDesdeInicial(ini,act,campos,out){
+  if(!ini||!act||!campos||!campos.length)return null;
+  var ks=campos.filter(function(k){return act[k]!==undefined&&Object.prototype.hasOwnProperty.call(ini,k);});
   if(!ks.length)return null;
-  return ks.some(function(k){
-    if(k==='fechaconstruccion')return C2_FECHA.fechaComparable(ini[k])!==C2_FECHA.fechaComparable(act[k]);
-    return c2valIni(ini[k])!==c2valIni(act[k]);
-  });
+  var dif=ks.filter(function(k){return c2difiereCampo(ini[k],act[k],k);});
+  if(out)dif.forEach(function(k){out.push(k);});
+  return dif.length>0;
 }
 /* VAL_FECHA_PISO · regla anual del motor original de Diego (©diegocampos). */
 var C2_FECHA=(function(){
@@ -3728,6 +3780,11 @@ function c2fechaPisoFinal(board,row,code){
   return c2resultado(hits,'',null,actual,'fecha y piso conformes');
 }
 function c2estadoFinal(board,row,code){
+  var res=c2estadoFinalBase(board,row,code);
+  if(res)res.campos=c2reglaCampos(c2grupoRegla(row),res.evaluadas);   /* campos que evalúa la regla de la fila */
+  return res;
+}
+function c2estadoFinalBase(board,row,code){
   var v=c2mapKey(row.validator);
   if(v==='VAL_FECHA_PISO')return c2fechaPisoFinal(board,row,code);
   if(!/^\d{24}$/.test(code))return null;
@@ -4119,11 +4176,13 @@ function c2rows(){
     if(status==='⚠ SIN CAMBIO EN SICUN'){
       var tfin=c2estadoFinal(BOARD_(),row,code);
       if(tfin&&c2tieneCampos(tfin)){
-        var cambioIni=c2cambioDesdeInicial(row.inicial,tfin.actual)===true, g3=c2grupoRegla(row);
+        var camposIni=[], cmpIni=c2cambioDesdeInicial(row.inicial,tfin.actual,tfin.campos,camposIni), cambioIni=cmpIni===true, g3=c2grupoRegla(row);
+        var notaIni='cambió antes de la descarga ANTES: '+camposIni.map(function(k){return C2_CAMPO_NOMBRE[k]||k;}).join(', ');
+        if(cmpIni===null)addNote('sin valor inicial comparable');   /* null = no cambió (casos b/c), nunca a ni d */
         if(!tfin.cumple){addNote('Sigue en SICUN: '+tfin.txt);
           paso3={caso:cambioIni?'cambioAntes':'sigueMal',reglas:tfin.reglas,esperado:tfin.esperado||[]};
           if(cambioIni)sigueMalAntes=C2_SIGUE_MAL+c2reglasTxt(tfin,g3)+c2queHacer(tfin,g3);}   /* (a) se aplica tras el paso 2 */
-        else if(cambioIni){status=C2_CUMPLE;paso3={caso:'cumple',reglas:[]};addNote('Cumple en SICUN: '+tfin.txt+' · corregido antes de la descarga ANTES');}
+        else if(cambioIni){status=C2_CUMPLE;paso3={caso:'cumple',reglas:[]};addNote('Cumple en SICUN: '+tfin.txt+' · corregido antes de la descarga ANTES');addNote(notaIni);}
         else {paso3={caso:'falsoError',reglas:tfin.reglas};addNote('Sin cambio desde la validación: '+tfin.txt+' según las reglas; posible falso error, si es así marcar NO APLICA');}
         if(tfin.extra)addNote('Ojo, además: '+tfin.extra);}}
     else if((status==='✔ VERIFICADO'||status==='✔ CAMBIÓ')&&txt(row.message).trim()){   /* cambió, pero ¿quedó bien? reglas del mensaje (paso 3) sobre el DESPUÉS */
@@ -4133,7 +4192,7 @@ function c2rows(){
     var otra=null;if(code&&(status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
       if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&!c2ruidoSicun(e);}:function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
       if(otra)status=row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}
-    if(sigueMalAntes&&status==='⚠ SIN CAMBIO EN SICUN'){status=sigueMalAntes;addNote('cambió antes de la descarga ANTES');}
+    if(sigueMalAntes&&status==='⚠ SIN CAMBIO EN SICUN'){status=sigueMalAntes;addNote(notaIni);}
     if(status==='⚠ SIN CAMBIO EN SICUN'&&c2mapKey(row.validator)==='VAL_USO_CIIU'&&tfin&&tfin.cumple&&/\bR7\b/.test(tfin.txt))addNote('Sugerencia: debería ser NO APLICA (comercial no identificado no lleva CIIU)');
     if(split.otroPiso.length&&!(otra&&otra.otroPiso))addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
     var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch'||c2esDV(e);}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
