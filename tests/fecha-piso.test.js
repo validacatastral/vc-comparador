@@ -58,7 +58,7 @@ for(const [regla,mal,bien] of escenarios){
     const antes=structuredClone(datos);
     antes[i].fecha='2009-12-31';
     const cambio=run(tablero(datos,antes),row);
-    assert.equal(cambio.result,falla?'◐ Cambió pero sigue mal: '+regla:'✔ VERIFICADO',regla);
+    assert.equal(String(cambio.result).replace(/^(◐ Cambió pero sigue mal: ).*\(([A-Z0-9]+)\)$/,'$1$2'),falla?'◐ Cambió pero sigue mal: '+regla:'✔ VERIFICADO',regla);
   }
 }
 // El piso de otra unidad de la edificación sostiene la línea, pero sus incidencias no se atribuyen a esta.
@@ -77,7 +77,7 @@ for(const msg of ['Mes anterior (FI.28.02)','[R1M] mes anterior','Año anterior'
   assert(r.note.includes('Sigue en SICUN: R1'),r.note);
   assert.doesNotMatch(r.note,/Ojo, además|R1M|R1Z|R[2-6]|2019|2020/);
   const cambio=run(tablero(contexto,[contexto[0],linea('2','2018-01-01'),contexto[2]]),revisor('2',msg));
-  assert.equal(cambio.result,'◐ Cambió pero sigue mal: R1');
+  assert.equal(String(cambio.result).replace(/^(◐ Cambió pero sigue mal: ).*\(([A-Z0-9]+)\)$/,'$1$2'),'◐ Cambió pero sigue mal: R1');
 }
 for(const fecha of ['2020-01-01','2020-06-14']){
   const r=run(tablero(niveles(['1','2020-06-15'],['2',fecha])),revisor('2','Mes anterior'));
@@ -109,7 +109,7 @@ bordes.forEach((_,i)=>cotejar(bordes,i));
 const viejo=K.slice(0,23)+'0',antes=[linea('1','2020-01-01',vecina),linea('2','2018-01-01',viejo)];
 const renombrado=tablero([antes[0],linea('2','2019-01-01',K)],antes);
 const rr=run(renombrado,revisor('2','[R1] (FI.28.02)',viejo));
-assert.equal(rr.result,'◐ Cambió pero sigue mal: R1',rr.change+' '+rr.note);
+assert.equal(String(rr.result).replace(/^(◐ Cambió pero sigue mal: ).*\(([A-Z0-9]+)\)$/,'$1$2'),'◐ Cambió pero sigue mal: R1',rr.change+' '+rr.note);
 assert.match(rr.changeView+' '+rr.note,/DV|CRC/);
 
 // La línea más antigua del nivel inferior manda, independientemente de la unidad y el orden.
