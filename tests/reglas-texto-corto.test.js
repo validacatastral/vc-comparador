@@ -42,5 +42,5 @@ for(const [g,set] of Object.entries(activos)){
 }
 // prefijo intacto en la línea del status
 assert(html.includes("var C2_SIGUE_MAL='◐ Cambió pero sigue mal: ';"));
-assert(html.includes('status=C2_SIGUE_MAL+c2reglasTxt(tok,c2grupoRegla(row));'));
+assert(html.includes('status=C2_SIGUE_MAL+c2reglasTxt(tok,c2grupoRegla(row))+c2queHacer(tok,c2grupoRegla(row));'));
 console.log('reglas-texto-corto: ok');

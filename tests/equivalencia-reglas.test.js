@@ -57,14 +57,14 @@ function verificar(tipo,regla,malo,bueno,{falso=false,vigente=false}={}){
     assert.equal(estado.reglas.includes(regla),debe&&!falso,tipo+' equivalencia '+regla);
     const estable=run(b,filaUE);
     if(debe&&!falso){
-      assert.equal(estable.result,'⚠ SIN CAMBIO EN SICUN');
+      assert(estable.result==='⚠ SIN CAMBIO EN SICUN'||estable.result.startsWith('◐ Cambió pero sigue mal: ')&&estable.result.includes('('+regla+')'),estable.result);   /* ⚠ sin cambio, o ◐ si el inicial difiere (caso a) */
       assert(estable.note.includes('Sigue en SICUN: '+regla),estable.note);
     }
     const cambio=b.find(x=>x.preset.id===rep);
     cambio.A.rows.filter(r=>r[KEY]===code).forEach(r=>{r[nombres[campo]]='ANTES';});
     cambio.RES=T.compareCtx(cambio);
     const final=run(b,filaUE);
-    assert.equal(String(final.result).replace(/^(◐ Cambió pero sigue mal: ).*\(([A-Z0-9]+)\)$/,'$1$2'),debe&&!falso?'◐ Cambió pero sigue mal: '+regla:'✔ VERIFICADO',tipo+' '+regla+' '+final.result+' '+final.note);
+    assert.equal(String(final.result).replace(/^(◐ Cambió pero sigue mal: ).*?\(([A-Z0-9]+)\)(?: · .*)?$/,'$1$2'),debe&&!falso?'◐ Cambió pero sigue mal: '+regla:'✔ VERIFICADO',tipo+' '+regla+' '+final.result+' '+final.note);
   }
   escenarios++;
 }

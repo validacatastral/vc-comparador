@@ -37,7 +37,7 @@ console.log('ok 0 · VAL_CRC espera: '+exp.slice(-2).join(' | '));
 var A='150112220700190101020010', B='150112220700190101020019';
 var b1=board(A,B,[SIN,['','','010101']]);b1[0].B.rows.push({[KEY]:'150112220700190101010013',[TI]:'',[NI]:'',[USO]:'010101'});   /* la edificación también tiene piso 01 (si no, R3 de VAL_CRC: sigue mal) */
 var r1=run(b1,[fila('VAL_CRC',A,'APLICA',{message:'Inconsistencia por estructura'})])[0];
-assert.strictEqual(String(r1.result).replace(/^(◐ Cambió pero sigue mal: ).*\(([A-Z0-9]+)\)$/,'$1$2'),'◐ Cambió pero sigue mal: R6C','el CRC nuevo está en piso 02 y su construcción en 01');
+assert.strictEqual(String(r1.result).replace(/^(◐ Cambió pero sigue mal: ).*?\(([A-Z0-9]+)\)(?: · .*)?$/,'$1$2'),'◐ Cambió pero sigue mal: R6C','el CRC nuevo está en piso 02 y su construcción en 01');
 assert.strictEqual(r1.campos,'UA · Tipo de Interior | UA · Número de Interior','sin "(solo DV)" en campos');
 assert(/(^| · )DV recalculado por SICUN( · |$)/.test(r1.note)&&!/solo DV/.test(r1.note),'nota: '+r1.note);
 assert(!/solo DV/.test(r1.change),'cambios sin el DV: '+r1.change);
