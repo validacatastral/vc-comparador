@@ -2307,6 +2307,7 @@ function pubLoaded(present){var ok=new Set();Object.keys(present||{}).forEach(fu
 /* Sectores de un polígono que NO está en el universo, leídos del Excel del revisor (todas las filas, revisadas o no).
    Si hay códigos ilegibles no se puede saber si está completo: se informa cuántos. */
 function pubSectoresExcel(files){var sectors=new Set(),ilegibles=0;(files||[]).forEach(function(f){f.rows.forEach(function(r){
+  if(r.crcIlegible){ilegibles++;return;}
   if(!r.numeric&&/^\d{24}$/.test(r.rawCode))sectors.add(r.rawCode.slice(6,8));else if(!r.numeric&&/^\d{8}$/.test(r.rawCode))sectors.add(r.rawCode.slice(0,2));else if(r.partial)sectors.add(r.partial.slice(0,2));else ilegibles++;});});return {sectors:sectors,ilegibles:ilegibles};}
 /* Seguro: nunca se publica un polígono si más del 50% de sus filas quedó "Inválido/incompleto" o "No encontrado". Devuelve el motivo o ''. */
 function pubSeguro(t){var malas=((t||{}).noEncontrado||0)+((t||{}).invalido||0);return t&&t.filas>0&&malas*2>t.filas?malas+' de '+t.filas+' inválidas o no encontradas':'';}
@@ -2408,11 +2409,10 @@ function c2filaDespues(board,code,rep){
 function c2up(v){return stripAccents(String(v||'')).toUpperCase().replace(/\s+/g,' ').trim();}
 var TIT_REGLAS={R1:'forma de adquisición sin documento sustentatorio',R2:'bloque registral incompleto',R2P:'POSEEDOR con escritura pública',
   R3A:'código de predio con formato inválido',R3B:'partida electrónica con formato inválido',R3C:'ficha con formato inválido',
-  R4:'sucesión intestada con forma distinta de OTROS',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
-  R3F:'ficha de ocho dígitos',E1:'longitud del CRC distinta de 24'};
+  R4:'sucesión intestada con forma distinta de OTROS',R4H:'sucesión intestada con declaratoria de herederos',R6O:'condición OTROS y forma OTROS no llevan documento ni partida',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
+  R3F:'ficha de ocho dígitos',R13:'forma de adquisición vacía'};
 function c2titularReglas(f,code){
-  var out=[];if(!f)return out;
-  if(String(code||'').length!==24)out.push('E1');
+  var out=[];if(!f||!/^\d{24}$/.test(code))return out;
   if(c2up(f.clasificaciondelpredio).indexOf('PARQUE')>=0)return out;   /* PARQUE: exento */
   var k=String(code||''),lote=k.length===24&&k.substr(16,2)==='99'&&k.substr(18,2)==='99'&&k.substr(20,3)==='999';
   var ct=c2up(f.condiciondeltitular),fa=c2up(f.formadeadquisicion),td=c2up(f.tipodedocumento),tp=c2up(f.tipodepartidaregistral),np=String(f.numerodepartidaregistral||'').trim();
@@ -2429,17 +2429,21 @@ function c2titularReglas(f,code){
   }
   if(!lote){
     if(ct==='SUCESION INTESTADA'&&fa!=='OTROS')out.push('R4');
+    if(ct==='SUCESION INTESTADA'&&td.indexOf('HEREDEROS')>=0)out.push('R4H');
+    if(ct==='OTROS'&&fa==='OTROS'&&(hayTD||hayTP||hayNP))out.push('R6O');
     if(fa==='POSESION'&&ct!=='POSEEDOR')out.push('R5');
     if(td.indexOf('CONSTANCIA')>=0&&(ct!=='POSEEDOR'||(fa!=='POSESION'&&fa!=='OTROS')))out.push('R5C');
+    if(!fa)out.push('R13');
   }
   return out;
 }
 /* Qué reglas corresponden a cada mensaje del validador de la UE. Mensaje no reconocido → todas. */
 function c2titularAplicables(msg){
   var m=c2up(msg),set=[];
-  var codigos=m.match(/\b(?:R\d+[A-Z]?|E1)\b/g);if(codigos)return codigos;
-  if(/TIPO DE DOCUMENTO/.test(m))set=set.concat(['R2P','R5C','R1']);
-  if(/FORMA DE ADQUISICION/.test(m))set=set.concat(['R5','R4']);
+  var codigos=m.match(/\bR\d+[A-Z]?\b/g);if(codigos)return codigos;
+  if(/TIPO DE DOCUMENTO/.test(m))set=set.concat(['R2P','R5C','R1','R4H','R6O']);
+  if(/FORMA DE ADQUISICION/.test(m)&&/VACI/.test(m))set=set.concat(['R13']);
+  else if(/FORMA DE ADQUISICION/.test(m))set=set.concat(['R5','R4','R13']);
   if(/PARTIDA/.test(m))set=set.concat(['R2','R3A','R3B','R3C','R3F']);
   return set.length?set:Object.keys(TIT_REGLAS);
 }
@@ -3052,9 +3056,6 @@ var T_EDIF="EDIFICIO", T_BLOCK="BLOCK", T_PAB="PABELLON";
 /* Clasificaciones sin construcción: no llevan tipo de edificación */
 var SIN_CONS=[C_TSC,C_PARQUE,C_PLAYA,C_SUB];
 
-/* Uso esperado para terreno sin construir y parque (R14) */
-var USO_PROPIO={}; USO_PROPIO[C_TSC]="070101"; USO_PROPIO[C_PARQUE]="040101";
-
 /* R8 · usos que tienen clasificación propia (código de uso -> sugerencia) */
 var TDA="TIENDA-DEPÓSITO-ALMACÉN";
 var USO_CLASIF = {
@@ -3095,14 +3096,13 @@ function sugerenciaUso(cod){
    registro de nivel lote. Lote = 14 dígitos · edificación = 16. */
 function esUnidad(p){ return p.unidad!=="999"; }
 function prepararContexto(cruces, base){
-  var ctx = {lote:{}, edif:{}}, visto = {};
+  var ctx = {lote:{}}, visto = {};
   base.forEach(function(r){
     var p = partirCRC(r.crc);
     if(!esUnidad(p) || visto[p.base]) return;
     visto[p.base] = true;
-    var kl = p.raw.substr(0,14), ke = p.edif;
+    var kl = p.raw.substr(0,14);
     ctx.lote[kl] = (ctx.lote[kl]||0)+1;
-    ctx.edif[ke] = (ctx.edif[ke]||0)+1;
   });
   return ctx;
 }
@@ -3120,28 +3120,26 @@ function validar(r, ctx){
   var unidad = esUnidad(p);
   var hayTipo = !r.__sin.tedif;
 
+  /* Criterio de Diego: para terreno sin construir y parque solo se evalúa R2. */
+  if(c===C_TSC || c===C_PARQUE){
+    if(q!==P_PI)add("R2", BASE_TXT+": corresponde PREDIO INDEPENDIENTE.",["clasif","pce"]);
+    return hits;
+  }
+
   /* R3 · vacíos: sin ambos campos no se evalúa la coherencia */
   if(!c || !q){
     add("R3","Campo vacío, no se ha registrado la clasificación del predio y/o predio catastral en (FI.24.03).",
       (!c?["clasif"]:[]).concat(!q?["pce"]:[]));
   }else{
-    var r2 = false;
     /* R1 · predio en edificio en ambos campos (excepción: clasificación PE + AIRES) */
     if((c===C_PE)!==(q===P_PE) && !(c===C_PE && q===P_AIRES)){
       add("R1", BASE_TXT+": PREDIO EN EDIFICIO debe registrarse en ambos campos (se registra "+vc+" / "+vq+").",["clasif","pce"]);
     }
-    /* R2 · terreno sin construir y parque solo admiten predio independiente */
-    if((c===C_TSC || c===C_PARQUE) && q!==P_PI){
-      r2 = true;
-      add("R2", BASE_TXT+": "+vc+" solo admite PREDIO INDEPENDIENTE (se registra "+vq+").",["clasif","pce"]);
-    }
     /* R4 · OTROS o valor fuera de la tabla oficial */
-    if(!r2){
-      if(q===P_OTROS){
-        add("R4","Advertencia, predio catastral en OTROS; verificar si corresponde a un código específico de la tabla oficial (FI.24.03).",["pce"]);
-      }else if(P_TABLA.indexOf(q)<0){
-        add("R4","Advertencia, predio catastral en \""+vq+"\" no corresponde a la tabla oficial; verificar (FI.24.03).",["pce"]);
-      }
+    if(q===P_OTROS){
+      add("R4","Advertencia, predio catastral en OTROS; verificar si corresponde a un código específico de la tabla oficial (FI.24.03).",["pce"]);
+    }else if(P_TABLA.indexOf(q)<0){
+      add("R4","Advertencia, predio catastral en \""+vq+"\" no corresponde a la tabla oficial; verificar (FI.24.03).",["pce"]);
     }
     /* R5 · galería, mercado, campo ferial, centro comercial con clasificación no comercial */
     if(P_COMERCIAL.indexOf(q)>=0 && C_COMERCIAL.indexOf(c)<0 && [C_PE,C_TSC,C_PARQUE].indexOf(c)<0){
@@ -3153,11 +3151,6 @@ function validar(r, ctx){
     /* R6 · predio en edificio con una sola unidad en el lote */
     if((c===C_PE || q===P_PE) && ctx.lote[p.raw.substr(0,14)]===1){
       add("R6","Advertencia, predio en edificio con una sola unidad en el lote; verificar si corresponde predio independiente (FI.24.03).",["pce"]);
-    }
-    /* R7 · predio independiente en edificación con más de 10 unidades */
-    var nEd = ctx.edif[p.edif]||0;
-    if(q===P_PI && nEd>10){
-      add("R7","Advertencia, la edificación registra "+nEd+" unidades y la unidad figura como PREDIO INDEPENDIENTE; verificar si corresponde predio en edificio (FI.24.03).",["pce"]);
     }
   }
 
@@ -3188,10 +3181,6 @@ function validar(r, ctx){
     }
   }
 
-  /* R14 · terreno sin construir y parque con uso distinto al suyo */
-  if(USO_PROPIO[c] && cu && cu!==USO_PROPIO[c]){
-    add("R14","Advertencia, clasificación "+vc+" con uso "+cu+" "+norm(r.duso)+"; el uso debe ser "+USO_PROPIO[c]+" (FI.24.03).",["clasif","cuso"]);
-  }
   return hits;
 }
 
@@ -3238,7 +3227,6 @@ var MEP_NOMBRE = {"01":"concreto","02":"ladrillo","03":"adobe, quincha, madera"}
 var ESCALERAS   = [54,55,64,65,66];
 var EXC_R1      = [1,21,28,33,35,36,56,78].concat(ESCALERAS);
 var TQ_PLASTICO = [18,21,22,28];
-var TQ_ELEVADO  = [18,21];
 var PARAPETOS   = rango(50,53);
 var REP_R4      = rango(1,9).concat(rango(88,90),rango(50,53),rango(81,84),rango(58,63),rango(33,36),[95]);
 
@@ -3293,18 +3281,14 @@ function cap(n){ return n.toFixed(2); }
 function llaveR4(r){ return [r.crc,r.cod,r.desc,r.fecha,r.mep,r.ecs,r.ecc,r.pt,r.um,r.uca].join("\u0001"); }
 
 function prepararContexto(cruces, base){
-  var ctx = {rep:{}, top:{}, p1:{}};
+  var ctx = {rep:{}, p1:{}};
   base.forEach(function(r){
     if(REP_R4.indexOf(parseInt(r.cod,10))>=0){ var k=llaveR4(r); ctx.rep[k]=(ctx.rep[k]||0)+1; }
   });
-  /* Construcciones: piso más alto (01–70) y su fecha más antigua; fecha más antigua del piso 1 */
+  /* Construcciones: fecha más antigua del piso 1 para los parapetos */
   (cruces.cons||[]).forEach(function(r){
     var p = parseInt(r.piso,10), m = mes(r.fecha), ed = norm(r.crc).substr(0,16);
-    if(!(p>=1 && p<=70) || !m) return;
-    var t = ctx.top[ed];
-    if(!t || p>t.piso) ctx.top[ed] = {piso:p, mes:m};
-    else if(p===t.piso && m<t.mes) t.mes = m;
-    if(p===1 && (!ctx.p1[ed] || m<ctx.p1[ed])) ctx.p1[ed] = m;
+    if(p===1 && m && (!ctx.p1[ed] || m<ctx.p1[ed])) ctx.p1[ed] = m;
   });
   return ctx;
 }
@@ -3362,13 +3346,9 @@ function validar(r, ctx){
     hits.push({c:"R6", txt:"[R6] ECC debe ser 01 (terminado).", marcas:["ecc"]});
   }
 
-  /* R7 / R7P · Fechas contra construcciones (no aplica con UCA) */
+  /* R7P · Fechas contra construcciones (no aplica con UCA) */
   var fm = mes(r.fecha);
   if(!uca && fm){
-    var t = ctx.top[ed];
-    if(TQ_ELEVADO.indexOf(cod)>=0 && t && fm<t.mes){
-      hits.push({c:"R7", txt:"[R7] Fecha anterior al último piso ("+mesTxt(t.mes)+").", marcas:["fecha"]});
-    }
     var p1 = ctx.p1[ed];
     if(PARAPETOS.indexOf(cod)>=0 && p1 && fm<p1){
       hits.push({c:"R7P", txt:"[R7P] Fecha anterior al piso 1 ("+mesTxt(p1)+").", marcas:["fecha"]});
@@ -3391,7 +3371,7 @@ function c2registro(f,campos){
 }
 function c2resultado(hits,msg,aplic,actual,conforme,sinDatos){
   var codigos=Array.from(new Set(hits));
-  var explicitos=c2up(msg).match(/\b(?:R\d+[A-Z]?|E1|LON)\b/g);
+  var explicitos=c2up(msg).match(/\bR\d+[A-Z]?\b/g);
   var seleccion=explicitos||aplic;
   if(seleccion&&sinDatos&&seleccion.every(function(c){return sinDatos.includes(c);}))return null;
   var reglas=codigos.filter(function(c){return !seleccion||seleccion.includes(c);});
@@ -3440,7 +3420,7 @@ function c2condPredioFinal(board,code,msg){
   var actual={clasificaciondelpredio:filas[0].clasif,prediocatastralen:filas[0].pce},sinDatos=[];
   if(filas[0].__sin.tedif)sinDatos.push('R9','R10','R10C','R11','R12','R13');
   else actual.tipodeedificacion=filas[0].tedif;
-  if(filas[0].__sin.cuso)sinDatos.push('R8','R14');
+  if(filas[0].__sin.cuso)sinDatos.push('R8');
   return c2resultado(hits,msg,aplic,actual,'clasificación y predio catastral en coherentes',sinDatos);
 }
 function c2obrUM(v){return C2_OBRA.normUM(v);}
@@ -3463,7 +3443,7 @@ function c2obrasFinal(board,code,soloProducto,ini,msg){
   if(filas[0].__sin.mep)sinDatos.push('R5');
   if(filas[0].__sin.ecc)sinDatos.push('R6');
   if(Object.values(filas[0].__sin).some(Boolean))sinDatos.push('R4');
-  if(filas[0].__sin.fecha||!cons.some(function(r){return !r.__sin.piso&&!r.__sin.fecha;}))sinDatos.push('R7','R7P');
+  if(filas[0].__sin.fecha||!cons.some(function(r){return !r.__sin.piso&&!r.__sin.fecha;}))sinDatos.push('R7P');
   return c2resultado(hits,msg,aplic,actual,'obras conformes',sinDatos);
 }
 /* CRC: e2 y $kCruce del HTML. La secuencia se agrupa desde sector;
@@ -3504,12 +3484,12 @@ function c2crcIndice(ua,con){
   return indice;
 }
 function c2crcFinal(board,code,msg){
+  if(!/^\d{24}$/.test(code))return null;
   function reporte(id){return board.find(function(x){return x.preset&&x.preset.id===id&&x.B&&x.B.headers;});}
   var ua=reporte('UA');if(!ua)return null;
   var idx=c2crcIndice(ua,reporte('CON'));
   if(!idx.codigos.has(code))return null;
   var hits=[];
-  if(code.length!==24)return c2resultado(['LON'],msg,null,null,'estructura del CRC conforme');
   var ks=idx.grupos.get(code.slice(6,16)),ent=code.slice(16,18),piso=code.slice(18,20),unidad=code.slice(20,23);
   var entradas=ks.map(function(k){return k.slice(16,18);}).filter(function(e){return e!=='99';});
   var orden=Array.from(new Set(entradas)).sort();
@@ -3546,13 +3526,17 @@ function c2cambioDesdeInicial(ini,act){
   return ks.some(function(k){return c2valIni(ini[k])!==c2valIni(act[k]);});
 }
 function c2estadoFinal(board,row,code){
-  var v=c2mapKey(row.validator);if(!code)return null;
-  if(v==='VAL_TITULAR_INSCRIPCION')return code.length===24?c2titularFinal(board,code,row.message):null;
-  if(v==='VAL_USO_CIIU')return code.length===24?c2usoCiiuFinal(board,code,row.piso,row.message):null;
-  if(v==='VAL_COND_PREDIO_EN'||/FI\.24\.03/.test(row.message||''))return code.length===24?c2condPredioFinal(board,code,row.message):null;
-  if(v==='VAL_PRODUCTO')return code.length===24?c2obrasFinal(board,code,true,row.inicial,row.message):null;
-  if(v==='VAL_MEP_MEDIDA_PRODUCTO')return code.length===24?c2obrasFinal(board,code,false,row.inicial,row.message):null;
-  if(v==='VAL_CRC')return code.length===24?c2crcFinal(board,code,row.message):null;
+  var v=c2mapKey(row.validator);if(!/^\d{24}$/.test(code))return null;
+  var condicion=v==='VAL_COND_PREDIO_EN'||/FI\.24\.03/.test(row.message||'');
+  var excluidas=condicion?['R7','R14']:v==='VAL_PRODUCTO'||v==='VAL_MEP_MEDIDA_PRODUCTO'?['R7']:[];
+  var citadas=c2up(row.message).match(/\b(?:R\d+[A-Z]?|LON|E1)\b/g);
+  if(citadas&&citadas.every(function(c){return c==='E1'||c==='LON'||excluidas.includes(c);}))return null;
+  if(v==='VAL_TITULAR_INSCRIPCION')return c2titularFinal(board,code,row.message);
+  if(v==='VAL_USO_CIIU')return c2usoCiiuFinal(board,code,row.piso,row.message);
+  if(condicion)return c2condPredioFinal(board,code,row.message);
+  if(v==='VAL_PRODUCTO')return c2obrasFinal(board,code,true,row.inicial,row.message);
+  if(v==='VAL_MEP_MEDIDA_PRODUCTO')return c2obrasFinal(board,code,false,row.inicial,row.message);
+  if(v==='VAL_CRC')return c2crcFinal(board,code,row.message);
   return null;
 }
 function c2state(s){s=c2clean(s).toUpperCase().replace(/\s+/g,' ');return s==='OTROS CAMBIOS'?'OTRO CAMBIO':s;}
@@ -3582,18 +3566,20 @@ function c2read(wb,name){
     var msg=find(/^val_/), piso=find(/^n.?\s*piso$/i), validator=c2val(sn), sheet={name:sn,validator:validator,rows:0,noState:state<0};
     if(state<0)file.totals.noState++;
     function index(names){return headers.findIndex(function(h){return names.indexOf(h)>=0;});}
+    var columnaCRC=/crc|referenciacatastral/.test(rawHead[0])&&!/lote/.test(rawHead[0]);
     var parts=[index(['sector']),index(['mz','manzana']),index(['lote']),index(['edifica','edificacion']),index(['entrada']),index(['piso']),index(['unidad'])];
     for(var r=range.s.r+1;r<=range.e.r;r++){
       if([0,1,2].every(function(c){return !c2clean(display(r,c));}))continue;
       sheet.rows++;file.totals.valid++;
       var st=state<0?'':c2state(display(r,state)), observation=obs<0?'':c2clean(display(r,obs)), code=c2clean(display(r,0)), a=cell(r,0), numeric=(!!a&&a.t==='n'&&code.replace(/\D/g,'').length>=8)||/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)[eE][+-]?\d+$/.test(code);
       if(state>=0){if(!st||st==='PENDIENTE')file.totals.empty++;else {file.totals.reviewed++;if(st==='APLICA')file.totals.aplica++;else if(st==='NO APLICA')file.totals.no++;else if(st==='OTRO CAMBIO')file.totals.otro++;else file.totals.invalid++;}}
-      var partial=''; if(!numeric && !/^\d{24}$|^\d{8}$/.test(code) && parts.slice(0,3).every(function(i){return i>=0 && /^\d+$/.test(c2clean(display(r,i)));})){
+      var crcIlegible=columnaCRC&&!/^\d{24}$/.test(code);
+      var partial=''; if(!crcIlegible && !numeric && !/^\d{24}$|^\d{8}$/.test(code) && parts.slice(0,3).every(function(i){return i>=0 && /^\d+$/.test(c2clean(display(r,i)));})){
         var vals=parts.map(function(i,j){var v=i<0?'':c2clean(display(r,i));return v && /^\d+$/.test(v)?v.padStart([2,3,3,2,2,2,3][j],'0'):'';});
         if(vals.slice(0,3).every(Boolean)){if(vals.slice(3).every(Boolean))partial=vals.join('');else if(vals.slice(3).every(function(x){return !x;}))code=vals.slice(0,3).join('');}
       }
       var p=piso<0?'':c2clean(display(r,piso));if(/^\d+\.0+$/.test(p))p=String(parseInt(p,10));
-      file.rows.push({tecnico:c2technician(encargado<0?'':display(r,encargado),sn),polygon:file.polygon,sheet:sn,validator:validator,rawCode:code,partial:partial,numeric:numeric,piso:p,state:st,observation:observation,message:msg<0?'':c2clean(display(r,msg)),noState:state<0,inicial:(function(){var o={},fin=msg<0?(state<0?rawHead.length:state):msg;for(var c=1;c<fin;c++)if(rawHead[c])o[rawHead[c]]=c2clean(display(r,c));return o;})()});
+      file.rows.push({tecnico:c2technician(encargado<0?'':display(r,encargado),sn),polygon:file.polygon,sheet:sn,validator:validator,rawCode:code,partial:partial,crcIlegible:crcIlegible,numeric:numeric,piso:p,state:st,observation:observation,message:msg<0?'':c2clean(display(r,msg)),noState:state<0,inicial:(function(){var o={},fin=msg<0?(state<0?rawHead.length:state):msg;for(var c=1;c<fin;c++)if(rawHead[c])o[rawHead[c]]=c2clean(display(r,c));return o;})()});
     }
     file.sheets.push(sheet);
   });
@@ -3601,7 +3587,7 @@ function c2read(wb,name){
 }
 function c2files(){return CUR<0?[]:(DISTRICTS[CUR].c2||[]);}
 function c2keys(){var keys=new Set();BOARD_().forEach(function(c){['A','B'].forEach(function(side){if(c[side])c[side].rows.forEach(function(r){var k=txt(r[c.preset.key]).trim();if(/^\d{14}$|^\d{24}$/.test(k))keys.add(k);});});});return Array.from(keys);}
-function c2resolve(row,keys){if(row.numeric)return '';if(/^\d{24}$|^\d{8}$/.test(row.rawCode))return row.rawCode;if(row.partial){var hits=keys.filter(function(k){return k.length===24&&k.slice(6,23)===row.partial;});return hits.length===1?hits[0]:'';}return '';}
+function c2resolve(row,keys){if(row.numeric||row.crcIlegible)return '';if(/^\d{24}$|^\d{8}$/.test(row.rawCode))return row.rawCode;if(row.partial){var hits=keys.filter(function(k){return k.length===24&&k.slice(6,23)===row.partial;});return hits.length===1?hits[0]:'';}return '';}
 function c2floor(v){var s=txt(v).trim();return /^\d+(?:\.0+)?$/.test(s)?String(parseInt(s,10)):s;}
 function c2events(ctx){var out=[],res=ctx.RES;if(!res)return out;
   function push(k,field,before,after,rowA,rowB,type){out.push({key:k,report:ctx.preset.id,field:field,before:txt(before),after:txt(after),rowA:rowA,rowB:rowB,type:type});}
@@ -3876,8 +3862,8 @@ function c2rows(){
     function names(list){var u=Array.from(new Set(list.map(function(e){return e.report+' · '+e.field;})));return u.slice(0,5).join(', ')+(u.length>5?' y '+(u.length-5)+' más':'');}
     var sec8=code.length===24?code.slice(0,8):(lotCode||'').slice(0,8), rowGaps=map&&sec8.length===8?c2reports(map).map(function(id){return gapIdx[sec8+'|'+id];}).filter(Boolean):[];
     var sector=code.length===8?code.slice(0,2):code.slice(6,8), sectorLoaded=keys.some(function(k){return k.slice(6,8)===sector;}), status, cls=null;
-    if(row.state==='NO APLICA'&&(!code||(!matching.length && !(lotUbigeos && lotUbigeos.size>1))||!sectorLoaded||!$('c2NoAplica').checked))return;
-    if(invalid)status='ESTADO INVÁLIDO';else if(!code)status='CRC INCOMPLETO';else if(!sectorLoaded)status='SECTOR NO CARGADO';else if(lotUbigeos && lotUbigeos.size>1)status='LOTE AMBIGUO (varios ubigeos)';else if(!matching.length)status='? NO ENCONTRADO';else if(!BOARD_().some(function(c){return !!c.RES;}))status='PENDIENTE DE COMPARACIÓN';
+    if(row.state==='NO APLICA'&&(!$('c2NoAplica').checked||(code&&((!matching.length && !(lotUbigeos && lotUbigeos.size>1))||!sectorLoaded))))return;
+    if(invalid)status='ESTADO INVÁLIDO';else if(!code){status='? NO ENCONTRADO';note='CRC ilegible en el Excel (no tiene 24 dígitos) — revisar el archivo';}else if(!sectorLoaded)status='SECTOR NO CARGADO';else if(lotUbigeos && lotUbigeos.size>1)status='LOTE AMBIGUO (varios ubigeos)';else if(!matching.length)status='? NO ENCONTRADO';else if(!BOARD_().some(function(c){return !!c.RES;}))status='PENDIENTE DE COMPARACIÓN';
     else if(rowGaps.length && row.state!=='NO APLICA' && !hits.length && (row.state==='APLICA'||!otros.length))status='⏸ Sin comparar ('+Array.from(new Set(rowGaps.map(function(g){return g.motivo;}))).join('; ')+')';
     else if(row.state==='APLICA' && isCrc && revisar.length){status='⚠ REVISAR A MANO';addNote('CRC: '+revisar[0].reason+'; no se pudo emparejar la unidad');}
     else if(row.state==='APLICA' && map && !hits.length && c2reports(map).some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';
@@ -3899,7 +3885,7 @@ function c2rows(){
       var ren=hits.concat(otros,dvs).filter(function(e){return (e.type==='rename'||e.type==='crcmatch')&&e.before===code&&/^\d{24}$/.test(e.after);})[0];
       var tok=c2estadoFinal(BOARD_(),row,ren?ren.after:code);
       if(tok&&c2tieneCampos(tok)){if(!tok.cumple)status=C2_SIGUE_MAL+c2reglasTxt(tok);if(tok.extra)addNote('Ojo, además: '+tok.extra);}}
-    var otra=null;if((status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
+    var otra=null;if(code&&(status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
       if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&!c2ruidoSicun(e);}:function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
       if(otra)status=row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}
     if(status==='⚠ SIN CAMBIO EN SICUN'&&c2mapKey(row.validator)==='VAL_USO_CIIU'&&tfin&&tfin.cumple&&/\bR7\b/.test(tfin.txt))addNote('Sugerencia: debería ser NO APLICA (comercial no identificado no lleva CIIU)');

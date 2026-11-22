@@ -38,7 +38,7 @@ function reporte(id,registros){
 }
 const val={USO:'VAL_USO_CIIU',COND:'VAL_COND_PREDIO_EN',OBRAS:'VAL_MEP_MEDIDA_PRODUCTO',CRC:'VAL_CRC',TITULAR:'VAL_TITULAR_INSCRIPCION'};
 let escenarios=0;
-function verificar(tipo,regla,malo,bueno,{falso=false}={}){
+function verificar(tipo,regla,malo,bueno,{falso=false,vigente=false}={}){
   for(const [datos,debe] of [[malo,true],[bueno,false]]){
     const {base,cruces={},code=K,piso='',board,rep,campo}=datos;
     let hits;
@@ -50,7 +50,7 @@ function verificar(tipo,regla,malo,bueno,{falso=false}={}){
       }
       hits=ref.CRC([...new Set(base.map(r=>r.crc))],areas,code);
     }else hits=ref[tipo](structuredClone(base),base.findIndex(r=>r.crc===code&&(!piso||r.piso===piso)),structuredClone(cruces));
-    assert.equal(hits.includes(regla),debe,tipo+' referencia '+regla);
+    assert.equal(hits.includes(regla),debe&&!vigente,tipo+' referencia '+regla);
     const b=board(), filaUE=fila(val[tipo],code,'APLICA','['+regla+']',piso);
     const estado=T.estado(b,filaUE,code);
     assert(estado,tipo+' datos '+regla);
@@ -73,6 +73,9 @@ function titular(delta={}){
   return {base,board:()=>[reporte('UA',base)],rep:'UA',campo:'td'};
 }
 for(const [r,d] of Object.entries({R1:{fa:'COMPRA'},R2:{td:'ESCRITURA PÚBLICA'},R2P:{ct:'POSEEDOR',td:'ESCRITURA PÚBLICA'},R3A:{tp:'CÓDIGO DE PREDIO',np:'1'},R3B:{tp:'PARTIDA ELECTRÓNICA',np:'1'},R3C:{tp:'FICHA',np:'1'},R3F:{tp:'FICHA',np:'12345678'},R4:{ct:'SUCESIÓN INTESTADA',fa:'COMPRA'},R5:{fa:'POSESIÓN'},R5C:{td:'CONSTANCIA'}}))verificar('TITULAR',r,titular(d),titular());
+for(const [r,d] of Object.entries({R13:{fa:''},R4H:{ct:'SUCESIÓN INTESTADA',td:'DECLARATORIA DE HEREDEROS'},R6O:{ct:'OTROS',td:'ESCRITURA PÚBLICA'}})){
+  verificar('TITULAR',r,titular(d),titular(),{vigente:true});
+}
 function uso(u='050101',ciiu='8510',otras=[],ecc='TERMINADO',unidades=[u]){
   const base=[ciiu,...otras].map((c,i)=>({crc:K,ciiu:c,ecc:i?'TERMINADO':ecc,piso:String(i+1),__sin:{uso:true}}));
   const ua=unidades.map(uso=>({crc:K,uso}));
@@ -84,26 +87,26 @@ function condicion(delta={},cantidad=1){
   const base=Array.from({length:cantidad},(_,i)=>({crc:clave('01','01',String(i+1).padStart(3,'0')),clasif:'CASA HABITACIÓN',pce:'PREDIO INDEPENDIENTE',tedif:'CASA',cuso:'010101',__sin:{},...delta}));
   return {base,board:()=>[reporte('UA',base)],rep:'UA',campo:'clasif'};
 }
-for(const [r,d] of Object.entries({R1:{pce:'PREDIO EN EDIFICIO'},R2:{clasif:'PARQUE',pce:'AIRES'},R3:{clasif:''},R4:{pce:'OTROS'},R5:{pce:'MERCADO'},R6:{clasif:'PREDIO EN EDIFICIO'},R7:{},R8:{clasif:'OTROS'},R9:{clasif:'PARQUE'},R10:{tedif:''},R10C:{clasif:'CEMENTERIO',tedif:''},R11:{clasif:'PREDIO EN EDIFICIO'},R12:{tedif:'BLOCK'},R13:{tedif:'PABELLÓN'},R14:{clasif:'TERRENO SIN CONSTRUIR'}}))verificar('COND',r,condicion(d,r==='R7'?11:1),condicion());
+for(const [r,d] of Object.entries({R1:{pce:'PREDIO EN EDIFICIO'},R2:{clasif:'PARQUE',pce:'AIRES'},R3:{clasif:''},R4:{pce:'OTROS'},R5:{pce:'MERCADO'},R6:{clasif:'PREDIO EN EDIFICIO'},R8:{clasif:'OTROS'},R9:{clasif:'SUB ESTACIÓN'},R10:{tedif:''},R10C:{clasif:'CEMENTERIO',tedif:''},R11:{clasif:'PREDIO EN EDIFICIO'},R12:{tedif:'BLOCK'},R13:{tedif:'PABELLÓN'}}))verificar('COND',r,condicion(d),condicion());
 function obra(delta={},duplicar=false){
   const r={crc:K,cod:'50',desc:'PARAPETO',fecha:'2025-02',pt:'2',um:'m²',mep:'02',ecc:'TERMINADO',ecs:'BUENO',uca:'',__sin:{},...delta};
   const base=duplicar?[r,{...r}]:[r], cons=[{crc:K,piso:'1',fecha:'2025-01'}];
   return {base,cruces:{cons},board:()=>[reporte('OBR',base),reporte('CON',cons.map(r=>({crc:r.crc,piso:r.piso,fechaCon:r.fecha})))],rep:'OBR',campo:'pt'};
 }
-for(const [r,d] of Object.entries({R1:{pt:'1'},R2:{um:'ml'},R3:{cod:'21',pt:'2',um:'m³'},R4:{},R5:{mep:'01'},R6:{cod:'18',ecc:'INCONCLUSA'},R7:{cod:'18',fecha:'2024-12'},R7P:{fecha:'2024-12'}}))verificar('OBRAS',r,obra(d,r==='R4'),obra());
+for(const [r,d] of Object.entries({R1:{pt:'1'},R2:{um:'ml'},R3:{cod:'21',pt:'2',um:'m³'},R4:{},R5:{mep:'01'},R6:{cod:'18',ecc:'INCONCLUSA'},R7P:{fecha:'2024-12'}}))verificar('OBRAS',r,obra(d,r==='R4'),obra());
 function crc(code=K,otros=[],pisos=[]){
   const base=[code,...otros].map(crc=>({crc,interior:'DPTO'})),cons=pisos.map(([piso,area])=>({crc:code,piso,area}));
   return {code,base,cruces:{cons},board:()=>[reporte('UA',base),...(cons.length?[reporte('CON',cons)]:[])],rep:'UA',campo:'interior'};
 }
 for(const [r,esc] of Object.entries({R1:crc(clave('02','01','001')),R2:crc(clave('03','01','001'),[K]),R3:crc(K2),R4:crc(clave('01','01','002')),R5:crc(clave('01','01','003'),[K]),R6:crc(clave('01','82','001')),R6A:crc(clave('01','81','001'),[],[['81',10],['01',6]]),R6B:crc(K2,[K],[['01',5],['02',10]]),R6C:crc(K2,[K],[['01',10]])}))verificar('CRC',r,esc,crc());
-console.log(escenarios+' reglas contrastadas con los cinco originales.');
+console.log(escenarios+' reglas vigentes comprobadas con y sin cambios.');
 
 // Identificadores truncados: cotejo directo del motor. El cruce no resuelve estas filas.
 const corto=K.slice(0,22);
 assert(ref.TITULAR([{...titular().base[0],crc:corto}],0).includes('E1'));
-assert(T.titular({clasificaciondelpredio:'PARQUE'},corto).includes('E1'));
+assert.equal(T.titular({clasificaciondelpredio:'PARQUE'},corto).length,0);
 assert(ref.CRC([corto],{},corto).includes('LON'));
-assert(T.crc([reporte('UA',[{crc:corto}])],corto,'LON').reglas.includes('LON'));
+assert.equal(T.crc([reporte('UA',[{crc:corto}])],corto,'LON'),null);
 
 // El formato que trae el uso en Construcciones prescinde de UA.
 const legacy=reporte('CON',[{crc:K,piso:'1',uso:'050101',ciiu:'G4711'}]);
@@ -118,3 +121,32 @@ const sinTipo=reporte('UA',[{crc:K,clasif:'CASA HABITACIÓN',pce:'PREDIO INDEPEN
 assert.equal(T.estado([sinTipo],consulta('COND','R10'),K),null);
 const sinMEP=reporte('OBR',[{crc:K,cod:'50',desc:'PARAPETO',pt:'12',um:'m²',uca:''}]);
 assert.equal(T.estado([sinMEP],consulta('OBRAS','R5'),K),null);
+
+// La regla excluida no puede decidir el estado ni figurar en las observaciones adicionales.
+function excluida(tipo,datos,regla){
+  const b=datos.board();
+  for(const mensaje of [regla,'Revisar la ficha']){
+    const row=consulta(tipo,mensaje), estable=run(b,row);
+    assert.doesNotMatch(estable.result+' '+estable.note,new RegExp('\\b'+regla+'\\b'));
+    const c=b.find(c=>c.preset.id===datos.rep),campo=nombres[datos.campo];
+    const previo=c.A.rows[0][campo];
+    c.A.rows[0][campo]='ANTES';
+    c.RES=T.compareCtx(c);
+    const cambio=run(b,row);
+    assert.equal(cambio.result,'✔ VERIFICADO');
+    assert.doesNotMatch(cambio.note,new RegExp('\\b'+regla+'\\b'));
+    c.A.rows[0][campo]=previo;
+    c.RES=T.compareCtx(c);
+  }
+}
+excluida('COND',condicion({},11),'R7');
+for(const clasif of ['TERRENO SIN CONSTRUIR','PARQUE']){
+  excluida('COND',condicion({clasif,cuso:'010101',tedif:'PABELLÓN'}),'R14');
+  for(const pce of ['PREDIO EN EDIFICIO','','OTROS']){
+    const b=condicion({clasif,pce,tedif:'PABELLÓN'}).board();
+    const resultado=T.estado(b,consulta('COND','Revisar la ficha'),K);
+    assert.deepEqual(Array.from(resultado.reglas),['R2']);
+    assert.equal(resultado.extra,'');
+  }
+}
+excluida('OBRAS',obra({cod:'18',fecha:'2024-12',um:'m³',mep:'03'}),'R7');

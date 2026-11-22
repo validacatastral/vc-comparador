@@ -16,7 +16,10 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 | VAL_TITULAR_INSCRIPCION | R4 | Sucesión intestada con forma distinta de OTROS | Sí | Mismo criterio. |
 | VAL_TITULAR_INSCRIPCION | R5 | Forma POSESIÓN sin condición POSEEDOR | Sí | Mismo criterio. |
 | VAL_TITULAR_INSCRIPCION | R5C | Constancia de posesión fuera de contexto de posesión | Sí | Mismo criterio. |
-| VAL_TITULAR_INSCRIPCION | E1 | CRC con longitud distinta de 24 dígitos | No | Sin evaluación de esta regla. |
+| VAL_TITULAR_INSCRIPCION | R13 | Forma de adquisición vacía. | Sí | regla vigente no presente en el HTML de referencia |
+| VAL_TITULAR_INSCRIPCION | R4H | Sucesión intestada con documento de herederos. | Sí | regla vigente no presente en el HTML de referencia |
+| VAL_TITULAR_INSCRIPCION | R6O | Condición OTROS y forma OTROS con documento, tipo o número de partida. | Sí | regla vigente no presente en el HTML de referencia |
+| VAL_TITULAR_INSCRIPCION | E1 | CRC con longitud distinta de 24 dígitos | No | no se publica: CRC ilegible = problema de lectura del Excel |
 
 ## VAL_USO_CIIU
 
@@ -49,7 +52,7 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 | VAL_COND_PREDIO_EN | R4 | Predio catastral en OTROS o fuera de la tabla | No | Sin evaluación de esta regla. |
 | VAL_COND_PREDIO_EN | R5 | Predio comercial con clasificación no comercial | No | Sin evaluación de esta regla. |
 | VAL_COND_PREDIO_EN | R6 | Predio en edificio con una sola unidad en el lote | No | Sin evaluación de esta regla. |
-| VAL_COND_PREDIO_EN | R7 | Predio independiente en edificación de más de 10 unidades | No | Sin evaluación de esta regla. |
+| VAL_COND_PREDIO_EN | R7 | Predio independiente en edificación de más de 10 unidades | No | excluida por decisión de Diego |
 | VAL_COND_PREDIO_EN | R8 | Clasificación OTROS con uso de clasificación propia | No | Sin evaluación de esta regla. |
 | VAL_COND_PREDIO_EN | R9 | Clasificación sin construcción con tipo de edificación | No | Sin evaluación de esta regla. |
 | VAL_COND_PREDIO_EN | R10 | Tipo de edificación vacío | No | Sin evaluación de esta regla. |
@@ -57,7 +60,7 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 | VAL_COND_PREDIO_EN | R11 | Predio en edificio sin tipo EDIFICIO o BLOCK | No | Sin evaluación de esta regla. |
 | VAL_COND_PREDIO_EN | R12 | Casa habitación en EDIFICIO o BLOCK | No | Sin evaluación de esta regla. |
 | VAL_COND_PREDIO_EN | R13 | Tipo de edificación PABELLÓN | No | Sin evaluación de esta regla. |
-| VAL_COND_PREDIO_EN | R14 | Terreno / parque con uso distinto al suyo | No | Sin evaluación de esta regla. |
+| VAL_COND_PREDIO_EN | R14 | Terreno / parque con uso distinto al suyo | No | excluida por decisión de Diego |
 
 ## VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO)
 
@@ -69,7 +72,7 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 | VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R4 | Obra repetida idéntica en el predio | No | Sin evaluación de esta regla. |
 | VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R5 | MEP que no corresponde al material | Sí | Mismo catálogo y normalización de MEP. |
 | VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R6 | ECC distinto de terminado en tanque de plástico | No | Sin evaluación de esta regla. |
-| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R7 | Tanque elevado anterior al último piso | No | Sin evaluación de esta regla. |
+| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R7 | Tanque elevado anterior al último piso | No | excluida por decisión de Diego |
 | VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R7P | Parapeto anterior al piso 1 | No | Sin evaluación de esta regla. |
 
 ## VAL_CRC
@@ -85,7 +88,7 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 | VAL_CRC | R6A | Sótano 81 vs construcción desde piso 01 | No | Sin evaluación de esta regla. |
 | VAL_CRC | R6B | Piso inferior con construcción principal | No | Sin evaluación de esta regla. |
 | VAL_CRC | R6C | Sin líneas constructivas en el piso del CRC | No | Sin evaluación de esta regla. |
-| VAL_CRC | LON | CRC con longitud distinta de 24 | No | Sin evaluación de esta regla. |
+| VAL_CRC | LON | CRC con longitud distinta de 24 | No | no se publica: CRC ilegible = problema de lectura del Excel |
 
 ## Sin referencia
 
@@ -340,7 +343,9 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 ## Resultado del portado
 
 
-Los cinco motores cubren 58 reglas aplicables al estado final de una unidad identificada. Las pruebas comparan las mismas filas sintéticas con el HTML de referencia y recorren el cruce C2 con y sin cambios. Los controles de longitud E1 y LON se contrastan por separado. Un CRC truncado no permite identificar la unidad en los pasos 1 y 2, por lo que esos códigos no generan un resultado de paso 3.
+Hay 55 reglas activas del adjunto y tres reglas vigentes de titularidad recuperadas de main. Se prueban con y sin cambios. Para terreno sin construir y parque se evalúa únicamente R2. Un valor de predio catastral en vacío también incumple R2. Los demás tipos de predio conservan sus controles de clasificación y tipo de edificación.
+
+Cuando el Excel trae un CRC ilegible, el estado es «? NO ENCONTRADO». La nota de CRUCE_REVISOR dice «CRC ilegible en el Excel (no tiene 24 dígitos) — revisar el archivo». Los identificadores de lote de ocho dígitos siguen su cruce habitual.
 
 Un código de regla explícito en el mensaje selecciona esa observación. Para el mensaje general de incoherencia entre clasificación y predio se mantienen R1–R3. Las demás observaciones del mismo registro pueden aparecer en «Ojo, además». VAL_PRODUCTO considera R1 y R3 (metrado y capacidad). El mensaje específico de MEP considera R5. Las dos hojas usan el mismo catálogo de obras.
 
@@ -350,12 +355,17 @@ Cuando falta una columna, C2 conserva la distinción entre dato ausente y celda 
 ## Cambios de expectativas en pruebas existentes
 
 
-| Caso | Resultado según el adjunto |
+| Caso | Resultado vigente |
 |---|---|
 | Uso 020105 con 4711 | 4711 da R4A. Los controles de caso conforme ahora usan 4719. El nuevo caso colegio con 4711 exige R4A. |
 | Uso 020304 sin columna CIIU | Sin línea evaluable, el uso por sí solo no confirma R7 ni permite sugerir NO APLICA. |
-| Forma de adquisición vacía | El original no genera R13. |
-| OTROS + OTROS + escritura sin partida | El mensaje de tipo de documento queda corregido y el bloque registral incompleto se informa como R2 adicional. El original no genera R6O. |
+| Forma de adquisición vacía | Se restaura R13 para unidades, con las exenciones de main. |
+| OTROS + OTROS + escritura sin partida | Se restaura R6O para el mensaje de tipo de documento. R2 puede aparecer como observación adicional. |
+| Sucesión intestada con declaratoria de herederos | Se restaura R4H para el mensaje de tipo de documento. |
+| Parque o terreno con uso distinto o con tipo de edificación | Con PREDIO INDEPENDIENTE cumple. Con otro valor o vacío solo corresponde R2. La prueba de R9 usa SUB ESTACIÓN. |
+| Predio independiente con once unidades | El conteo dejó de generar R7. |
+| Tanque elevado anterior al último piso | La fecha corresponde al validador de fechas. En obras permanece la prueba R7P para parapetos. |
+| CRC truncado, en notación científica o con ceros perdidos | El aviso de lectura sustituye las expectativas E1 y LON. La fila queda fuera de publicación. |
 | Obra 50 con producto 1 o MEP incorrecto | La nota contiene R1 o R5 y omite el código de obra de la ficha. |
 | Interior corregido y DV renombrado en piso 02 | La construcción de la unidad nueva está solo en piso 01. R6C deja la fila pendiente de publicación. |
 

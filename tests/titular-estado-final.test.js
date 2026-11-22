@@ -58,7 +58,7 @@ console.log('ok e · partida de 7 dígitos → ⚠ R3B');
 
 // (f) Reglas directas (puerto del validador)
 assert.strictEqual(JSON.stringify(T.reglas({condiciondeltitular:'SUCESION INTESTADA',formadeadquisicion:'COMPRA VENTA',tipodedocumento:'MINUTA DE COMPRA VENTA'},K)),JSON.stringify(['R4']));
-assert.strictEqual(JSON.stringify(T.reglas({condiciondeltitular:'POSEEDOR',formadeadquisicion:'',tipodedocumento:''},K)),JSON.stringify([]));
+assert.strictEqual(JSON.stringify(T.reglas({condiciondeltitular:'POSEEDOR',formadeadquisicion:'',tipodedocumento:''},K)),JSON.stringify(['R13']));
 assert.strictEqual(JSON.stringify(T.reglas({condiciondeltitular:'',formadeadquisicion:'',tipodedocumento:''},'150110040500969999999995')),JSON.stringify([]),'nivel lote exento de R13');
 console.log('ok f · reglas R4 / R13 / nivel lote');
 
@@ -78,8 +78,8 @@ console.log('ok i · sin valores iniciales → ⚠');
 // (j) Cumple lo de la UE pero hay otro error (escritura sin partida, R2) → ✔ + "Ojo, además"
 var esc=[K,'OTROS','OTROS','ESCRITURA PÚBLICA','','','CASA HABITACION'];
 r=run(board([esc],[esc]),[fila(K,'APLICA',MSG_TD,{condiciondeltitular:'POSEEDOR',formadeadquisicion:'OTROS',tipodedocumento:'ESCRITURA PÚBLICA'})])[0];
-assert.strictEqual(r.result,'✔ CUMPLE EN SICUN','j: '+r.result);assert(/Ojo, además: R2/.test(r.note),r.note);
-console.log('ok j · OTROS + OTROS + escritura pública → ✔ con observación adicional R2');
+assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN','j: '+r.result);assert(/Sigue en SICUN: R6O/.test(r.note),r.note);
+console.log('ok j · OTROS + OTROS + escritura pública → ⚠ R6O');
 // (k) OTROS + OTROS sin nada más, corregido desde la validación → ✔
 var oo=[K,'OTROS','OTROS','','','','CASA HABITACION'];
 r=run(board([oo],[oo]),[fila(K,'APLICA',MSG_TD,{condiciondeltitular:'OTROS',formadeadquisicion:'OTROS',tipodedocumento:'ESCRITURA PÚBLICA'})])[0];
