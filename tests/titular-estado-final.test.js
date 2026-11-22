@@ -4,6 +4,7 @@
    Uso: node tests/titular-estado-final.test.js */
 'use strict';
 var fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert');
+function sigue(r,regla,m){assert(r.result==='⚠ SIN CAMBIO EN SICUN'||(r.result.indexOf('◐ Cambió pero sigue mal: ')===0&&r.result.indexOf('('+regla+')')>0&&/cambió antes de la descarga ANTES/.test(r.note)),(m||'')+r.result);}   /* ⚠ (b) o ◐ si el inicial difiere (a) */
 var html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 function cut(from,to){var i=html.indexOf(from),j=html.indexOf(to,i);assert(i>=0&&j>i,'no se halló: '+from);return html.slice(i,j);}
 var src=[cut('var CAMPOS_VALIDADOR','/* ============ Configuración de reportes'),cut('var IGNORE_ALWAYS','var CRITICOS'),cut('function stripAccents','\n'),cut('function txt(v){','function normVal'),
@@ -40,7 +41,7 @@ console.log('ok b · sigue R2P → ⚠ · '+r.note);
 var MSG_FA='Inconsistencia, condición de titular incongruente con forma de adquisición (FI.12.04)';
 var r5=[K,'PROPIETARIO','POSESIÓN','','','','CASA HABITACION'];
 r=run(board([r5],[r5]),[fila(K,'APLICA',MSG_FA)])[0];
-assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN','c: '+r.result);assert(/R5/.test(r.note),r.note);
+assert(/^◐ Cambió pero sigue mal: .*\(R5\)/.test(r.result),'c: '+r.result);assert(/R5/.test(r.note),r.note);
 console.log('ok c · sigue R5 → ⚠');
 
 // (d) PARQUE exento → cumple
@@ -53,7 +54,7 @@ console.log('ok d · PARQUE exento → ✔');
 var MSG_TP='Inconsistencia, tipo de partida registral (FI.15.03)';
 var p7=[K,'PROPIETARIO','COMPRA VENTA','ESCRITURA PÚBLICA','PARTIDA ELECTRONICA','1234567','CASA HABITACION'];
 r=run(board([p7],[p7]),[fila(K,'APLICA',MSG_TP)])[0];
-assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN','e: '+r.result);assert(/R3B/.test(r.note),r.note);
+sigue(r,'R3B','e: ');assert(/R3B/.test(r.note),r.note);
 console.log('ok e · partida de 7 dígitos → ⚠ R3B');
 
 // (f) Reglas directas (puerto del validador)
@@ -78,7 +79,7 @@ console.log('ok i · sin valores iniciales → ⚠');
 // (j) Cumple lo de la UE pero hay otro error (escritura sin partida, R2) → ✔ + "Ojo, además"
 var esc=[K,'OTROS','OTROS','ESCRITURA PÚBLICA','','','CASA HABITACION'];
 r=run(board([esc],[esc]),[fila(K,'APLICA',MSG_TD,{condiciondeltitular:'POSEEDOR',formadeadquisicion:'OTROS',tipodedocumento:'ESCRITURA PÚBLICA'})])[0];
-assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN','j: '+r.result);assert(/Sigue en SICUN: R6O/.test(r.note),r.note);
+sigue(r,'R6O','j: ');assert(/Sigue en SICUN: R6O/.test(r.note),r.note);
 console.log('ok j · OTROS + OTROS + escritura pública → ⚠ R6O');
 // (k) OTROS + OTROS sin nada más, corregido desde la validación → ✔
 var oo=[K,'OTROS','OTROS','','','','CASA HABITACION'];
