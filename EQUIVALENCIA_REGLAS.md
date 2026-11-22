@@ -90,11 +90,35 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 | VAL_CRC | R6C | Sin líneas constructivas en el piso del CRC | No | Sin evaluación de esta regla. |
 | VAL_CRC | LON | CRC con longitud distinta de 24 | No | no se publica: CRC ilegible = problema de lectura del Excel |
 
+## VAL_FECHA_PISO
+
+Fuente de esta tanda: `validadores_ref/VAL_FECHA_PISO.html` (©diegocampos). El HTML usa únicamente Construcciones. No contiene una regla de tanque elevado ni un cruce con Obras Complementarias. La exclusión de R7 de obras sigue vigente.
+
+| Regla | Qué revisa | Severidad | Reportes que usa | Catálogos | Notas |
+|---|---|---|---|---|---|
+| R1 | El año de la línea es anterior al de la referencia acumulada de los niveles inferiores. | ERROR | Construcciones | Niveles y fechas | Incluye sótanos y mezanines como líneas observadas. |
+| R1M | La fecha es anterior a la referencia inferior dentro del mismo año. | ADVERTENCIA | Construcciones | Niveles y fechas | revisar con Diego. El nombre dice «mes anterior», pero el motor también marca un día anterior del mismo mes. |
+| R1Z | El año de la línea es anterior al nacimiento de un mezanine inferior pendiente de aviso. | ADVERTENCIA | Construcciones | Mezanines 71–79 | revisar con Diego. Puede ser una ampliación válida. Se marcan todas las líneas que incumplen en el primer nivel afectado y luego se consume el aviso. |
+| R2 | La fecha supera el día actual del navegador. | ERROR | Construcciones | Fechas | Compara contra la medianoche local. |
+| R3 | La fecha supera la fecha de descarga extraída de Nombre Backup. | ADVERTENCIA | Construcciones | Primer bloque de ocho dígitos AAAAMMDD | revisar con Diego. Un número del nombre puede parecer una fecha. Sin fecha de respaldo utilizable no se contrasta la descarga. |
+| R4 | La fecha de una línea con nivel reconocido está vacía o no se puede interpretar. | ADVERTENCIA | Construcciones | Fechas | revisar con Diego. Una fecha válida con un formato distinto de los admitidos puede quedar observada. La línea sale de la secuencia. |
+| R5 | Salto mayor que uno entre dos niveles consecutivos de tipo piso con fecha válida. | ADVERTENCIA | Construcciones | Niveles | revisar con Diego. Un piso ausente del reporte o sin fechas válidas puede provocar el salto. Marca el piso superior y no exige comenzar en 1. |
+| R6 | El valor de N° Piso no se puede convertir a un nivel. | ADVERTENCIA | Construcciones | Niveles | La línea sale de la secuencia antes de revisar la fecha. |
+
+**Catálogo de niveles.** 81–89 representan sótanos −1 a −9. 71–79 representan mezanines 1,5 a 9,5. Para los demás valores, el motor acepta cualquier entero escrito con dígitos y signo menos opcional como piso, incluidos 0, 70, 80 y 90. No limita ese último caso a 1–70.
+
+**Fechas.** Se admite AAAA-MM-DD o DD-MM-AAAA, también con barras y con mes o día de un dígito. Las expresiones aceptan texto posterior a la fecha. Un serial Excel mayor que 20000 y menor que 80000 se trunca al día entero con base 1899-12-30. Para las fechas de construcción se admiten años 1800–2200, meses 1–12 y días 1–31. JavaScript puede normalizar combinaciones como 31 de abril. Nombre Backup usa el primer bloque AAAAMMDD y el constructor de fecha del original.
+
+**Universo y exenciones.** Se agrupa por los 16 primeros dígitos del CRC. Cada nivel nace en la fecha más antigua de sus líneas. Pisos y sótanos sostienen a los superiores con el nacimiento más tardío acumulado. Los mezanines solo aportan la referencia de R1Z. Entrada 99, piso 99 o unidad 999 del CRC eximen de las ocho reglas y tampoco sirven de referencia para otras líneas. Área Verificada solo se muestra. La longitud del CRC es un aviso de carga del original.
+
+**Selección en C2.** El contexto abarca la edificación completa del DESPUÉS. Se devuelven las observaciones del piso solicitado dentro del CRC de la fila, o de ese piso en el lote si el identificador es de lote. Los códigos explícitos del mensaje tienen prioridad. El HTML no asigna FI individuales a las ocho reglas. C2 usa el FI existente de la hoja (FI.28.02, fecha de construcción) y el texto del mensaje para distinguir la observación de los avisos adicionales. Una columna obligatoria ausente impide evaluar esa línea. La salida de publicación usa códigos fijos. Si varias líneas del piso tienen fechas distintas, C2 recoge todas las infracciones y evita atribuir a la fila del revisor la fecha inicial de una línea elegida arbitrariamente.
+
+**Límite de entrada.** El original lee el texto que Excel muestra. C2 recibe el valor ya cargado por el comparador. Una celda de fecha con un formato personalizado que oculte parte del día, mes o año puede llegar como fecha completa a C2 y como texto ilegible al original. La prueba de equivalencia usa los mismos valores de entrada en ambos motores.
+
 ## Sin referencia
 
 | Validador | Estado | Pendiente |
 |---|---|---|
-| VAL_FECHA_PISO | sin referencia | Obtener el HTML original para auditar reglas y catálogos. |
 | VAL_CATEGORIAS-AREAS (incluidas variantes) | sin referencia | Obtener el HTML original para auditar reglas y catálogos. |
 | VAL_PISO_CATEGORIA_TECHO | sin referencia | Obtener el HTML original para auditar reglas y catálogos. |
 | VAL_TITULARES-DNI / VAL_TITULARES (incluidas variantes) | sin referencia | Obtener el HTML original para auditar reglas y catálogos. |

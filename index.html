@@ -3522,10 +3522,217 @@ function c2valIni(v){var t=c2up(v).replace(/^\d+\s*-\s*/,'').replace(/\s+/g,' ')
 function c2cambioDesdeInicial(ini,act){
   if(!ini||!act)return null;var ks=Object.keys(act).filter(function(k){return Object.prototype.hasOwnProperty.call(ini,k);});
   if(!ks.length)return null;
-  return ks.some(function(k){return c2valIni(ini[k])!==c2valIni(act[k]);});
+  return ks.some(function(k){
+    if(k==='fechaconstruccion')return C2_FECHA.fechaComparable(ini[k])!==C2_FECHA.fechaComparable(act[k]);
+    return c2valIni(ini[k])!==c2valIni(act[k]);
+  });
+}
+/* VAL_FECHA_PISO · motor original de Diego (©diegocampos). */
+var C2_FECHA=(function(){
+function p2f(n){ return String(n).padStart(2,"0"); }
+function fmtF(d){ return d.getFullYear()+"-"+p2f(d.getMonth()+1)+"-"+p2f(d.getDate()); }
+function hoyF(){ var d=new Date(); return new Date(d.getFullYear(),d.getMonth(),d.getDate()); }
+
+function fechaDe(v){
+  var s = norm(v); if(!s) return null;
+  var m = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if(m) return mk(+m[1],+m[2],+m[3]);
+  m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if(m) return mk(+m[3],+m[2],+m[1]);
+  if(/^\d+(\.\d+)?$/.test(s)){
+    var n = parseFloat(s);
+    if(n>20000 && n<80000){ var b=new Date(Date.UTC(1899,11,30)); b.setUTCDate(b.getUTCDate()+Math.floor(n)); return mk(b.getUTCFullYear(),b.getUTCMonth()+1,b.getUTCDate()); }
+  }
+  return null;
+  function mk(y,mo,d){
+    if(!y||!mo||!d||mo>12||d>31||y<1800||y>2200) return null;
+    var dd = new Date(y,mo-1,d); return isNaN(dd)?null:dd;
+  }
+}
+function fechaBackup(txt){
+  var m = String(txt||"").match(/(\d{4})(\d{2})(\d{2})/);
+  if(!m) return null;
+  var d = new Date(+m[1],+m[2]-1,+m[3]); return isNaN(d)?null:d;
+}
+/* Código de nivel → posición física */
+function nivelDe(s){
+  var t = norm(s), m;
+  if((m=t.match(/^8([1-9])$/))) return {ord:-parseInt(m[1],10), tipo:"sotano"};
+  if((m=t.match(/^7([1-9])$/))) return {ord:parseInt(m[1],10)+0.5, tipo:"mezanine"};
+  if(/^-?\d+$/.test(t)) return {ord:parseInt(t,10), tipo:"piso"};
+  return {ord:null, tipo:null};
+}
+function etiqueta(n, cod){
+  if(n.tipo==="sotano")   return "sótano "+(-n.ord)+" ("+cod+")";
+  if(n.tipo==="mezanine") return "mezanine "+Math.floor(n.ord)+"-"+(Math.floor(n.ord)+1)+" ("+cod+")";
+  return "piso "+n.ord;
+}
+
+/* ---- E · Contexto: la validación se hace por edificación ---- */
+function prepararContexto(cruces, base){
+  var HOY = hoyF();
+  var grupos = {};
+  base.forEach(function(r){
+    r.__hits = []; r.pisoRef = ""; r.fechaRef = "";
+    var crc = norm(r.crc);
+    var p = partirCRC(crc);
+    r.__d = fechaDe(r.fecha);
+    if(r.__d) r.fecha = fmtF(r.__d);
+    r.__n = nivelDe(r.npiso);
+    /* Aires y bienes comunes no tienen secuencia constructiva */
+    if(p.entrada==="99" || p.piso==="99" || p.unidad==="999") return;
+    (grupos[p.edif] = grupos[p.edif] || []).push(r);
+  });
+
+  function hit(r,c,txt,marcas){ r.__hits.push({c:c, txt:"["+c+"] "+txt, marcas:marcas||[]}); }
+
+  Object.keys(grupos).forEach(function(g){
+    var byNivel = {};
+    grupos[g].forEach(function(r){
+      if(r.__n.ord===null){ hit(r,"R6","N° Piso “"+r.npiso+"” no reconocido (piso, sótano 8x o mezanine 7x); fuera de la secuencia.",["npiso"]); return; }
+      if(!r.__d){ hit(r,"R4","Fecha vacía o ilegible; fuera de la secuencia.",["fecha"]); return; }
+      (byNivel[r.__n.ord] = byNivel[r.__n.ord] || []).push(r);
+    });
+
+    var ords = Object.keys(byNivel).map(Number).sort(function(a,b){ return a-b; });
+    var nac = {};
+    ords.forEach(function(o){ nac[o] = byNivel[o].reduce(function(m,r){ return (m===null||r.__d<m)?r.__d:m; },null); });
+
+    var refD=null, refL=null, refMz=null, refMzL=null, prevPiso=null;
+    ords.forEach(function(o){
+      var n0 = byNivel[o][0].__n, lbl = etiqueta(n0, byNivel[o][0].npiso);
+
+      if(n0.tipo==="piso" && prevPiso!==null && o-prevPiso>1){
+        byNivel[o].forEach(function(r){ hit(r,"R5","Salta del piso "+prevPiso+" al piso "+o+".",["npiso"]); });
+      }
+
+      var mzAvisado = false;
+      byNivel[o].forEach(function(r){
+        if(refD){
+          var ay = r.__d.getFullYear(), ry = refD.getFullYear();
+          if(ay<ry){
+            hit(r,"R1","Línea del "+lbl+" ("+fmtF(r.__d)+") de año anterior al nacimiento del "+refL+" ("+fmtF(refD)+").",["fecha"]);
+            r.pisoRef = refL; r.fechaRef = fmtF(refD);
+          }else if(ay===ry && r.__d<refD){
+            hit(r,"R1M","Línea del "+lbl+" ("+fmtF(r.__d)+"): mismo año que el "+refL+" ("+fmtF(refD)+") pero mes anterior; verificar mes.",["fecha"]);
+            r.pisoRef = refL; r.fechaRef = fmtF(refD);
+          }
+        }
+        if(refMz && r.__d.getFullYear()<refMz.getFullYear()){
+          hit(r,"R1Z","Anterior al "+refMzL+" ("+fmtF(refMz)+"); el mezanine no sostiene niveles superiores, posible ampliación.",["fecha"]);
+          if(!r.pisoRef){ r.pisoRef = refMzL; r.fechaRef = fmtF(refMz); }
+          mzAvisado = true;
+        }
+        if(r.__d>HOY) hit(r,"R2","Fecha "+fmtF(r.__d)+" posterior a hoy.",["fecha"]);
+        var b = fechaBackup(r.backup);
+        if(b && r.__d>b) hit(r,"R3","Fecha "+fmtF(r.__d)+" posterior a la descarga del reporte ("+fmtF(b)+").",["fecha"]);
+      });
+
+      /* El aviso del mezanine se levanta una sola vez */
+      if(mzAvisado){ refMz = null; refMzL = null; }
+
+      if(nac[o]){
+        if(n0.tipo==="mezanine"){ if(refMz===null || nac[o]>=refMz){ refMz = nac[o]; refMzL = lbl; } }
+        else                    { if(refD===null  || nac[o]>=refD ){ refD  = nac[o]; refL  = lbl; } }
+      }
+      if(n0.tipo==="piso") prevPiso = o;
+    });
+  });
+  return {};
+}
+
+/* ---- F · Reglas: ya calculadas por edificación en el contexto ---- */
+function validar(r, ctx){ return r.__hits || []; }
+
+function norm(v){ return (v===null||v===undefined)?"":String(v).replace(/\s+/g," ").trim(); }
+function partirCRC(crc){
+  var s = norm(crc);
+  return {
+    raw:s, ubigeo:s.substr(0,6), sector:s.substr(6,2), manzana:s.substr(8,3),
+    lote:s.substr(11,3), edifica:s.substr(14,2), entrada:s.substr(16,2),
+    piso:s.substr(18,2), unidad:s.substr(20,3), ref:s.substr(23,1), base:s.substr(0,23),
+    edif:s.substr(0,16)
+  };
+}
+function fechaComparable(v){
+  var d=fechaDe(txt(v));
+  return d?fmtF(d):norm(v);
+}
+return {prepararContexto,validar,nivelDe,fechaBackup,fechaComparable,hoy:function(){return +hoyF();}};
+})();
+// Una sola evaluación del DESPUÉS por día local. R2 depende del día de consulta.
+var c2FechaIndices=new WeakMap();
+function c2fechaIndice(reporte){
+  var hoy=C2_FECHA.hoy(),previo=c2FechaIndices.get(reporte);
+  if(previo&&previo.hoy===hoy)return previo;
+  var indice={hoy:hoy,filas:new Map()},base=[];
+  // mergeFiles expone las cabeceras del primer archivo. Cada línea conserva las suyas.
+  var campos={codigodereferenciacatastral:[],npiso:[],fechaconstruccion:[],nombrebackup:[]};
+  (reporte.files||[reporte]).forEach(function(f){
+    f.headers.forEach(function(h){
+      var nombres=campos[c2campo(h)];
+      if(Array.isArray(nombres)&&!nombres.includes(h))nombres.push(h);
+    });
+  });
+  function valor(f,nombres){
+    var h=nombres.find(function(k){return Object.prototype.hasOwnProperty.call(f,k);});
+    return h===undefined?undefined:txt(f[h]);
+  }
+  reporte.rows.forEach(function(f){
+    var codigo=(valor(f,campos.codigodereferenciacatastral)||'').trim();
+    var piso=valor(f,campos.npiso),fecha=valor(f,campos.fechaconstruccion);
+    if(!/^\d{24}$/.test(codigo)||piso===undefined||fecha===undefined)return;
+    var r={crc:codigo,npiso:piso.trim(),fecha:fecha,backup:valor(f,campos.nombrebackup),fechaInicial:fecha};
+    base.push(r);
+    [codigo,codigo.slice(6,14)].forEach(function(k){
+      if(!indice.filas.has(k))indice.filas.set(k,[]);
+      indice.filas.get(k).push(r);
+    });
+  });
+  C2_FECHA.prepararContexto({},base);
+  c2FechaIndices.set(reporte,indice);
+  return indice;
+}
+function c2fechaAplicables(msg){
+  var m=c2up(msg),codigos=m.match(/\b(?:R\d+[A-Z]?|LON|E1)\b/g);
+  var fechas=['R1','R1M','R1Z','R2','R3','R4'],todas=fechas.concat(['R5','R6']);
+  if(codigos)return codigos.filter(function(c){return todas.includes(c);});
+  var fis=m.match(/\bF[IB]\.\d{2}\.\d{2}\b/g);
+  if(fis&&!fis.includes('FI.28.02'))return [];
+  var reglas=[];
+  if(/MEZANINE|AMPLIACION/.test(m))reglas.push('R1Z');
+  if(/MES ANTERIOR|MISMO ANO/.test(m))reglas.push('R1M');
+  if(/ANO ANTERIOR/.test(m))reglas.push('R1');
+  if(!reglas.length&&/ANTERIOR/.test(m)&&/PISO|NIVEL/.test(m))reglas.push('R1','R1M','R1Z');
+  if(/HOY|FUTUR/.test(m))reglas.push('R2');
+  if(/DESCARGA|BACKUP/.test(m))reglas.push('R3');
+  if(/FECHA/.test(m)&&/VACI|ILEGIBLE/.test(m))reglas.push('R4');
+  if(/SALTO|CORRELATIV/.test(m))reglas.push('R5');
+  if(/PISO/.test(m)&&/NO RECONOCIDO/.test(m))reglas.push('R6');
+  return reglas.length?reglas:fis?fechas:todas;
+}
+function c2fechaPisoFinal(board,row,code){
+  if(!/^(?:\d{24}|\d{8})$/.test(code))return null;
+  var con=board.find(function(c){return c.preset&&c.preset.id==='CON'&&c.B&&c.B.headers;});
+  if(!con)return null;
+  var aplic=c2fechaAplicables(row.message);
+  if(!aplic.length)return null;
+  var piso=txt(row.piso).trim(),nivel=C2_FECHA.nivelDe(piso);
+  var filas=(c2fechaIndice(con.B).filas.get(code)||[]).filter(function(r){
+    if(nivel.ord===null)return r.npiso===piso;
+    return r.__n.tipo===nivel.tipo&&r.__n.ord===nivel.ord;
+  });
+  if(!filas.length)return null;
+  var hits=filas.flatMap(function(r){return C2_FECHA.validar(r).map(function(h){return h.c;});});
+  var actual={npiso:piso};
+  if(filas.every(function(r){return r.fechaInicial===filas[0].fechaInicial;}))actual.fechaconstruccion=filas[0].fechaInicial;
+  var sinBackup=filas.every(function(r){return !C2_FECHA.fechaBackup(r.backup);});
+  return c2resultado(hits,row.message,aplic,actual,'fecha y piso conformes',sinBackup?['R3']:[]);
 }
 function c2estadoFinal(board,row,code){
-  var v=c2mapKey(row.validator);if(!/^\d{24}$/.test(code))return null;
+  var v=c2mapKey(row.validator);
+  if(v==='VAL_FECHA_PISO')return c2fechaPisoFinal(board,row,code);
+  if(!/^\d{24}$/.test(code))return null;
   var condicion=v==='VAL_COND_PREDIO_EN'||/FI\.24\.03/.test(row.message||'');
   var excluidas=condicion?['R7','R14']:v==='VAL_PRODUCTO'||v==='VAL_MEP_MEDIDA_PRODUCTO'?['R7']:[];
   var citadas=c2up(row.message).match(/\b(?:R\d+[A-Z]?|LON|E1)\b/g);
