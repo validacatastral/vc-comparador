@@ -508,7 +508,7 @@ input, select, textarea, button {max-width:100%;}
       <div id="drvManualBox" hidden><label>ANTES <select id="drvBefore"></select></label><label>DESPUÉS <select id="drvAfter"></select></label></div>
       <p>D · La carga actualiza el distrito de trabajo de Drive que corresponde a estas fechas.</p><button type="button" id="drvLoad">Cargar y comparar</button>
     </div>
-    <p role="status" id="drvProgressText" aria-live="polite"></p><progress id="drvProgress" max="1" value="0" style="width:100%"></progress>
+    <p role="status" id="drvProgressText" aria-live="polite"></p><span id="drvFilterInfo"></span><progress id="drvProgress" max="1" value="0" style="width:100%"></progress>
     <p id="drvError" role="alert" style="color:var(--danger,#e66)"></p><div id="drvMissing"></div><button type="button" id="drvRetry" hidden>Reintentar faltantes</button><button type="button" id="drvClose">Cerrar</button>
   </dialog>
   <dialog id="loteDialog" aria-labelledby="loteTitle" style="width:min(760px,90vw);max-height:85vh;overflow:auto;background:var(--bg-panel);color:var(--text-prime);border:1px solid var(--border)">
@@ -937,7 +937,7 @@ function crcHtml(code){
 }
 
 /* ============ Lectura de archivo ============ */
-function readWorkbook(file, cb){
+function readWorkbook(file, cb, filter){
   var fr = new FileReader();
   fr.onload = function(e){
     try{
@@ -946,13 +946,31 @@ function readWorkbook(file, cb){
       var aoa = XLSX.utils.sheet_to_json(wb.Sheets[sname], {header:1, defval:null, blankrows:false, raw:true});
       if(!aoa.length) throw new Error("La hoja está vacía.");
       var headers = aoa[0].map(function(h,i){ return h==null||txt(h)==="" ? "COL_"+(i+1) : txt(h).trim(); });
-      var rows = [];
+      var rows = [], preset=filter && detectPreset(headers), bytes=0, sectors=new Set();
+      if(filter && !preset) throw new Error("tipo de reporte no reconocido.");
+      var keyCol=preset ? headers.indexOf(preset.key) : -1, encoder=filter && new TextEncoder();
       for(var r=1;r<aoa.length;r++){
         var raw = aoa[r], o = {}, any = false;
+        if(filter){
+          var crc=txt(raw[keyCol]).trim(), sector=crc.slice(0,8);
+          if(/^\d{14}$|^\d{24}$/.test(crc)){
+            if(filter.wanted.length && !filter.wanted.includes(sector)) throw new Error("el ubigeo/sector no coincide con la selección.");
+            sectors.add(sector);
+          }
+          if(!filter.keys.has(crc.slice(0,11))) continue;
+        }
         for(var c=0;c<headers.length;c++){ o[headers[c]] = raw[c]==null ? null : raw[c]; if(raw[c]!=null && txt(raw[c])!=="") any = true; }
-        if(any) rows.push(o);
+        if(any){
+          if(filter){
+            bytes+=encoder.encode(JSON.stringify(o)).length;
+            if(bytes>filter.remaining) throw new Error("La selección supera 150 MiB. Carga menos sectores.");
+          }
+          rows.push(o);
+        }
       }
-      cb(null, {name:file.name, sheet:sname, headers:headers, rows:rows, lastMod:file.lastModified});
+      var data={name:file.name, sheet:sname, headers:headers, rows:rows, lastMod:file.lastModified};
+      if(filter){data.filteredBytes=bytes;data.sourceSectors=Array.from(sectors);}
+      cb(null, data);
     }catch(err){ cb(err); }
   };
   fr.onerror = function(){ cb(new Error("No se pudo leer el archivo.")); };
@@ -1121,7 +1139,7 @@ function mergeFiles(files){
     });
     current.forEach(function(k){seen.add(k);});
   });
-  var allRows=rows; if(POLY_ACTIVE) rows=rows.filter(function(r){return POLY_ACTIVE.keys.has(mzKeyOf(r[files[0].preset ? files[0].preset.key : (detectPreset(files[0].headers)||{}).key]));});
+  var allRows=rows; if(POLY_ACTIVE && POLY_ACTIVE.keys && POLY_ACTIVE.keys.size) rows=rows.filter(function(r){return POLY_ACTIVE.keys.has(mzKeyOf(r[files[0].preset ? files[0].preset.key : (detectPreset(files[0].headers)||{}).key]));});
   return {allRows:allRows, name:files.length===1?files[0].name:files.length+" archivos", sheet:files[0].sheet,
     headers:files[0].headers, rows:rows, lastMod:Math.max.apply(null,files.map(function(f){return f.lastMod||0;})), files:files, omitted:omitted};
 }
@@ -1142,12 +1160,15 @@ function slotEmpty(i,s){
   slot.classList.remove("has"); drop.classList.remove("filled"); var details=slot.querySelector(".file-list"); if(details) details.remove();
   drop.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg><span class="ph">soltar .xlsx</span>';
 }
-function loadInto(i,s,files,done){
+function loadInto(i,s,files,done,parsed){
   showErr("");
   var ctx=BOARD_()[i], list=Array.prototype.slice.call(files), existing=ctx[s]?(ctx[s].files||[ctx[s]]).slice():[], errors=[], pending=list.length, results=new Array(list.length);
+  if(parsed){incorporate(list);return;}
   list.forEach(function(file,n){ readWorkbook(file,function(err,data){
     if(err) errors.push(file.name+": "+err.message); else results[n]=data;
-    if(--pending) return;
+    if(--pending===0) incorporate(results);
+  }); });
+  function incorporate(results){
     results.forEach(function(d){ if(!d) return; var preset=detectPreset(d.headers);
       if(!preset || preset.id!==ctx.preset.id){errors.push(d.name+": reporte no reconocido o distinto de «"+ctx.preset.nombre+"»."); return;}
       if(d.headers.indexOf(ctx.preset.key)<0){errors.push(d.name+": falta la columna llave «"+ctx.preset.key+"»."); return;}
@@ -1157,7 +1178,7 @@ function loadInto(i,s,files,done){
     ctx[s]=mergeFiles(existing); orderSlots(ctx); ctx.RES=null;
     if(ACTIVE===i){$("detailSection").classList.add("hidden"); ACTIVE=null;}
     buildRows(); if(errors.length) showErr(errors.join(" ")); if(done)done(errors);
-  }); });
+  }
 }
 function clearSlot(i,s){
   BOARD_()[i][s] = null; BOARD_()[i].RES = null;
@@ -2170,10 +2191,10 @@ function polyRead(file){
       var h=rows[0].map(function(v){return stripAccents(txt(v)).toUpperCase().replace(/[^A-Z0-9]/g,"");});
       var si=h.indexOf("SECTOR"), mi=h.indexOf("MANZANA"), ci=h.indexOf("NCRC"), ui=h.indexOf("UBIGEO");
       if(si<0||mi<0){skipped.push(name);return;}
-      var keys=new Set(), sectors=new Set(), ubigeos=new Set(), crc=0, hasCrc=ci>=0;
+      var fullKeys=new Set(), unqualified=new Set(), keys=new Set(), sectors=new Set(), ubigeos=new Set(), crc=0, hasCrc=ci>=0;
       rows.slice(1).forEach(function(r){var sec=txt(r[si]).trim(), mz=txt(r[mi]).trim(); if(!/^\d+$/.test(sec)||!/^\d+$/.test(mz))return; sec=sec.padStart(2,"0");mz=mz.padStart(3,"0"); keys.add(sec+"|"+mz);sectors.add(sec);if(hasCrc)crc+=Number(r[ci])||0;
-        var ub=ui<0?"":txt(r[ui]).trim().replace(/\.0+$/,""); if(/^\d{5,6}$/.test(ub))ubigeos.add(ub.padStart(6,"0"));});
-      result.push({code:name,keys:keys,sectors:sectors,ubigeos:ubigeos,crc:crc,hasCrc:hasCrc});
+        var ub=ui<0?"":txt(r[ui]).trim().replace(/\.0+$/,""); if(/^\d{5,6}$/.test(ub)){ub=ub.padStart(6,"0");ubigeos.add(ub);fullKeys.add(ub+sec+mz);}else unqualified.add(sec+mz);});
+      result.push({code:name,fullKeys:fullKeys,unqualified:unqualified,keys:keys,sectors:sectors,ubigeos:ubigeos,crc:crc,hasCrc:hasCrc});
     });
     polySet(result,skipped);
   }catch(err){$("polySummary").textContent="No se pudo leer el universo: "+err.message;}};fr.readAsArrayBuffer(file);
@@ -2189,12 +2210,12 @@ async function polyFromDrive(){
   if(!polygons||typeof polygons!=='object'||Array.isArray(polygons))throw new Error('Formato de universo no reconocido.');
   var result=Object.keys(polygons).map(function(code){
     if(!Array.isArray(polygons[code]))throw new Error('Universo inválido: '+code);
-    var keys=new Set(),sectors=new Set(),ubigeos=new Set();
+    var fullKeys=new Set(),keys=new Set(),sectors=new Set(),ubigeos=new Set();
     polygons[code].forEach(function(value){
       var key=String(value);if(!/^\d{11}$/.test(key))throw new Error('Manzana inválida en el universo: '+code);
-      var sec=key.slice(6,8);keys.add(sec+'|'+key.slice(8,11));sectors.add(sec);ubigeos.add(key.slice(0,6));
+      var sec=key.slice(6,8);fullKeys.add(key);keys.add(sec+'|'+key.slice(8,11));sectors.add(sec);ubigeos.add(key.slice(0,6));
     });
-    return {code:code,keys:keys,sectors:sectors,ubigeos:ubigeos,crc:0,hasCrc:false};
+    return {code:code,fullKeys:fullKeys,keys:keys,sectors:sectors,ubigeos:ubigeos,crc:0,hasCrc:false};
   });
   if(!result.length)throw new Error('El universo de Drive está vacío.');
   polySet(result,[]);
@@ -2314,7 +2335,7 @@ function pubPendientes(t){function n(v){v=Number(v);return isFinite(v)&&v>=0?v:0
 function pubUltimaTexto(code,api,local){var u=api?api[code]:(local||{})[code],nota=api?'':' (respaldo de este navegador: el servidor no respondió)';
   if(!u)return 'Última publicación: '+(api?'nunca publicado':'sin registro'+nota);
   return 'Última publicación: '+u.fecha+' · '+u.pendientes+' pendientes'+(u.filas!=null?' de '+u.filas:'')+(u.antes||u.despues?' · '+(u.antes||'—')+' → '+(u.despues||'—'):'')+(u.desglose?' · '+u.desglose:'')+nota;}
-function gapCodes(d){if(!d)return new Set();if(!d._codes){var set=new Set();(d.allRows||d.rows||[]).forEach(function(r){var k=txt(r[d._key]).trim();if(/^\d{14}$|^\d{24}$/.test(k))set.add(k.slice(0,8));});d._codes=set;}return d._codes;}
+function gapCodes(d){if(!d)return new Set();if(!d._codes){var set=new Set();(d.files||[]).forEach(function(f){(f.sourceSectors||[]).forEach(function(s){set.add(s);});});(d.allRows||d.rows||[]).forEach(function(r){var k=txt(r[d._key]).trim();if(/^\d{14}$|^\d{24}$/.test(k))set.add(k.slice(0,8));});d._codes=set;}return d._codes;}
 function gapPresent(board){var out={};board.forEach(function(c){out[c.preset.id]={};['A','B'].forEach(function(side){if(c[side])c[side]._key=c.preset.key;out[c.preset.id][side]=Array.from(gapCodes(c[side]));});});return out;}
 function gapFechas(board){var days={A:new Set(),B:new Set()};board.forEach(function(c){['A','B'].forEach(function(side){if(c[side])(c[side].files||[c[side]]).forEach(function(f){var day=fileDate(f).day;if(/^\d{4}-\d{2}-\d{2}$/.test(day))days[side].add(day);});});});
   var a=Array.from(days.A).sort(), b=Array.from(days.B).sort();return {A:a[0]||'',B:b[b.length-1]||''};}
@@ -3356,8 +3377,8 @@ async function drvConReintento(fn,opciones){
   for(var n=0;;n++){try{return await fn();}catch(e){var msg=txt(e&&e.message);if(n>=esperas.length||!drvReintentable(msg))throw e;if(aviso)aviso(n+1,esperas[n],msg);await dormir(esperas[n]);}}
 }
 /* Como drvPool (3 a la vez), pero un archivo que falla no corta a los demás: devuelve {fallos:[{item,error}]}. Solo aborta un error fatal (clave, URL, 150 MiB). */
-async function drvPoolParcial(items,fn){var next=0,fallos=[],fatal;
-  await Promise.all(Array.from({length:Math.min(3,items.length)},async function(){while(next<items.length&&!fatal){var i=next++;try{await fn(items[i],i);}catch(e){var msg=txt(e&&e.message)||'error desconocido';if(drvFatal(msg))fatal=e;else fallos.push({item:items[i],error:msg});}}}));
+async function drvPoolParcial(items,fn,parallel){var next=0,fallos=[],fatal;
+  await Promise.all(Array.from({length:Math.min(parallel||3,items.length)},async function(){while(next<items.length&&!fatal){var i=next++;try{await fn(items[i],i);}catch(e){var msg=txt(e&&e.message)||'error desconocido';if(drvFatal(msg))fatal=e;else fallos.push({item:items[i],error:msg});}}}));
   if(fatal)throw fatal;return {fallos:fallos};}
 /* Faltantes con su sector/tipo/fecha, ordenados. a: fecha ANTES · ubigeo: el de la selección para ese sector ('' si no se conoce). */
 function drvFaltantes(fallos,a,selected){return (fallos||[]).map(function(f){var n=loteNombre(f.item.name),sel=(selected||[]).filter(function(s){return s.length===8&&s.slice(6)===f.item.sector;});
@@ -3453,7 +3474,7 @@ function pendAplicar(frame,code,recarga){var url=pendUrl(code,recarga);if(frame)
 function drvSectors(){var set=new Set();c2files().forEach(function(f){if(f.name!==DRV.reviewer)return;f.rows.forEach(function(r){if(/^\d{24}$/.test(r.rawCode))set.add(r.rawCode.slice(0,8));else if(/^\d{8}$/.test(r.rawCode))set.add(r.rawCode.slice(0,2));else if(r.partial)set.add(r.partial.slice(0,2));});});
   var label=$('drvPolygon').selectedOptions[0]?$('drvPolygon').selectedOptions[0].textContent:'',poly=POLYGONS.find(function(p){return p.code===label;}),list=Array.from(set);
   DRV.ubigeo=drvUbigeo(list,poly&&poly.ubigeos?Array.from(poly.ubigeos):[]);return drvNormSectors(list,DRV.ubigeo);}
-function drvResetPlan(){DRV.plan=null;$('drvMissing').innerHTML='';$('drvRetry').hidden=true;}
+function drvResetPlan(){DRV.plan=null;$('drvFilterInfo').textContent='';$('drvMissing').innerHTML='';$('drvRetry').hidden=true;}
 function drvRenderFaltantes(list,excluidos){excluidos=excluidos||[];$('drvMissing').innerHTML=(list.length?'<p>Carga parcial · faltaron '+list.length+' archivo(s):</p><ul>'+list.map(function(f){return '<li>'+esc(drvFaltanteTxt(f))+'</li>';}).join('')+'</ul>':'')
   +(excluidos.length?'<p>Sectores excluidos (sin descarga completa): '+excluidos.length+'</p><ul>'+excluidos.map(function(e){return '<li>'+esc('S'+e.sector+': '+e.motivo)+'</li>';}).join('')+'</ul>':'');$('drvRetry').hidden=!list.length;}
 function drvSelected(){return Array.from($('drvSectors').querySelectorAll('input:checked')).map(function(x){return x.value;});}
@@ -3475,7 +3496,7 @@ function drvRevisorUnico(files,label){
   if(files.length!==1)throw new Error('Hay varios Excel. Deja un único archivo con el nombre del polígono.');
   return files[0];
 }
-function drvRead(file){return new Promise(function(resolve,reject){readWorkbook(file,function(err,data){if(err)reject(new Error(file.name+': '+err.message));else resolve(data);});});}
+function drvRead(file,filter){return new Promise(function(resolve,reject){readWorkbook(file,function(err,data){if(err)reject(filter && drvFatal(err.message)?err:new Error(file.name+': '+err.message));else resolve(data);},filter);});}
 function drvAbrir(){
   if(CUR<0){showErr('Crea o selecciona un distrito antes de cargar desde Drive.');return false;}
   DRV={busy:false,files:[],sectors:[],district:CUR};drvResetPlan();$('drvTarget').textContent='Distrito de trabajo: '+DISTRICTS[CUR].name;$('drvStepB').hidden=true;$('drvStepC').hidden=true;$('drvProgress').value=0;$('drvProgressText').textContent='';$('drvResumen').textContent='';
@@ -3540,7 +3561,11 @@ async function drvCargar(retry){
     // Solo bloquea si una de las dos fechas no tiene NINGÚN reporte; lo demás se avisa sin bloquear.
     if(!sel.some(function(x){return x.lado==='A';})||!sel.some(function(x){return x.lado==='B';}))throw new Error('No hay ningún reporte en una de las dos fechas para los sectores elegidos.');
     var sectors=new Set(sel.map(function(x){return x.sector;}));
-    drvResetPlan();plan=DRV.plan={a:a0,b:b0,files:sel,selected:DRV.selected.slice(),got:{},bytes:0,target:null,cont:{cache:0,drive:0},auto:auto,dias:Array.from(new Set(sel.map(function(x){return x.day;}))).sort(),
+    // El primer ingreso desde Drive activa su polígono. Con universo cargado, respeta «Sin polígono (todo)».
+    if(!POLYGONS.length || POLY_ACTIVE) await polyDriveSelection();
+    var poly=POLY_ACTIVE && POLY_ACTIVE.keys && POLY_ACTIVE.keys.size ? POLY_ACTIVE : null;
+    if(poly) sel.sort(function(x,y){return x.sector.localeCompare(y.sector);});
+    drvResetPlan();plan=DRV.plan={a:a0,b:b0,files:sel,selected:DRV.selected.slice(),got:{},poly:poly,bytes:0,originalBytes:0,target:null,cont:{cache:0,drive:0},auto:auto,dias:Array.from(new Set(sel.map(function(x){return x.day;}))).sort(),
       sinArchivos:auto?[]:Array.from(new Set(DRV.selected.map(function(s){return s.slice(-2);}))).filter(function(s){return !sectors.has(s);})};
   }
   var a=plan.a,b=plan.b,files=plan.files,got=plan.got,pend=files.filter(function(x){return !got[x.id];}),done=files.length-pend.length,cont=plan.cont;
@@ -3548,20 +3573,33 @@ async function drvCargar(retry){
   $('drvProgress').max=files.length;$('drvProgress').value=done;$('drvProgressText').textContent=avance();
   var res=await drvPoolParcial(pend,async function(item){
     var file=await drvConReintento(function(){return drvFile(item,cont);},{aviso:function(n,ms){$('drvProgressText').textContent=avance()+' · reintento '+n+' de '+item.name+' en '+Math.round(ms/1000)+' s';}});
-    if(plan.bytes+file.size>DRV_TOTAL)throw new Error('La selección supera 150 MiB. Carga menos sectores.');
-    var data=await drvRead(file),preset=detectPreset(data.headers);if(!preset)throw new Error('tipo de reporte no reconocido.');
-    var wanted=plan.selected.filter(function(s){return s.length===8&&s.slice(-2)===item.sector;});if(wanted.length&&data.rows.some(function(r){var crc=txt(r[preset.key]);return /^\d{14}$|^\d{24}$/.test(crc)&&wanted.indexOf(crc.slice(0,8))<0;}))throw new Error('el ubigeo/sector no coincide con la selección.');
-    plan.bytes+=file.size;got[item.id]={file:file,preset:preset,headers:JSON.stringify(data.headers),side:item.lado||(item.day===a?'A':'B')};
+    if(!plan.poly && plan.bytes+file.size>DRV_TOTAL)throw new Error('La selección supera 150 MiB. Carga menos sectores.');
+    var wanted=plan.selected.filter(function(s){return s.length===8&&s.slice(-2)===item.sector;}),filter=null;
+    if(plan.poly){
+      var keys=plan.poly.fullKeys;
+      if(plan.poly.unqualified && plan.poly.unqualified.size){
+        keys=new Set(keys);
+        var ub=item.name.match(/_(\d{6})\d{2}_\d{6}(?:\.xlsx)?$/i)[1];
+        plan.poly.unqualified.forEach(function(k){keys.add(ub+k);});
+      }
+      filter={keys:keys,wanted:wanted,remaining:DRV_TOTAL-plan.bytes};
+    }
+    var data=await drvRead(file,filter),preset=detectPreset(data.headers);if(!preset)throw new Error('tipo de reporte no reconocido.');
+    if(!filter && wanted.length&&data.rows.some(function(r){var crc=txt(r[preset.key]);return /^\d{14}$|^\d{24}$/.test(crc)&&wanted.indexOf(crc.slice(0,8))<0;}))throw new Error('el ubigeo/sector no coincide con la selección.');
+    var bytes=filter?data.filteredBytes:file.size;
+    if(plan.bytes+bytes>DRV_TOTAL)throw new Error('La selección supera 150 MiB. Carga menos sectores.');
+    plan.bytes+=bytes;plan.originalBytes+=file.size;
+    got[item.id]={file:filter?data:file,preset:preset,headers:JSON.stringify(data.headers),side:item.lado||(item.day===a?'A':'B')};
+    if(filter)$('drvFilterInfo').textContent='Filtrado a '+keys.size+' manzanas del polígono · '+(plan.bytes/1048576).toFixed(1)+' MiB de filas · '+(plan.originalBytes/1048576).toFixed(1)+' MiB de XLSX leídos';
     $('drvProgress').value=++done;$('drvProgressText').textContent=avance();
-  });
+  },plan.poly?1:3);
   var faltantes=drvFaltantes(res.fallos,a,plan.selected),excluidos=plan.auto?plan.auto.excluidos:[];drvRenderFaltantes(faltantes,excluidos);
   var todos=files.map(function(x){return got[x.id];}).filter(Boolean);
   if(!todos.some(function(x){return x.side==='A';})||!todos.some(function(x){return x.side==='B';}))throw new Error('No se pudo descargar ningún reporte de una de las dos fechas. Pulsa «Reintentar faltantes».');
   var cab={};todos.forEach(function(x){var k=x.preset.id+'|'+x.side;if(cab[k]&&cab[k]!==x.headers)throw new Error('Encabezados incompatibles: '+k);cab[k]=x.headers;});
   if(!plan.target){
-    await polyDriveSelection();
     var source=DISTRICTS[DRV.district],name=$('drvDistrict').selectedOptions[0].textContent+' · Drive '+a+' → '+b+(plan.auto?' (por sector)':'');
-    plan.target={name:name,driveKey:JSON.stringify([$('drvDistrict').value,a,b]),board:newBoard(),tec:{},c2:(source.c2||[]).slice()};
+    plan.target={name:name,driveKey:JSON.stringify([$('drvDistrict').value,a,b]),board:newBoard(),tec:{},c2:(source.c2||[]).filter(function(f){return !plan.poly || f.polygon===plan.poly.code || f.name===DRV.reviewer;})};
     // Fechas por sector (automático): las usa la publicación (antes/después y parcialDetalle).
     if(plan.auto){plan.target.fechasSector={};Object.keys(plan.auto.porSector).forEach(function(s){var o=plan.auto.porSector[s];plan.target.fechasSector[s]={antes:o.antes,despues:o.despues,incompleto:o.incompleto};});plan.target.excluidos=plan.auto.excluidos.slice();}
     drvSaveLast({polygon:$('drvPolygon').value,polygonName:$('drvPolygon').selectedOptions[0]?$('drvPolygon').selectedOptions[0].textContent:'',district:$('drvDistrict').value,districtName:$('drvDistrict').selectedOptions[0].textContent,sectors:plan.selected.slice(),fechas:plan.auto?'auto':'manual',antes:a,despues:b});
@@ -3570,7 +3608,7 @@ async function drvCargar(retry){
   // Solo se incorporan los archivos nuevos; los ya cargados siguen en el distrito.
   var grouped={};todos.forEach(function(x){if(!x.file)return;var k=x.preset.id+'|'+x.side;(grouped[k]||(grouped[k]=[])).push(x);});
   for(var k of Object.keys(grouped)){var group=grouped[k],i=BOARD_().findIndex(function(c){return c.preset.id===group[0].preset.id;}),list=group.map(function(x){return x.file;});group.forEach(function(x){x.file=null;});
-    await new Promise(function(resolve,reject){loadInto(i,group[0].side,list,function(errors){if(errors.length)reject(new Error(errors.join(' ')));else resolve();});});}
+    await new Promise(function(resolve,reject){loadInto(i,group[0].side,list,function(errors){if(errors.length)reject(new Error(errors.join(' ')));else resolve();},!!plan.poly);});}
   runAll();renderDistTabs();
   // Con faltantes de descarga, los polígonos de esos sectores no se pueden publicar hasta reintentar (solo en memoria).
   plan.target.descarga=faltantes.map(function(f){return {sector:f.sector,texto:'S'+f.sector+' · '+f.tipo+' · '+f.lado+' '+f.day};});
