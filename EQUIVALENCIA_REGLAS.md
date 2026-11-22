@@ -6,40 +6,40 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 
 | Validador | Regla | Qué revisa | ¿Está en el comparador? | Diferencia inicial | Texto corto | Qué hacer |
 |---|---|---|---|---|---|---|
-| VAL_TITULAR_INSCRIPCION | R1 | Forma de adquisición sin documento sustentatorio | Sí | Mismo criterio. | forma de adquisición sin documento sustentatorio | agregar documento sustentatorio o corregir la forma |
-| VAL_TITULAR_INSCRIPCION | R2 | Se declara inscripción con bloque registral incompleto | Sí | Mismo criterio. | bloque registral incompleto | completar documento, tipo y número de partida |
-| VAL_TITULAR_INSCRIPCION | R2P | POSEEDOR con escritura pública | Sí | Mismo criterio. | POSEEDOR con escritura pública | cambiar la condición o el tipo de documento |
-| VAL_TITULAR_INSCRIPCION | R3A | Código de Predio con formato inválido | Sí | Mismo criterio. | código de predio con formato inválido | corregir el formato del código de predio |
-| VAL_TITULAR_INSCRIPCION | R3B | Partida Electrónica con formato inválido | Sí | Mismo criterio. | partida electrónica con formato inválido | corregir el formato de la partida electrónica |
-| VAL_TITULAR_INSCRIPCION | R3C | Ficha con formato inválido | Sí | Mismo criterio. | ficha con formato inválido | corregir el formato de la ficha |
-| VAL_TITULAR_INSCRIPCION | R3F | Ficha de 8 dígitos: posible Partida Electrónica | No | Sin evaluación de esta regla. | ficha de ocho dígitos | verificar si es partida electrónica |
-| VAL_TITULAR_INSCRIPCION | R4 | Sucesión intestada con forma distinta de OTROS | Sí | Mismo criterio. | sucesión intestada con forma distinta de OTROS | forma de adquisición debe ser OTROS |
-| VAL_TITULAR_INSCRIPCION | R5 | Forma POSESIÓN sin condición POSEEDOR | Sí | Mismo criterio. | forma POSESIÓN sin condición POSEEDOR | poner condición POSEEDOR o cambiar la forma |
-| VAL_TITULAR_INSCRIPCION | R5C | Constancia de posesión fuera de contexto de posesión | Sí | Mismo criterio. | constancia de posesión fuera de contexto | cambiar el documento o poner POSEEDOR |
-| VAL_TITULAR_INSCRIPCION | R13 | Forma de adquisición vacía. | Sí | regla vigente no presente en el HTML de referencia | forma de adquisición vacía | llenar la forma de adquisición |
-| VAL_TITULAR_INSCRIPCION | R4H | Sucesión intestada con documento de herederos. | Sí | regla vigente no presente en el HTML de referencia | sucesión intestada con declaratoria de herederos | cambiar la condición: hay declaratoria de herederos |
-| VAL_TITULAR_INSCRIPCION | R6O | Condición OTROS y forma OTROS con documento, tipo o número de partida. | Sí | regla vigente no presente en el HTML de referencia | condición OTROS y forma OTROS no llevan documento ni partida | quitar documento y partida registral |
+| VAL_TITULAR_INSCRIPCION | R1 | Forma de adquisición sin documento sustentatorio | Sí | Mismo criterio. | tiene forma de adquisición pero no tiene documento | poner el documento que lo sustenta |
+| VAL_TITULAR_INSCRIPCION | R2 | Se declara inscripción con bloque registral incompleto | Sí | Mismo criterio. | datos de partida incompletos | llenar los 3: tipo de documento, tipo de partida y número |
+| VAL_TITULAR_INSCRIPCION | R2P | POSEEDOR con escritura pública | Sí | Mismo criterio. | dice POSEEDOR pero tiene escritura pública | con escritura es propietario: cambiar la condición |
+| VAL_TITULAR_INSCRIPCION | R3A | Código de Predio con formato inválido | Sí | Mismo criterio. | código de predio mal escrito | debe ser P + 8 dígitos (ej. P12345678) |
+| VAL_TITULAR_INSCRIPCION | R3B | Partida Electrónica con formato inválido | Sí | Mismo criterio. | partida electrónica mal escrita | deben ser 8 dígitos |
+| VAL_TITULAR_INSCRIPCION | R3C | Ficha con formato inválido | Sí | Mismo criterio. | número de ficha mal escrito | revisar el número de ficha |
+| VAL_TITULAR_INSCRIPCION | R3F | Ficha de 8 dígitos: posible Partida Electrónica | No | Sin evaluación de esta regla. | ficha con 8 dígitos | probablemente es partida electrónica: cambiar el tipo |
+| VAL_TITULAR_INSCRIPCION | R4 | Sucesión intestada con forma distinta de OTROS | Sí | Mismo criterio. | sucesión intestada | la forma de adquisición debe ser OTROS |
+| VAL_TITULAR_INSCRIPCION | R5 | Forma POSESIÓN sin condición POSEEDOR | Sí | Mismo criterio. | forma POSESIÓN | la condición debe ser POSEEDOR |
+| VAL_TITULAR_INSCRIPCION | R5C | Constancia de posesión fuera de contexto de posesión | Sí | Mismo criterio. | constancia de posesión con titular que no es poseedor | poner POSEEDOR o cambiar el documento |
+| VAL_TITULAR_INSCRIPCION | R13 | Forma de adquisición vacía. | Sí | regla vigente no presente en el HTML de referencia | falta la forma de adquisición | llenarla |
+| VAL_TITULAR_INSCRIPCION | R4H | Sucesión intestada con documento de herederos. | Sí | regla vigente no presente en el HTML de referencia | sucesión intestada pero ya hay declaratoria de herederos | cambiar la condición del titular |
+| VAL_TITULAR_INSCRIPCION | R6O | Condición OTROS y forma OTROS con documento, tipo o número de partida. | Sí | regla vigente no presente en el HTML de referencia | condición OTROS y forma OTROS | quitar documento y partida |
 | VAL_TITULAR_INSCRIPCION | E1 | CRC con longitud distinta de 24 dígitos | No | no se publica: CRC ilegible = problema de lectura del Excel | — | — |
 
 ## VAL_USO_CIIU
 
 | Validador | Regla | Qué revisa | ¿Está en el comparador? | Diferencia inicial | Texto corto | Qué hacer |
 |---|---|---|---|---|---|---|
-| VAL_USO_CIIU | R1 | Sin Código de Uso | No | Sin evaluación de esta regla. | unidad sin Código de Uso | registrar el Código de Uso |
-| VAL_USO_CIIU | R2 | Código de Uso fuera del glosario | No | Sin evaluación de esta regla. | Código de Uso fuera del glosario | usar un Código de Uso del glosario |
-| VAL_USO_CIIU | R3A | El uso exige CIIU y ninguna línea de la unidad lo tiene | Parcial | Se decide por presencia, piso o exención general sin validar la línea contra el catálogo. | uso exige CIIU y ninguna línea lo tiene | declarar el CIIU que corresponde al uso |
-| VAL_USO_CIIU | R3B | Línea sin CIIU; otras líneas de la unidad sí lo tienen | No | Sin evaluación de esta regla. | línea sin CIIU, otras líneas sí tienen | declarar el CIIU o sustentar en Observaciones |
-| VAL_USO_CIIU | R3C | Línea sin CIIU en obra no terminada (ECC) | Parcial | Se decide por presencia, piso o exención general sin validar la línea contra el catálogo. | línea sin CIIU en obra no terminada | sin CIIU (sustentar ECC) o corregir el ECC |
-| VAL_USO_CIIU | R4A | CIIU no corresponde al uso (unidad de una línea) | No | Sin evaluación de esta regla. | CIIU no corresponde al uso | corregir el CIIU o cambiar el uso |
-| VAL_USO_CIIU | R4B | CIIU no corresponde al uso (unidad de varias líneas) | No | Sin evaluación de esta regla. | CIIU no corresponde al uso | corregir el CIIU o cambiar el uso |
-| VAL_USO_CIIU | R5 | CRC no encontrado en Unidades | No | Sin evaluación de esta regla. | CRC no está en Unidades Administrativas | registrar el CRC en Unidades Administrativas |
-| VAL_USO_CIIU | R6 | CRC con usos distintos en Unidades | No | Sin evaluación de esta regla. | CRC con usos distintos en Unidades | dejar un solo uso por unidad |
-| VAL_USO_CIIU | R7 | Comercial no identificado (local desocupado) | Parcial | Se decide por presencia, piso o exención general sin validar la línea contra el catálogo. | comercial no identificado: local desocupado | verificar y sustentar en Observaciones |
-| VAL_USO_CIIU | R8A | Uso comercial no especificado: ninguna línea con CIIU | No | Sin evaluación de esta regla. | uso residual sin CIIU en ninguna línea | declarar el CIIU o cambiar el uso |
-| VAL_USO_CIIU | R8B | Uso comercial no especificado con CIIU — revisar | No | Sin evaluación de esta regla. | uso residual con CIIU: revisar el uso | cambiar al uso específico del CIIU |
-| VAL_USO_CIIU | R8C | Uso comercial no especificado: línea sin CIIU, otras sí | No | Sin evaluación de esta regla. | uso residual: línea sin CIIU, otras sí | declarar el CIIU o sustentar en Observaciones |
-| VAL_USO_CIIU | R9 | Comercial no identificado con CIIU — revisar | No | Sin evaluación de esta regla. | local desocupado pero la línea declara CIIU | quitar el CIIU o cambiar el uso |
-| VAL_USO_CIIU | R10 | CIIU inexistente en la Rev. 4 | No | Sin evaluación de esta regla. | CIIU no existe en Rev. 4 | usar un CIIU vigente del catálogo |
+| VAL_USO_CIIU | R1 | Sin Código de Uso | No | Sin evaluación de esta regla. | la unidad no tiene código de uso | registrarlo |
+| VAL_USO_CIIU | R2 | Código de Uso fuera del glosario | No | Sin evaluación de esta regla. | código de uso que no existe en el glosario | elegir uno del glosario |
+| VAL_USO_CIIU | R3A | El uso exige CIIU y ninguna línea de la unidad lo tiene | Parcial | Se decide por presencia, piso o exención general sin validar la línea contra el catálogo. | el uso es de actividad económica y ninguna línea tiene CIIU | poner el CIIU del negocio |
+| VAL_USO_CIIU | R3B | Línea sin CIIU; otras líneas de la unidad sí lo tienen | No | Sin evaluación de esta regla. | esta línea no tiene CIIU y las otras sí | poner el CIIU o explicar en Observaciones por qué no |
+| VAL_USO_CIIU | R3C | Línea sin CIIU en obra no terminada (ECC) | Parcial | Se decide por presencia, piso o exención general sin validar la línea contra el catálogo. | línea en obra sin terminar y sin CIIU | explicar en Observaciones, o corregir el estado de conservación si sí está terminada |
+| VAL_USO_CIIU | R4A | CIIU no corresponde al uso (unidad de una línea) | No | Sin evaluación de esta regla. | el CIIU no es de ese uso | cambiar el CIIU o el uso |
+| VAL_USO_CIIU | R4B | CIIU no corresponde al uso (unidad de varias líneas) | No | Sin evaluación de esta regla. | el CIIU no es de ese uso | cambiar el CIIU o el uso |
+| VAL_USO_CIIU | R5 | CRC no encontrado en Unidades | No | Sin evaluación de esta regla. | el CRC no está en Unidades Administrativas | registrarlo |
+| VAL_USO_CIIU | R6 | CRC con usos distintos en Unidades | No | Sin evaluación de esta regla. | la misma unidad tiene usos distintos | dejar un solo uso |
+| VAL_USO_CIIU | R7 | Comercial no identificado (local desocupado) | Parcial | Se decide por presencia, piso o exención general sin validar la línea contra el catálogo. | comercio no identificado (local cerrado) | explicar en Observaciones |
+| VAL_USO_CIIU | R8A | Uso comercial no especificado: ninguna línea con CIIU | No | Sin evaluación de esta regla. | uso genérico (comercio / otros) y ninguna línea tiene CIIU | poner el CIIU del negocio o un uso específico |
+| VAL_USO_CIIU | R8B | Uso comercial no especificado con CIIU — revisar | No | Sin evaluación de esta regla. | uso genérico (comercio / otros) pero ya hay CIIU | cambiar el uso al que corresponde a ese CIIU |
+| VAL_USO_CIIU | R8C | Uso comercial no especificado: línea sin CIIU, otras sí | No | Sin evaluación de esta regla. | uso genérico, esta línea sin CIIU y otras sí | poner el CIIU o explicar en Observaciones |
+| VAL_USO_CIIU | R9 | Comercial no identificado con CIIU — revisar | No | Sin evaluación de esta regla. | el uso dice local desocupado pero la línea tiene CIIU | si hay negocio, cambiar el uso; si no, quitar el CIIU |
+| VAL_USO_CIIU | R10 | CIIU inexistente en la Rev. 4 | No | Sin evaluación de esta regla. | el CIIU no existe | elegir uno válido del catálogo |
 
 En USO, R3A, R4A, R4B, R8B y R10 muestran «debería ser: <CIIU> <descripción>» (hasta 3 CIIU del catálogo uso → CIIU, el resto «(ver catálogo)») en vez de «Qué hacer» cuando el validador calcula el CIIU esperado; si no hay lista, va la acción de la tabla.
 
@@ -53,48 +53,48 @@ En USO, R3A, R4A, R4B, R8B y R10 muestran «debería ser: <CIIU> <descripción>�
 
 | Validador | Regla | Qué revisa | ¿Está en el comparador? | Diferencia inicial | Texto corto | Qué hacer |
 |---|---|---|---|---|---|---|
-| VAL_COND_PREDIO_EN | R1 | Predio en edificio en un solo campo | Sí | Mismo criterio. | predio en edificio no está en ambos campos | poner PREDIO EN EDIFICIO en ambos campos |
-| VAL_COND_PREDIO_EN | R2 | Terreno / parque distinto de predio independiente | Sí | Mismo criterio. | terreno o parque debe ser predio independiente | debe ser PREDIO INDEPENDIENTE |
-| VAL_COND_PREDIO_EN | R3 | Clasificación o predio catastral en vacíos | Sí | Mismo criterio. | clasificación o predio catastral en vacío | llenar clasificación y predio catastral en |
-| VAL_COND_PREDIO_EN | R4 | Predio catastral en OTROS o fuera de la tabla | No | Sin evaluación de esta regla. | predio catastral en fuera de la tabla | usar un código específico de la tabla |
-| VAL_COND_PREDIO_EN | R5 | Predio comercial con clasificación no comercial | No | Sin evaluación de esta regla. | predio comercial con clasificación no comercial | corregir clasificación o predio catastral en |
-| VAL_COND_PREDIO_EN | R6 | Predio en edificio con una sola unidad en el lote | No | Sin evaluación de esta regla. | predio en edificio con una sola unidad | verificar si es PREDIO INDEPENDIENTE |
+| VAL_COND_PREDIO_EN | R1 | Predio en edificio en un solo campo | Sí | Mismo criterio. | predio en edificio marcado solo en un campo | poner PREDIO EN EDIFICIO en clasificación y en «predio catastral en» |
+| VAL_COND_PREDIO_EN | R2 | Terreno / parque distinto de predio independiente | Sí | Mismo criterio. | terreno sin construir o parque | debe ser PREDIO INDEPENDIENTE |
+| VAL_COND_PREDIO_EN | R3 | Clasificación o predio catastral en vacíos | Sí | Mismo criterio. | falta clasificación o «predio catastral en» | llenarlos |
+| VAL_COND_PREDIO_EN | R4 | Predio catastral en OTROS o fuera de la tabla | No | Sin evaluación de esta regla. | «predio catastral en» = OTROS | buscar si hay un código específico |
+| VAL_COND_PREDIO_EN | R5 | Predio comercial con clasificación no comercial | No | Sin evaluación de esta regla. | predio comercial con clasificación que no es comercial | corregir la clasificación |
+| VAL_COND_PREDIO_EN | R6 | Predio en edificio con una sola unidad en el lote | No | Sin evaluación de esta regla. | dice predio en edificio pero el lote tiene una sola unidad | revisar si es PREDIO INDEPENDIENTE |
 | VAL_COND_PREDIO_EN | R7 | Predio independiente en edificación de más de 10 unidades | No | excluida por decisión de Diego | — | — |
-| VAL_COND_PREDIO_EN | R8 | Clasificación OTROS con uso de clasificación propia | No | Sin evaluación de esta regla. | clasificación OTROS con uso de clasificación propia | cambiar a la clasificación propia del uso |
-| VAL_COND_PREDIO_EN | R9 | Clasificación sin construcción con tipo de edificación | No | Sin evaluación de esta regla. | clasificación sin construcción con tipo de edificación | quitar el tipo de edificación |
-| VAL_COND_PREDIO_EN | R10 | Tipo de edificación vacío | No | Sin evaluación de esta regla. | tipo de edificación vacío | llenar el tipo de edificación |
-| VAL_COND_PREDIO_EN | R10C | Cementerio sin tipo de edificación | No | Sin evaluación de esta regla. | cementerio sin tipo de edificación | verificar y sustentar en Observaciones |
-| VAL_COND_PREDIO_EN | R11 | Predio en edificio sin tipo EDIFICIO o BLOCK | No | Sin evaluación de esta regla. | predio en edificio sin tipo EDIFICIO o BLOCK | tipo de edificación debe ser EDIFICIO o BLOCK |
-| VAL_COND_PREDIO_EN | R12 | Casa habitación en EDIFICIO o BLOCK | No | Sin evaluación de esta regla. | casa habitación en EDIFICIO o BLOCK | verificar si es PREDIO EN EDIFICIO |
-| VAL_COND_PREDIO_EN | R13 | Tipo de edificación PABELLÓN | No | Sin evaluación de esta regla. | tipo de edificación PABELLÓN | verificar y sustentar en Observaciones |
+| VAL_COND_PREDIO_EN | R8 | Clasificación OTROS con uso de clasificación propia | No | Sin evaluación de esta regla. | clasificación OTROS, pero el uso tiene su propia clasificación | usar esa clasificación |
+| VAL_COND_PREDIO_EN | R9 | Clasificación sin construcción con tipo de edificación | No | Sin evaluación de esta regla. | sin construcción pero con tipo de edificación | quitar el tipo de edificación |
+| VAL_COND_PREDIO_EN | R10 | Tipo de edificación vacío | No | Sin evaluación de esta regla. | falta el tipo de edificación | llenarlo |
+| VAL_COND_PREDIO_EN | R10C | Cementerio sin tipo de edificación | No | Sin evaluación de esta regla. | cementerio sin tipo de edificación | revisar si tiene construcciones y explicar |
+| VAL_COND_PREDIO_EN | R11 | Predio en edificio sin tipo EDIFICIO o BLOCK | No | Sin evaluación de esta regla. | predio en edificio con otro tipo de edificación | el tipo debe ser EDIFICIO o BLOCK |
+| VAL_COND_PREDIO_EN | R12 | Casa habitación en EDIFICIO o BLOCK | No | Sin evaluación de esta regla. | casa habitación con tipo EDIFICIO o BLOCK | revisar si en realidad es predio en edificio |
+| VAL_COND_PREDIO_EN | R13 | Tipo de edificación PABELLÓN | No | Sin evaluación de esta regla. | tipo PABELLÓN | confirmar que lo sea y explicar |
 | VAL_COND_PREDIO_EN | R14 | Terreno / parque con uso distinto al suyo | No | excluida por decisión de Diego | — | — |
 
 ## VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO)
 
 | Validador | Regla | Qué revisa | ¿Está en el comparador? | Diferencia inicial | Texto corto | Qué hacer |
 |---|---|---|---|---|---|---|
-| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R1 | Producto total = 1 en m², m³ o ml | Parcial | El lector anterior aceptaba un prefijo numérico seguido de texto. | producto total igual a uno: verificar metrado | verificar metrado y sustentar en Observaciones |
-| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R2 | Unidad de medida distinta al Anexo III.1 | Parcial | La comparación no reconocía pza como equivalente a und para códigos con unidad oficial pza. | unidad de medida distinta a la del anexo | usar la unidad de medida del anexo |
-| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R3 | Capacidad que no corresponde al código | No | Sin evaluación de esta regla. | capacidad no corresponde al código | corregir el código o la capacidad |
-| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R4 | Obra repetida idéntica en el predio | No | Sin evaluación de esta regla. | obra repetida en el predio | eliminar la obra repetida |
-| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R5 | MEP que no corresponde al material | Sí | Mismo catálogo y normalización de MEP. | MEP no corresponde al material | usar el MEP que corresponde al material |
-| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R6 | ECC distinto de terminado en tanque de plástico | No | Sin evaluación de esta regla. | ECC debe ser terminado | ECC debe ser TERMINADO |
+| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R1 | Producto total = 1 en m², m³ o ml | Parcial | El lector anterior aceptaba un prefijo numérico seguido de texto. | metrado total = 1 | revisar la medida y explicar si es correcto |
+| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R2 | Unidad de medida distinta al Anexo III.1 | Parcial | La comparación no reconocía pza como equivalente a und para códigos con unidad oficial pza. | unidad de medida distinta a la del anexo | usar la del anexo |
+| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R3 | Capacidad que no corresponde al código | No | Sin evaluación de esta regla. | la capacidad no corresponde al código | corregir código o capacidad |
+| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R4 | Obra repetida idéntica en el predio | No | Sin evaluación de esta regla. | obra registrada dos veces | eliminar la repetida |
+| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R5 | MEP que no corresponde al material | Sí | Mismo catálogo y normalización de MEP. | material, estado o clasificación (MEP) no coincide | corregir según el anexo |
+| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R6 | ECC distinto de terminado en tanque de plástico | No | Sin evaluación de esta regla. | tanque de plástico | el estado de conservación debe ser TERMINADO |
 | VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R7 | Tanque elevado anterior al último piso | No | excluida por decisión de Diego | — | — |
-| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R7P | Parapeto anterior al piso 1 | No | Sin evaluación de esta regla. | fecha anterior al primer piso | revisar fecha: no anterior al primer piso |
+| VAL_OBRAS_COMPLEN (VAL_PRODUCTO y VAL_MEP_MEDIDA_PRODUCTO) | R7P | Parapeto anterior al piso 1 | No | Sin evaluación de esta regla. | obra más antigua que el primer piso | revisar la fecha |
 
 ## VAL_CRC
 
 | Validador | Regla | Qué revisa | ¿Está en el comparador? | Diferencia inicial | Texto corto | Qué hacer |
 |---|---|---|---|---|---|---|
-| VAL_CRC | R1 | Entrada inicia en 01 | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | entrada no inicia en la primera | renumerar la entrada desde la primera |
-| VAL_CRC | R2 | Entradas correlativas | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | entradas no correlativas | renumerar las entradas en forma correlativa |
-| VAL_CRC | R3 | Piso = 01 (edificación de una fila) | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | edificación de una fila no está en primer piso | renumerar el piso al primero |
-| VAL_CRC | R4 | Unidad inicia en 001 | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | unidad no inicia en la primera | renumerar la unidad desde la primera |
-| VAL_CRC | R5 | Unidades correlativas | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | unidades no correlativas | renumerar las unidades en forma correlativa |
-| VAL_CRC | R6 | Sótano inicia en 81 | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | sótano no inicia en el primero | renumerar el sótano desde el primero |
-| VAL_CRC | R6A | Sótano 81 vs construcción desde piso 01 | No | Sin evaluación de esta regla. | sótano sin construcción en pisos superiores | revisar el piso del CRC y la construcción |
-| VAL_CRC | R6B | Piso inferior con construcción principal | No | Sin evaluación de esta regla. | piso inferior tiene la construcción principal | pasar el CRC al piso de la construcción principal |
-| VAL_CRC | R6C | Sin líneas constructivas en el piso del CRC | No | Sin evaluación de esta regla. | sin líneas constructivas en el piso del CRC | registrar líneas constructivas o corregir el piso |
+| VAL_CRC | R1 | Entrada inicia en 01 | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | las entradas no empiezan en 01 | numerarlas 01, 02, 03… |
+| VAL_CRC | R2 | Entradas correlativas | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | las entradas saltan números | numerarlas 01, 02, 03… |
+| VAL_CRC | R3 | Piso = 01 (edificación de una fila) | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | edificación de una sola fila que no está en el piso 01 | pasarla al piso 01 |
+| VAL_CRC | R4 | Unidad inicia en 001 | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | las unidades no empiezan en 001 | numerarlas en orden desde 001 |
+| VAL_CRC | R5 | Unidades correlativas | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | las unidades saltan números | numerarlas en orden desde 001 |
+| VAL_CRC | R6 | Sótano inicia en 81 | Parcial | Agrupación, atribución de saltos o cruce con construcciones incompletos. | los sótanos no empiezan en 81 | numerarlos 81, 82… |
+| VAL_CRC | R6A | Sótano 81 vs construcción desde piso 01 | No | Sin evaluación de esta regla. | sótano sin construcción arriba | revisar el piso del CRC |
+| VAL_CRC | R6B | Piso inferior con construcción principal | No | Sin evaluación de esta regla. | la construcción principal está en otro piso | pasar el CRC a ese piso |
+| VAL_CRC | R6C | Sin líneas constructivas en el piso del CRC | No | Sin evaluación de esta regla. | el piso del CRC no tiene construcciones | registrarlas o corregir el piso |
 | VAL_CRC | LON | CRC con longitud distinta de 24 | No | no se publica: CRC ilegible = problema de lectura del Excel | — | — |
 
 ## VAL_FECHA_PISO
@@ -103,7 +103,7 @@ Fuente de esta tanda: `validadores_ref/VAL_FECHA_PISO.html` (©diegocampos). El 
 
 | Regla | Qué revisa | Severidad | Reportes que usa | Catálogos | Estado en C2 | Texto corto | Qué hacer |
 |---|---|---|---|---|---|---|---|
-| R1 | El año de la línea es anterior al de la referencia acumulada de los niveles inferiores. | ERROR | Construcciones | Niveles y fechas | portada | año anterior al de los pisos inferiores | revisar año de construcción del piso |
+| R1 | El año de la línea es anterior al de la referencia acumulada de los niveles inferiores. | ERROR | Construcciones | Niveles y fechas | portada | este piso tiene un año anterior al del piso de abajo | revisar el año de construcción |
 | R1M | La fecha es anterior a la referencia inferior dentro del mismo año. | ADVERTENCIA | Construcciones | Niveles y fechas | excluida por decisión de Diego (solo se compara el año) | — | — |
 | R1Z | El año de la línea es anterior al nacimiento de un mezanine inferior pendiente de aviso. | ADVERTENCIA | Construcciones | Mezanines 71–79 | excluida por decisión de Diego (solo se compara el año) | — | — |
 | R2 | La fecha supera el día actual del navegador. | ERROR | Construcciones | Fechas | excluida por decisión de Diego (solo se compara el año) | — | — |
