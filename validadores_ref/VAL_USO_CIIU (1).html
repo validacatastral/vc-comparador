@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  VALIDA CATASTRAL — VAL_USO_CIIU · Validador de Código de Uso y CIIU · v16
+  ValidaCatastral ©diegocampos — Todos los derechos reservados.
+  Herramienta de uso interno para control de calidad catastral.
+  Prohibida su reproducción, distribución o modificación
+  sin autorización expresa del autor.
+  ------------------------------------------------------------
+  Skills aplicadas: estilo-valida-catastral · carga-y-filtros-valida-catastral (v2)
+                    · exportacion-valida-catastral
+  ============================================================
+-->
+<html lang="es" data-vctheme="vcwarm">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="ValidaCatastral ©diegocampos">
+<title>VAL_USO_CIIU · VALIDA CATASTRAL</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@500;600&display=swap');
+
+/* ===== TEMA NEON (base de respaldo en :root) ===== */
+:root{
+  --bg-void:#07090d;--bg-deep:#0c1015;--bg-panel:#10151c;--bg-card:#151b23;--bg-hover:#1b232d;
+  --border:#23303f;--border-soft:#1a2430;
+  --accent:#3fc6ee;--accent-2:#2f9fd0;--purple:#a78bfa;--green:#3fd99a;--amber:#e8b14a;--red:#e87070;
+  --text-prime:#dce4ec;--text-mute:#9fb3c4;--text-dim:#5c7186;
+  --font-mono:'Share Tech Mono',ui-monospace,monospace;--font-head:'Rajdhani',sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(63,198,238,.10);--red-wash:rgba(232,112,112,.10);--purple-wash:rgba(167,139,250,.08);
+  --glow:0 0 18px rgba(63,198,238,.15);--radius:10px;
+}
+/* ===== TEMA 2 · OSCURO VC ===== */
+html[data-vctheme="vcdark"]{
+  --bg-void:#0b0b0c;--bg-deep:#111113;--bg-panel:#151517;--bg-card:#1b1b1e;--bg-hover:#222226;
+  --border:#2a2a2e;--border-soft:#232327;
+  --accent:#5dcaa5;--accent-2:#3fae89;--purple:#a79bef;--green:#5dcaa5;--amber:#e2b35c;--red:#e07b7b;
+  --text-prime:#ededee;--text-mute:#a6a6ac;--text-dim:#6e6e74;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Inter',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(93,202,165,.10);--red-wash:rgba(224,123,123,.10);--purple-wash:rgba(167,155,239,.08);
+  --glow:none;
+}
+/* ===== TEMA 3 · CLARO ===== */
+html[data-vctheme="vclight"]{
+  --bg-void:#fafafa;--bg-deep:#f1f1f2;--bg-panel:#ffffff;--bg-card:#f5f5f6;--bg-hover:#ececee;
+  --border:#e3e3e6;--border-soft:#ebebee;
+  --accent:#0f6e56;--accent-2:#128a68;--purple:#5f51c9;--green:#0f6e56;--amber:#925f0e;--red:#b54a4a;
+  --text-prime:#19191b;--text-mute:#56565d;--text-dim:#9a9aa0;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Inter',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(15,110,86,.08);--red-wash:rgba(181,74,74,.08);--purple-wash:rgba(95,81,201,.07);
+  --glow:none;
+}
+/* ===== TEMA 4 · CÁLIDO (por defecto) ===== */
+html[data-vctheme="vcwarm"]{
+  --bg-void:#1a1918;--bg-deep:#21201e;--bg-panel:#262624;--bg-card:#2c2b28;--bg-hover:#34322e;
+  --border:#3a3833;--border-soft:#31302b;
+  --accent:#d97757;--accent-2:#c15f3c;--purple:#a996e0;--green:#6fbf8f;--amber:#d9a441;--red:#e05d5d;
+  --text-prime:#f0eee6;--text-mute:#b8b3a7;--text-dim:#7d786d;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Lora',Georgia,serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(217,119,87,.10);--red-wash:rgba(224,93,93,.10);--purple-wash:rgba(169,150,224,.08);
+  --glow:none;--radius:16px;
+}
+html[data-vctheme="vcwarm"] .btn{text-transform:none;letter-spacing:.2px;font-weight:600;}
+html[data-vctheme="vcwarm"] .brand .nm{letter-spacing:1px;}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg-void);color:var(--text-prime);font-family:var(--font-body);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
+
+/* ===== Topbar ===== */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px 22px;background:var(--bg-deep);border-bottom:1px solid var(--border);}
+.brand{display:flex;align-items:center;gap:11px;min-width:0;}
+.brand .mark{width:30px;height:30px;flex:none;color:var(--accent);filter:drop-shadow(0 0 6px var(--accent-wash));}
+.brand .nm{font-family:var(--font-head);font-weight:700;font-size:16px;letter-spacing:2.5px;color:var(--accent);white-space:nowrap;}
+.brand .mod{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);letter-spacing:1px;white-space:nowrap;}
+.topbar-right{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:11px;color:var(--text-mute);}
+.pill{border:1px solid var(--border);background:var(--bg-panel);color:var(--text-mute);border-radius:20px;
+  padding:5px 13px;font-family:var(--font-mono);font-size:10.5px;letter-spacing:1px;cursor:pointer;transition:border-color .15s,color .15s;white-space:nowrap;}
+.pill:hover{border-color:var(--accent);color:var(--accent);}
+.pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:1px;}
+
+.wrap{max-width:1360px;margin:0 auto;padding:28px 24px 70px;}
+
+/* ===== Masthead ===== */
+header.masthead{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;box-shadow:var(--glow);}
+.eyebrow{font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin:0 0 8px;display:flex;align-items:center;gap:8px;}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+h1{font-family:var(--font-head);font-size:27px;line-height:1.12;margin:0 0 8px;font-weight:700;letter-spacing:.5px;}
+.lede{margin:0;color:var(--text-mute);max-width:74ch;font-size:14px;}
+.keyline{margin-top:16px;padding-top:14px;border-top:1px dashed var(--border);font-size:12.5px;color:var(--text-mute);}
+.keyline code{font-family:var(--font-mono);background:var(--accent-wash);color:var(--accent);padding:2px 8px;border-radius:5px;font-size:12px;letter-spacing:.5px;border:1px solid var(--border-soft);}
+.keyline b{color:var(--purple);font-weight:600;}
+
+section{margin-top:24px;}
+.sec-label{font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-dim);margin:0 0 12px;display:flex;align-items:center;gap:12px;}
+.sec-label::after{content:"";height:1px;flex:1;background:var(--border);}
+
+/* ===== Zona de carga ===== */
+.intake{background:var(--bg-panel);border:1.5px dashed var(--border);border-radius:var(--radius);padding:36px 26px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;}
+.intake:hover{border-color:var(--accent);background:var(--bg-card);}
+.intake.drag{border-color:var(--accent);background:var(--accent-wash);border-style:solid;}
+.intake.loaded{border-style:solid;border-color:var(--green);text-align:left;cursor:default;}
+.intake .slot{width:46px;height:46px;border-radius:9px;margin:0 auto 14px;display:grid;place-items:center;background:var(--accent-wash);color:var(--accent);border:1px solid var(--border-soft);}
+.intake .slot svg{width:24px;height:24px;}
+.intake h3{margin:0 0 5px;font-size:15.5px;font-weight:600;font-family:var(--font-head);letter-spacing:.4px;}
+.intake p{margin:0;color:var(--text-mute);font-size:13px;}
+.filechip{display:flex;align-items:center;gap:12px;}
+.filechip .meta{min-width:0;flex:1;}
+.filechip .nm{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.filechip .sub{font-size:12px;color:var(--text-mute);font-family:var(--font-mono);}
+
+/* ===== Botones ===== */
+.btn{font-family:var(--font-head);font-size:14px;font-weight:600;letter-spacing:.8px;border-radius:8px;cursor:pointer;padding:11px 22px;border:1px solid transparent;display:inline-flex;align-items:center;gap:9px;transition:background .15s,border-color .15s,opacity .15s,box-shadow .15s;text-transform:uppercase;}
+.btn-primary{background:var(--accent);color:var(--bg-void);}
+.btn-primary:hover{background:var(--accent-2);box-shadow:0 0 16px var(--accent-wash);}
+.btn-ghost{background:var(--bg-panel);color:var(--text-prime);border-color:var(--border);}
+.btn-ghost:hover{border-color:var(--green);color:var(--green);}
+.btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
+.actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:18px;}
+
+/* ===== Paneles, métricas y tablas ===== */
+.panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.panel-head{border-top:2px solid var(--accent);}
+.stats{display:grid;}
+.stat{padding:18px 20px;border-right:1px solid var(--border);}
+.stat:last-child{border-right:none;}
+.stat .k{font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;color:var(--text-dim);}
+.stat .v{font-family:var(--font-mono);font-size:31px;line-height:1.05;margin-top:9px;font-variant-numeric:tabular-nums;color:var(--accent);}
+.stat.dup .v{color:var(--red);}
+.stat.grp .v{color:var(--amber);}
+
+.tablecard{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.tablecard .cap{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.tablecard .cap h3{margin:0;font-size:13.5px;font-weight:600;font-family:var(--font-head);letter-spacing:.8px;text-transform:uppercase;}
+.tablecard .cap .note{font-size:11.5px;color:var(--text-mute);font-family:var(--font-mono);letter-spacing:.4px;}
+.scroll{overflow:auto;max-height:600px;}
+table{border-collapse:collapse;width:100%;font-size:12.5px;}
+th,td{padding:9px 11px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border-soft);}
+thead th{position:sticky;top:0;background:var(--bg-card);z-index:2;font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-mute);font-weight:500;border-bottom:1px solid var(--border);}
+tbody tr:hover{background:var(--bg-hover);}
+td.mono,th.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.col-num{color:var(--text-dim);font-family:var(--font-mono);font-size:11.5px;}
+th.crc-h{background:var(--purple-wash);color:var(--purple);}
+td.crc{background:var(--purple-wash);font-family:var(--font-mono);color:var(--purple);font-variant-numeric:tabular-nums;}
+.empty{padding:46px 24px;text-align:center;color:var(--text-mute);}
+.empty .big{font-size:15px;font-weight:600;color:var(--text-prime);margin-bottom:6px;font-family:var(--font-head);letter-spacing:.5px;}
+.hidden{display:none;}
+.err{background:var(--red-wash);border:1px solid var(--red);color:var(--red);padding:12px 16px;border-radius:8px;font-size:13px;margin-top:14px;font-family:var(--font-mono);}
+
+footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--border);text-align:center;color:var(--text-dim);font-family:var(--font-mono);font-size:11px;letter-spacing:1px;line-height:2;}
+footer .cr{color:var(--text-mute);}
+footer .cr b{color:var(--accent);font-weight:500;}
+
+@media (max-width:760px){
+  .wrap{padding:20px 14px 60px;}
+  h1{font-size:22px;}.stat .v{font-size:26px;}
+  .brand .mod{display:none;}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
+
+/* ===== Componentes de carga, reglas y filtros (v2) ===== */
+.slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;}
+.intake.card{padding:30px 22px;min-height:190px;display:flex;flex-direction:column;justify-content:center;}
+.intake.card.loaded{padding:18px 20px;justify-content:flex-start;}
+.intake .badge{display:inline-block;margin-top:12px;font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);border:1px solid var(--border);border-radius:20px;padding:3px 10px;}
+.intake .lhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}
+.intake .lhead .lt{font-family:var(--font-head);font-weight:600;font-size:15px;letter-spacing:.4px;}
+.intake .lhead .badge{margin-top:0;}
+.filelist{display:flex;flex-direction:column;gap:10px;}
+.filelist .filechip .ic{width:10px;height:10px;border-radius:50%;background:var(--green);flex:none;}
+.filelist .filechip .ic.bad{background:var(--red);}
+.filelist .filechip .nm{font-size:13px;}
+.filechip .sub.bad{color:var(--red);white-space:normal;}
+.addmore{display:flex;gap:10px;margin-top:14px;}
+.reset{border:1px solid var(--border);background:var(--bg-card);color:var(--text-mute);border-radius:7px;padding:7px 13px;font-size:12px;cursor:pointer;font-family:var(--font-mono);letter-spacing:.5px;white-space:nowrap;}
+.reset:hover{border-color:var(--red);color:var(--red);}
+.reset.add:hover{border-color:var(--accent);color:var(--accent);}
+.notice{background:rgba(217,164,65,.08);border:1px solid var(--amber);color:var(--text-prime);padding:12px 16px;border-radius:8px;font-size:12.5px;margin-top:14px;line-height:1.7;}
+.notice b{color:var(--amber);}
+.stats.s7{grid-template-columns:repeat(7,1fr);}
+.stat.ok .v{color:var(--green);}
+.stat.pur .v{color:var(--purple);}
+.stat.fe .v{color:var(--text-mute);}
+.substats{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--border);}
+.rchip{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;border-radius:20px;padding:3px 11px;background:transparent;cursor:pointer;border:1px solid var(--red);color:var(--red);transition:opacity .15s;}
+.rchip b{color:var(--text-prime);font-weight:600;margin-left:3px;}
+.rchip.adv{border-color:var(--amber);color:var(--amber);}
+.rchip.fal{border-color:var(--text-mute);color:var(--text-mute);}
+.rchip.off{opacity:.5;border-style:dashed;text-decoration:line-through;}
+.rchip.na{opacity:.35;cursor:not-allowed;border-style:dotted;}
+.rhint{flex-basis:100%;font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);letter-spacing:.3px;}
+.filters{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+.fgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;}
+.frow{display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-top:16px;}
+.fld label{display:block;font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;}
+.fld input,.fld select,.fld textarea{width:100%;background:var(--bg-card);border:1px solid var(--border);color:var(--text-prime);border-radius:7px;padding:8px 10px;font-family:var(--font-mono);font-size:12.5px;}
+.fld textarea{min-height:120px;resize:vertical;}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--accent);}
+.fmeta{font-family:var(--font-mono);font-size:11px;color:var(--text-mute);margin-top:6px;}
+.fbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;}
+.selline{font-family:var(--font-mono);font-size:11.5px;color:var(--text-mute);}
+.selline b{color:var(--text-prime);}
+.selline .r{color:var(--red);}
+td.mk{background:var(--red-wash);color:var(--red);font-weight:600;}
+td.desc{max-width:240px;overflow:hidden;text-overflow:ellipsis;}
+td.est{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;}
+tr.st-ERROR td.est{color:var(--red);font-weight:600;}
+tr.st-ADVERTENCIA td.est{color:var(--amber);font-weight:600;}
+tr.st-CONFORME td.est{color:var(--green);}
+tr.st-FALSO_ERROR td.est{color:var(--text-mute);font-weight:600;}
+tr.st-ERROR td:first-child{box-shadow:inset 3px 0 0 var(--red);}
+tr.st-ADVERTENCIA td:first-child{box-shadow:inset 3px 0 0 var(--amber);}
+tr.st-FALSO_ERROR td:first-child{box-shadow:inset 3px 0 0 var(--text-dim);}
+td.obs-t{white-space:normal;min-width:280px;font-size:12px;color:var(--text-mute);}
+td.ciiu{font-family:var(--font-mono);}
+td.ciiu .d{display:block;font-family:var(--font-body);font-size:10.5px;color:var(--text-dim);white-space:normal;max-width:250px;}
+@media (max-width:1100px){.stats.s7{grid-template-columns:repeat(4,1fr);}}
+@media (max-width:760px){.stats.s7{grid-template-columns:repeat(2,1fr);}.fgrid{grid-template-columns:repeat(3,1fr);}.frow{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 8 L14 26 L28 4"/><path d="M4 8 L9 8" opacity=".45"/>
+    </svg>
+    <span class="nm">VALIDA CATASTRAL</span>
+    <span class="mod">// VAL_USO_CIIU · CÓDIGO DE USO Y CIIU</span>
+  </div>
+  <div class="topbar-right">
+    <span id="clock">--:--:--</span>
+    <button class="pill" id="themeBtn" type="button" title="Cambiar tema"><span class="dot"></span><span id="themeName">Cálido</span></button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Control de calidad catastral · COFOPRI · SICUN</p>
+    <h1>Validador de Código de Uso y CIIU</h1>
+    <p class="lede">Carga los reportes SICUN en bruto, sin editar. El validador cruza Construcciones con Unidades Administrativas por el Código de Referencia Catastral, asigna el Código de Uso a cada línea constructiva y valida que el CIIU corresponda al uso según el Glosario de la Tabla de Usos COFOPRI y la CIIU Rev. 4 del INEI. Si el reporte trae la columna ECC, una línea en obra (en construcción, inconclusa o en ruinas) se lee como sin actividad.</p>
+    <div class="keyline">
+      Estructura del CRC: <code>Ubigeo(6) · Sector(2) · Manzana(3) · Lote(3) · Edifica(2) · Entrada(2) · Piso(2) · Unidad(3) · Ref(1)</code> = <b>24 dígitos</b>. Uso común: entrada <b>99</b>, piso <b>99</b> o unidad <b>999</b>.
+    </div>
+  </header>
+
+  <!-- 1 · CARGA -->
+  <section>
+    <p class="sec-label">1 · Cargar reportes</p>
+    <div class="slots" id="slots"></div>
+    <div id="loadNotice" class="notice hidden"></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="runBtn" type="button" disabled>Analizar</button>
+      <button class="btn btn-ghost" id="resetBtn" type="button">Quitar todo</button>
+    </div>
+  </section>
+
+  <!-- 2 · MÉTRICAS + REGLAS -->
+  <section id="resultSection" class="hidden">
+    <p class="sec-label">2 · Resultado del universo cargado</p>
+    <div class="panel panel-head">
+      <div class="stats s7">
+        <div class="stat"><div class="k">Líneas validadas</div><div class="v" id="stTotal">0</div></div>
+        <div class="stat pur"><div class="k">Unidades (CRC únicos)</div><div class="v" id="stUnid">0</div></div>
+        <div class="stat ok"><div class="k">Conformes</div><div class="v" id="stOk">0</div></div>
+        <div class="stat dup"><div class="k">Con error</div><div class="v" id="stErr">0</div></div>
+        <div class="stat grp"><div class="k">Con advertencia</div><div class="v" id="stWarn">0</div></div>
+        <div class="stat fe"><div class="k">Falso error</div><div class="v" id="stFalso">0</div></div>
+        <div class="stat pur"><div class="k">Uso común (99/999)</div><div class="v" id="stComun">0</div></div>
+      </div>
+      <div class="substats" id="ruleChips"></div>
+    </div>
+  </section>
+
+  <!-- 3 · FILTROS -->
+  <section id="filterSection" class="hidden">
+    <p class="sec-label">3 · Filtrar</p>
+    <div class="filters">
+      <div class="fgrid">
+        <div class="fld"><label>Sector</label><input id="fSector" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+        <div class="fld"><label>Manzana</label><input id="fMz" placeholder="· · ·" maxlength="3" autocomplete="off"></div>
+        <div class="fld"><label>Lote</label><input id="fLote" placeholder="· · ·" maxlength="3" autocomplete="off"></div>
+        <div class="fld"><label>Edificación</label><input id="fEdif" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+        <div class="fld"><label>Entrada</label><input id="fEntr" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+        <div class="fld"><label>Piso</label><input id="fPiso" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+        <div class="fld"><label>Unidad</label><input id="fUnid" placeholder="· · ·" maxlength="3" autocomplete="off"></div>
+      </div>
+      <div class="frow">
+        <div class="fld">
+          <label>Lista de CRC pegada</label>
+          <textarea id="fCrc" placeholder="Pega aquí los CRC — uno por línea, o separados por comas, espacios o tabulaciones."></textarea>
+          <div class="fmeta" id="crcMeta">Sin lista. La comparación ignora el último dígito de referencia.</div>
+        </div>
+        <div>
+          <div class="fld"><label>Estado</label>
+            <select id="fEstado">
+              <option value="">Todos</option>
+              <option value="ERROR">Solo errores</option>
+              <option value="ADVERTENCIA">Solo advertencias</option>
+              <option value="OBS">Errores + advertencias</option>
+              <option value="FALSO ERROR">Solo falso error</option>
+              <option value="CONFORME">Solo conformes</option>
+            </select>
+          </div>
+          <div class="fld" style="margin-top:12px;"><label>Regla</label>
+            <select id="fRegla"><option value="">Todas</option></select>
+          </div>
+          <div class="fld" style="margin-top:12px;"><label>Archivo de origen</label>
+            <select id="fArchivo"><option value="">Todos</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="fbar">
+        <button class="reset" id="clearBtn" type="button">Limpiar filtros</button>
+        <span class="selline" id="selLine">—</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 · TABLA + EXPORTACIÓN -->
+  <section id="tableSection" class="hidden">
+    <p class="sec-label">4 · Detalle</p>
+    <div class="actions" style="margin-top:0;margin-bottom:14px;">
+      <button class="btn btn-primary" id="expSelBtn" type="button">Exportar selección</button>
+      <button class="btn btn-ghost" id="expAllBtn" type="button">Exportar todo</button>
+    </div>
+    <div class="tablecard">
+      <div class="cap"><h3>Líneas constructivas validadas</h3><span class="note" id="tableNote">—</span></div>
+      <div class="scroll"><table id="resTable"><thead></thead><tbody></tbody></table></div>
+      <div id="emptyBox" class="empty hidden"><div class="big">Sin resultados</div><div>Ninguna línea coincide con los filtros aplicados.</div></div>
+    </div>
+    <div id="expError" class="err hidden"></div>
+  </section>
+
+  <footer>
+    VAL_USO_CIIU v16 · Procesamiento 100% local · SheetJS + ExcelJS · Glosario de Usos COFOPRI / CIIU Rev. 4 INEI<br>
+    <span class="cr"><b>ValidaCatastral ©diegocampos</b> — Uso interno. Prohibida su reproducción o distribución no autorizada.</span>
+  </footer>
+</div>
+
+<script>
+/* ValidaCatastral ©diegocampos — Todos los derechos reservados. */
+(function(){
+  "use strict";
+  var THEMES=[["vcwarm","Cálido"],["neon","Neon"],["vcdark","Oscuro VC"],["vclight","Claro"]], tIdx=0;
+  var themeBtn=document.getElementById("themeBtn"), themeName=document.getElementById("themeName");
+  themeBtn.addEventListener("click",function(e){
+    e.stopPropagation();
+    tIdx=(tIdx+1)%THEMES.length;
+    document.documentElement.setAttribute("data-vctheme",THEMES[tIdx][0]);
+    themeName.textContent=THEMES[tIdx][1];
+  });
+  var clock=document.getElementById("clock");
+  function tick(){ var d=new Date(),p=function(n){return String(n).padStart(2,"0");}; clock.textContent=p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds()); }
+  tick(); setInterval(tick,1000);
+})();
+</script>
+<script>
+/* ValidaCatastral ©diegocampos — Todos los derechos reservados. */
+(function(){
+"use strict";
+
+/* ============================================================
+   1 · CONFIGURACIÓN DE DOMINIO — se actualiza según el glosario
+   ============================================================ */
+
+/* ---- A · Tarjetas de carga -------------------------------- */
+var SLOTS = [
+  { id:"cons", titulo:"Construcciones", sub:"Reporte base · una fila por línea constructiva · trae el CIIU",
+    obligatorio:true, icono:"tabla",
+    HDR:{ crc:"codigo de referencia catastral", backup:"nombre backup", npiso:"n piso",
+          ciiu:"codigo de actividad economica (ciiu)", uso:"codigo de uso", desc:"descripcion del uso",
+          ecc:"ecc" },
+    REQ:["crc","ciiu"] },
+  { id:"unid", titulo:"Unidades Administrativas", sub:"Aporta el Código y la Descripción de Uso de cada CRC",
+    obligatorio:false, icono:"grilla",
+    HDR:{ crc:"codigo de referencia catastral", backup:"nombre backup",
+          uso:"codigo de uso", desc:"descripcion del uso" },
+    REQ:["crc","uso"] }
+];
+
+/* ---- B · Catálogo de reglas ------------------------------- */
+var REGLAS = [
+  {c:"R1",  n:"Sin Código de Uso",                                         sev:"ERROR"},
+  {c:"R2",  n:"Código de Uso fuera del glosario",                          sev:"ADVERTENCIA"},
+  {c:"R3A", n:"El uso exige CIIU y ninguna línea de la unidad lo tiene",   sev:"ERROR"},
+  {c:"R3B", n:"Línea sin CIIU; otras líneas de la unidad sí lo tienen",    sev:"ADVERTENCIA"},
+  {c:"R3C", n:"Línea sin CIIU en obra no terminada (ECC)",                 sev:"FALSO ERROR", col:"ecc"},
+  {c:"R3D", n:"Línea con CIIU en obra no terminada (ECC)",                 sev:"ADVERTENCIA", col:"ecc"},
+  {c:"R4A", n:"CIIU no corresponde al uso (unidad de una línea)",          sev:"ERROR"},
+  {c:"R4B", n:"CIIU no corresponde al uso (unidad de varias líneas)",      sev:"ADVERTENCIA"},
+  {c:"R5",  n:"CRC no encontrado en Unidades",                             sev:"ADVERTENCIA", requiere:"unid"},
+  {c:"R6",  n:"CRC con usos distintos en Unidades",                        sev:"ADVERTENCIA", requiere:"unid"},
+  {c:"R7",  n:"Comercial no identificado (local desocupado)",              sev:"FALSO ERROR"},
+  {c:"R8A", n:"Uso comercial no especificado: ninguna línea con CIIU",     sev:"ERROR"},
+  {c:"R8B", n:"Uso comercial no especificado con CIIU — revisar",          sev:"ADVERTENCIA"},
+  {c:"R8C", n:"Uso comercial no especificado: línea sin CIIU, otras sí",   sev:"ADVERTENCIA"},
+  {c:"R9",  n:"Comercial no identificado con CIIU — revisar",              sev:"ADVERTENCIA"},
+  {c:"R10", n:"CIIU inexistente en la Rev. 4",                             sev:"ADVERTENCIA"}
+];
+
+/* ---- C · Columnas del bloque variable en pantalla --------- */
+var TABLA = [
+  {k:"npiso",    t:"N° Piso",            cls:"mono"},
+  {k:"ecc",      t:"ECC",                cls:"mono"},
+  {k:"lineas",   t:"Líneas",             cls:"mono"},
+  {k:"uso",      t:"Cód. Uso",           cls:"mono"},
+  {k:"desc",     t:"Descripción del uso",cls:"desc"},
+  {k:"ciiu",     t:"CIIU",               cls:"mono"},
+  {k:"ciiuDesc", t:"Descripción CIIU",   cls:"desc"},
+  {k:"esperado", t:"CIIU esperado",      cls:"desc"}
+];
+
+/* ---- D · Usos de tratamiento especial --------------------- */
+/* Uso comercial residual: el glosario no le asigna CIIU porque es la
+   categoría "todo lo demás", pero el establecimiento sí tiene actividad.
+   Toda línea se manda a revisar: puede estar mal el uso o mal el CIIU. */
+var USO_RESIDUAL = "020199";
+var SUGERIDOS_RESIDUAL = "4510 / 46xx (mayoristas) / 4791 / 4799 / 3830";
+
+/* Comercial no identificado: local desocupado. No hay actividad que
+   declarar, así que el CIIU no se exige; si lo trae, hay contradicción. */
+var USO_DESOCUPADO = "020304";
+
+/* Usos con lista de CIIU válidos pero sin obligación de declararlo
+   (el glosario no les pone línea CIIU; la lista sale del manual INEI). */
+var CIIU_OPCIONAL = {"060601":1,"060602":1,"060603":1,"060604":1,"060699":1};
+
+/* Códigos heredados de la CIIU Rev. 3 que aún circulan en documentos */
+var CIIU_REV3 = {
+  "9500":"Hogares privados con servicio doméstico (Rev. 3). En la Rev. 4 la reparación se clasifica en 9511, 9512, 9521, 9522, 9523, 9524 o 9529."
+};
+
+/* ---- E · Glosario de Usos -> CIIU válidos ------------------
+   []  = uso sin CIIU asociado (no aplica).
+   Solo códigos de CLASE (4 dígitos): el SICUN no admite divisiones. */
+var CIIU = {
+  "010101":[],"010102":[],"010103":[],
+  "010201":[],
+  "020101":["4711"],
+  "020102":["4781","4782","4789","6810","6820","4721","4722","4723","4741","4742","4751","4752","4753","4759","4761","4762","4763","4764","4771","4772","4773","4774","5610","5629","5630","9601","9602","9609","9511","9512","9523","9529","8219","7420","8690","8211","6910"],
+  "020103":["5210"],"020104":["4730"],
+  "020105":["4719","4721","4722","4723","4730","4741","4742","4751","4752","4753","4759","4761","4762","4763","4764","4771","4772","4773","4774","4530"],
+  "020106":["4781","4782","4789","4721","4722","4723","4741","4742","4751","4752","4753","4759","4761","4762","4763","4764","4771","4772","4773","4774","5610","5629","5630","9601","9602","9609","9511","9512","9523","9529","8219","7420","8690","8211","6910"],
+  "020199":[],
+  "020201":["9601","9602","9603","9609","6910","7911","9523","8219","6190","8220","9511","9529","4520","7420","7912","7990","7729","7810","7820","8211","8291","8299","7310","7410","1811","9512","8020","8230","7721","7722"],
+  "020202":["4520","4540","9511","9512","9521","9522","9523","9524","9529","3311","3312","3313","3314","3315","3319","3320"],
+  "020203":["5610","5629","5630","5621"],"020204":["5510","5590","5520"],"020205":["7500"],
+  "020301":["6910","6920","7020","7010","6201","6202","6209","6311","6312","6391","5811","5812","5819","5820","6820","7110","7310","7320","7410","7490","7740","7830","8010","8030","8211","8291","5229"],
+  "020302":[],"020303":["6810","6820"],"020304":[],
+  "030101":["1010","1020","1030","1040","1050","1061","1062","1071","1072","1073","1074","1075","1079","1080"],
+  "030102":["1101","1102","1103","1104"],"030103":["1200"],
+  "030104":["1311","1312","1313","1391","1392","1393","1394","1399"],"030105":["1410","1420","1430"],
+  "030106":["1511","1512","1520"],"030107":["1610","1621","1622","1623","1629"],"030108":["1701","1702","1709"],
+  "030109":["1811","1812","1820"],"030110":["1910","1920"],
+  "030111":["2011","2012","2013","2021","2022","2023","2029","2030"],"030112":["2100"],
+  "030113":["2211","2219","2220"],"030114":["2310","2391","2392","2393","2394","2395","2396","2399"],
+  "030115":["2410","2420","2431","2432"],"030116":["2511","2512","2513","2520","2591","2592","2593","2599"],
+  "030117":["2610","2620","2630","2640","2651","2652","2660","2670","2680"],
+  "030118":["2710","2720","2731","2732","2733","2740","2750","2790"],
+  "030119":["2811","2812","2813","2814","2815","2816","2817","2818","2819","2821","2822","2823","2824","2825","2826","2829"],
+  "030120":["2910","2920","2930"],"030121":["3011","3012","3020","3040","3091","3092","3099","3030"],
+  "030122":["3100"],"030199":["3211","3212","3220","3230","3240","3250","3290"],
+  "040101":[],"040102":["9311"],"040103":["9312"],"040104":["9311"],"040105":["8541"],
+  "040199":["9329","9311","9319"],
+  "040201":["9102"],"040202":["9000"],"040203":["9000"],"040204":["9101"],"040205":["9000"],"040206":["9103"],
+  "040299":["9000","8542"],
+  "040301":["9499"],"040302":["5914"],"040303":["9200","9321"],"040304":["9329"],"040305":["9329","5630"],
+  "040306":["9329"],"040307":["9329"],"040399":["9329"],
+  "050101":["8510","8521"],"050102":["8549"],"050103":["8530"],"050104":["8530","8522"],"050105":["8510"],
+  "050199":["8549","8550"],
+  "050201":["8610"],"050202":["8620"],"050203":["9603"],"050204":["9603"],"050299":["8690"],
+  "050301":["4921","4922","4923","5221"],"050302":["4911","4912"],"050303":["5011","5012","5222","5021","5022"],
+  "050304":["5110","5120","5223"],"050305":["5221"],
+  "050401":["5310","5320"],"050402":["6010","6020"],"050403":["5813"],"050404":["6110","6120","6130"],
+  "050499":["6399","6190"],
+  "050501":["3510"],"050502":["3600","3700"],"050503":["3520","4930"],"050504":["3510","6190"],
+  "060101":["8411","8421"],"060199":["8412","8413","8430"],
+  "060201":["8422"],"060202":["8423"],"060203":["8423"],"060204":["8423"],
+  "060301":["6411","6419","6420","6430","6491","6492","6499","6511","6512","6520","6530","6611","6612","6619","6621","6622","6629","6630"],
+  "060302":["6530","6511","6512","6520","6622"],"060303":["6612"],"060399":["6499"],
+  "060401":["9900"],
+  "060501":["7010"],
+  "060601":["9491"],"060602":["9491"],"060603":["9491"],"060604":["9491"],"060699":["9491"],
+  "060701":["8730","8710","8720","8790"],"060799":["8890","8810"],
+  "060801":["9420"],"060802":["9492"],"060803":["9412","9411"],"060899":["9499"],
+  "060901":["9499","7210","7220"],
+  "070101":[],
+  "070201":[]
+};
+
+/* ---- F · Descripciones oficiales CIIU Rev. 4 (INEI) -------- */
+var CIIU_DESC = {
+"01":"Agricultura, ganadería, caza y actividades de servicios conexas","0111":"Cultivo de cereales (excepto arroz), legumbres y semillas oleaginosas",
+"0112":"Cultivo de arroz","0113":"Cultivo de hortalizas y melones, raíces y tubérculos","0114":"Cultivo de caña de azúcar","0115":"Cultivo de tabaco",
+"0116":"Cultivo de plantas de fibras","0119":"Cultivo de otras plantas no perennes","0121":"Cultivo de uvas",
+"0122":"Cultivo de frutas tropicales y subtropicales","0123":"Cultivo de cítricos","0124":"Cultivo de frutas con hueso y con pepa",
+"0125":"Cultivo de otros frutos y nueces de árboles y arbustos","0126":"Cultivo de frutos oleaginosos",
+"0127":"Cultivo de plantas con las que se preparan bebidas","0128":"Cultivo de especias y de plantas aromáticas, medicinales y farmacéuticas",
+"0129":"Cultivo de otras plantas perennes","0130":"Propagación de plantas","0141":"Cría de ganado bovino y búfalos","0142":"Cría de caballos y otros equinos",
+"0143":"Cría de camellos y otros camélidos","0144":"Cría de ovejas y cabras","0145":"Cría de cerdos","0146":"Cría de aves de corral",
+"0149":"Cría de otros animales","0150":"Cultivo de productos agrícolas en combinación con la cría de animales (explotación mixta)",
+"0161":"Actividades de apoyo a la agricultura","0162":"Actividades de apoyo a la ganadería","0163":"Actividades poscosecha",
+"0164":"Tratamiento de semillas para propagación","0170":"Caza ordinaria, mediante trampas y actividades de servicios conexas",
+"02":"Silvicultura y extracción de madera","0210":"Silvicultura y otras actividades forestales","0220":"Extracción de madera",
+"0230":"Recolección de productos forestales distintos de la madera","0240":"Servicios de apoyo a la silvicultura","03":"Pesca y acuicultura",
+"0311":"Pesca marina","0312":"Pesca de agua dulce","0321":"Acuicultura marina","0322":"Acuicultura de agua dulce",
+"05":"Extracción de carbón de piedra y lignito","0510":"Extracción de carbón de piedra","0520":"Extracción de lignito",
+"06":"Extracción de petróleo crudo y gas natural","0610":"Extracción de petróleo crudo","0620":"Extracción de gas natural",
+"07":"Extracción de minerales metalíferos","0710":"Extracción de minerales de hierro","0721":"Extracción de minerales de uranio y torio",
+"0729":"Extracción de otros minerales metalíferos no ferrosos","08":"Explotación de otras minas y canteras","0810":"Extracción de piedra, arena y arcilla",
+"0891":"Extracción de minerales para la fabricación de abonos y productos químicos","0892":"Extracción de turba","0893":"Extracción de sal",
+"0899":"Explotación de otras minas y canteras n.c.p.","09":"Actividades de servicios de apoyo para la explotación de minas y canteras",
+"0910":"Actividades de apoyo para la extracción de petróleo y gas natural","0990":"Actividades de apoyo para la explotación de otras minas y canteras",
+"10":"Elaboración de productos alimenticios","1010":"Elaboración y conservación de carne",
+"1020":"Elaboración y conservación de pescados, crustáceos y moluscos","1030":"Elaboración y conservación de frutas, legumbres y hortalizas",
+"1040":"Elaboración de aceites y grasas de origen vegetal y animal","1050":"Elaboración de productos lácteos","1061":"Elaboración de productos de molinería",
+"1062":"Elaboración de almidones y productos derivados del almidón","1071":"Elaboración de productos de panadería","1072":"Elaboración de azúcar",
+"1073":"Elaboración de cacao, chocolate y productos de confitería","1074":"Elaboración de macarrones, fideos, alcuzcuz y productos farináceos similares",
+"1075":"Elaboración de comidas y platos preparados","1079":"Elaboración de otros productos alimenticios n.c.p.",
+"1080":"Elaboración de alimentos preparados para animales","11":"Elaboración de bebidas","1101":"Destilación, rectificación y mezcla de bebidas alcohólicas",
+"1102":"Elaboración de vinos","1103":"Elaboración de bebidas malteadas y de malta",
+"1104":"Elaboración de bebidas no alcohólicas; producción de aguas minerales y otras aguas embotelladas","12":"Elaboración de productos de tabaco",
+"1200":"Elaboración de productos de tabaco","13":"Fabricación de productos textiles","1311":"Preparación e hilatura de fibras textiles",
+"1312":"Tejedura de productos textiles","1313":"Servicio de acabado de productos textiles","1391":"Fabricación de tejidos de punto y ganchillo",
+"1392":"Fabricación de artículos confeccionados de materiales textiles, excepto prendas de vestir","1393":"Fabricación de tapices y alfombras",
+"1394":"Fabricación de cuerdas, cordeles, bramantes y redes","1399":"Fabricación de otros productos textiles n.c.p.","14":"Fabricación de prendas de vestir",
+"1410":"Fabricación de prendas de vestir, excepto prendas de piel","1420":"Fabricación de artículos de piel",
+"1430":"Fabricación de artículos de punto y ganchillo","15":"Fabricación de cueros y productos conexos",
+"1511":"Curtido y adobo de cueros; adobo y teñido de pieles",
+"1512":"Fabricación de maletas, bolsos de mano y artículos similares, artículos de talabartería y guarnicionería","1520":"Fabricación de calzado",
+"16":"Producción de madera y fabricación de productos de madera y corcho, excepto muebles; fabricación de artículos de paja y de materiales trenzables",
+"1610":"Aserrado y acepilladura de madera","1621":"Fabricación de hojas de madera para enchapado y tableros a base de madera",
+"1622":"Fabricación de partes y piezas de carpintería para edificios y construcciones","1623":"Fabricación de recipientes de madera",
+"1629":"Fabricación de otros productos de madera; fabricación de artículos de corcho, paja y materiales trenzables",
+"17":"Fabricación de papel y de productos de papel","1701":"Fabricación de pasta de madera, papel y cartón",
+"1702":"Fabricación de papel y cartón ondulado y de envases de papel y cartón","1709":"Fabricación de otros artículos del papel y cartón",
+"18":"Impresión y reproducción de grabaciones","1811":"Actividades de impresión","1812":"Actividades de servicios relacionados con la impresión",
+"1820":"Reproducción de grabaciones","19":"Fabricación de coque y de productos de la refinación del petróleo",
+"1910":"Fabricación de productos de horno de coque","1920":"Fabricación de productos de la refinación del petróleo",
+"20":"Fabricación de substancias y productos químicos","2011":"Fabricación de substancias químicas básicas",
+"2012":"Fabricación de abonos y compuestos de nitrógeno","2013":"Fabricación de plásticos y cauchos sintéticos en formas primarias",
+"2021":"Fabricación de plaguicidas y otros productos químicos de uso agropecuario",
+"2022":"Fabricación de pinturas, barnices y productos de revestimiento similares, tintas de imprenta y masillas",
+"2023":"Fabricación de jabones y detergentes, preparados para limpiar y pulir, perfumes y preparados de tocador",
+"2029":"Fabricación de otros productos químicos n.c.p.","2030":"Fabricación de fibras artificiales",
+"21":"Fabricación de productos farmacéuticos, sustancias químicas medicinales y productos botánicos de uso farmacéutico",
+"2100":"Fabricación de productos farmacéuticos, sustancias químicas medicinales y productos botánicos de uso farmacéutico",
+"22":"Fabricación de productos de caucho y plástico","2211":"Fabricación de cubiertas y cámaras de caucho; recauchutado y renovación de cubiertas de caucho",
+"2219":"Fabricación de otros productos de caucho","2220":"Fabricación de productos de plástico","23":"Fabricación de otros productos minerales no metálicos",
+"2310":"Fabricación de vidrio y productos de vidrio","2391":"Fabricación de productos refractarios",
+"2392":"Fabricación de materiales de construcción de arcilla","2393":"Fabricación de otros productos de porcelana y de cerámica",
+"2394":"Fabricación de cemento, cal y yeso","2395":"Fabricación de artículos de hormigón, de cemento y yeso","2396":"Corte, tallado y acabado de la piedra",
+"2399":"Fabricación de otros productos minerales no metálicos n.c.p.","24":"Fabricación de metales comunes","2410":"Industrias básicas de hierro y acero",
+"2420":"Fabricación de productos primarios de metales preciosos y metales no ferrosos","2431":"Fundición de hierro y acero",
+"2432":"Fundición de metales no ferrosos","25":"Fabricación de productos elaborados de metal, excepto maquinaria y equipo",
+"2511":"Fabricación de productos metálicos para uso estructural","2512":"Fabricación de tanques, depósitos y recipientes de metal",
+"2513":"Fabricación de generadores de vapor, excepto calderas de agua caliente para calefacción central","2520":"Fabricación de armas y municiones",
+"2591":"Forja, prensado, estampado y laminado de metales; pulvimetalurgia","2592":"Tratamiento y revestimiento de metales; maquinado",
+"2593":"Fabricación de artículos de cuchillería, herramientas de mano y artículos de ferretería",
+"2599":"Fabricación de otros productos elaborados de metal n.c.p.","26":"Fabricación de productos de informática, electrónica y óptica",
+"2610":"Fabricación de componentes y tableros electrónicos","2620":"Fabricación de computadoras y equipo periférico",
+"2630":"Fabricación de equipo de comunicaciones","2640":"Fabricación de aparatos electrónicos de consumo",
+"2651":"Fabricación de equipos de medición, prueba, navegación, control y de relojes","2652":"Fabricación de relojes",
+"2660":"Fabricación de equipo de irradiación, y equipo electrónico de uso medico y terapéutico",
+"2670":"Fabricación de instrumentos ópticos y equipo fotográficos","2680":"Fabricación de soportes magnéticos y ópticos","27":"Fabricación de equipo eléctrico",
+"2710":"Fabricación de motores, generadores, transformadores eléctricos y aparatos de distribución y control de la energía eléctrica",
+"2720":"Fabricación de pilas, baterías y acumuladores","2731":"Fabricación de cables de fibra óptica","2732":"Fabricación de otros hilos y cables eléctricos",
+"2733":"Fabricación de dispositivos de cableado","2740":"Fabricación de equipo eléctrico de iluminación","2750":"Fabricación de aparatos de uso doméstico",
+"2790":"Fabricación de otros tipos de equipo eléctrico","28":"Fabricación de maquinaria y equipo n.c.p.",
+"2811":"Fabricación de motores y turbinas, excepto motores para aeronaves, vehículos automotores y motocicletas",
+"2812":"Fabricación de equipo de propulsión de fluidos","2813":"Fabricación de otras bombas, compresores, grifos y válvulas",
+"2814":"Fabricación de cojinetes, engranajes, trenes de engranajes y piezas de transmisión","2815":"Fabricación de hornos y quemadores",
+"2816":"Fabricación de equipo de elevación y manipulación","2817":"Fabricación de maquinaria y equipo de oficina (excepto computadoras y equipo periférico)",
+"2818":"Fabricación de herramientas de mano motorizadas","2819":"Fabricación de otros tipos de maquinaria de uso general",
+"2821":"Fabricación de maquinaria agropecuaria y forestal","2822":"Fabricación de maquinaria para la conformación de metales y de máquinas herramienta",
+"2823":"Fabricación de maquinaria metalúrgica","2824":"Fabricación de maquinaria para la explotación de minas y canteras y para obras de construcción",
+"2825":"Fabricación de maquinaria para la elaboración de alimentos, bebidas y tabaco",
+"2826":"Fabricación de maquinaria para la elaboración de productos textiles, prendas de vestir y cueros",
+"2829":"Fabricación de otros tipos de maquinaria de uso especial","29":"Fabricación de vehículos automotores, remolques y semirremolques",
+"2910":"Fabricación de vehículos automotores","2920":"Fabricación de carrocerías para vehículos automotores; fabricación de remolques y semirremolques",
+"2930":"Fabricación de partes, piezas y accesorios para vehículos automotores","30":"Fabricación de otros tipos de equipos de transporte",
+"3011":"Construcción de buques y estructuras flotantes","3012":"Construcción de embarcaciones de recreo y deporte",
+"3020":"Fabricación de locomotoras y material rodante","3030":"Fabricación de aeronaves y naves especiales y maquinaria conexa",
+"3040":"Fabricación de vehículos militares de combate","3091":"Fabricación de motocicletas",
+"3092":"Fabricación de bicicletas y de sillas de ruedas para inválidos","3099":"Fabricación de otros tipos de equipo de transporte n.c.p.",
+"31":"Fabricación de muebles","3100":"Fabricación de muebles","32":"Otras industrias manufactureras","3211":"Fabricación de joyas y artículos conexos",
+"3212":"Fabricación de bisutería y artículos conexos","3220":"Fabricación de instrumentos musicales","3230":"Fabricación de artículos de deporte",
+"3240":"Fabricación de juegos y juguetes","3250":"Fabricación de instrumentos y materiales médicos y odontológicos",
+"3290":"Otras industrias manufactureras n.c.p.","33":"Reparación e instalación de maquinaria y equipo","3311":"Reparación de productos elaborados de metal",
+"3312":"Reparación de maquinaria","3313":"Reparación de equipo electrónico y óptico","3314":"Reparación de equipo eléctrico",
+"3315":"Reparación de equipo de transporte, excepto vehículos automotores","3319":"Reparación de otros tipos de equipo",
+"3320":"Instalación de maquinaria y equipo industriales","35":"Suministro de electricidad, gas, vapor y aire acondicionado",
+"3510":"Generación, transmisión y distribución de energía eléctrica","3520":"Fabricación de gas; distribución de combustibles gaseosos por tuberías",
+"3530":"Suministro de vapor y de aire acondicionado","36":"Captación, tratamiento y distribución de agua",
+"3600":"Captación, tratamiento y distribución de agua","37":"Evacuación de aguas residuales","3700":"Evacuación de aguas residuales",
+"38":"Recolección, tratamiento y eliminación de desechos, recuperación de materiales","3811":"Recolección de desechos no peligrosos",
+"3812":"Recolección de desechos peligrosos","3821":"Tratamiento y eliminación de desechos no peligrosos",
+"3822":"Tratamiento y eliminación de desechos peligrosos","3830":"Recuperación de materiales",
+"39":"Actividades de descontaminación y otros servicios de gestión de desechos",
+"3900":"Actividades de descontaminación y otros servicios de gestión de desechos","41":"Construcción de edificios","4100":"Construcción de edificios",
+"42":"Obras de ingeniería civil","4210":"Construcción de carreteras y líneas de ferrocarril","4220":"Construcción de proyectos de servicios públicos",
+"4290":"Construcción de otras obras de ingeniería civil","43":"Actividades especializadas de la construcción","4311":"Demolición",
+"4312":"Preparación del terreno","4321":"Instalaciones eléctricas","4322":"Fontanería (plomería, gasfitería) e instalación de calefacción y aire acondicionado",
+"4329":"Otras instalaciones para obras de construcción","4330":"Terminación y acabado de edificios","4390":"Otras actividades especializadas de construcción",
+"45":"Comercio y reparación de vehículos automotores y motocicletas","4510":"Venta de vehículos automotores",
+"4520":"Mantenimiento y reparación de vehículos automotores","4530":"Venta de partes, piezas y accesorios para vehículos automotores",
+"4540":"Venta, mantenimiento y reparación de motocicletas y de sus partes, piezas y accesorios",
+"46":"Comercio al por mayor, excepto el de vehículos automotores y motocicletas","4610":"Venta al por mayor a cambio de una comisión o por contrato",
+"4620":"Venta al por mayor de materias primas agropecuarias y animales vivos","4630":"Venta al por mayor de alimentos, bebidas y tabaco",
+"4641":"Venta al por mayor de textiles, prendas de vestir y calzado","4649":"Venta al por mayor de otros enseres domésticos",
+"4651":"Venta al por mayor de computadoras, equipo y programas informáticos",
+"4652":"Venta al por mayor de equipo, partes y piezas electrónicos y de telecomunicaciones",
+"4653":"Venta al por mayor de maquinaria, equipo y materiales agropecuarios","4659":"Venta al por mayor de otros tipos de maquinaria y equipo",
+"4661":"Venta al por mayor de combustibles sólidos, líquidos y gaseosos y productos conexos","4662":"Venta al por mayor de metales y minerales metalíferos",
+"4663":"Venta al por mayor de materiales para la construcción, artículos de ferretería, equipo, materiales de fontanería (plomería o gasfitería) y calefacción",
+"4669":"Venta al por mayor de desperdicios, desechos, chatarra y otros productos n.c.p.","4690":"Venta al por mayor de otros productos no especializado",
+"47":"Comercio al por menor, excepto el de vehículos automotores y motocicletas",
+"4711":"Venta al por menor en comercios no especializados con predominio de la venta de alimentos, bebidas o tabaco",
+"4719":"Otras actividades de venta al por menor en comercios no especializados","4721":"Venta al por menor de alimentos en comercios especializados",
+"4722":"Venta al por menor de bebidas en comercios especializados","4723":"Venta al por menor de tabaco en comercios especializados",
+"4730":"Venta al por menor de combustibles para vehículos automotores en comercios especializados",
+"4741":"Venta al por menor de computadores, equipo periférico, programas informáticos y equipo de telecomunicaciones en comercios especializados",
+"4742":"Venta al por menor de equipo de sonido y vídeo en comercios especializados",
+"4751":"Venta al por menor de productos textiles en comercios especializados",
+"4752":"Venta al por menor de artículos de ferretería, pinturas y productos de vidrio en comercios especializados",
+"4753":"Venta al por menor de tapices, alfombras y cubrimientos para paredes y pisos en comercios especializados",
+"4759":"Venta al por menor de aparatos eléctricos de uso doméstico, muebles, equipo de iluminación y otros enseres domésticos en comercios especializados",
+"4761":"Venta al por menor de libros, periódicos y artículos de papelería en comercios especializados",
+"4762":"Venta al por menor de grabaciones de música y de vídeo en comercios especializados",
+"4763":"Venta al por menor de equipo de deporte en comercios especializados","4764":"Venta al por menor de juegos y juguetes en comercios especializados",
+"4771":"Venta al por menor de prendas de vestir, calzado y artículos de cuero en comercios especializados",
+"4772":"Venta al por menor de productos farmacéuticos y medicinales, cosméticos y artículos de tocador en comercios especializados",
+"4773":"Venta al por menor de otros productos nuevos en comercios especializados",
+"4774":"Venta al por menor de artículos de segunda mano en comercios especializados",
+"4781":"Venta al por menor de alimentos, bebidas y tabaco en puestos de venta y mercados",
+"4782":"Venta al por menor de productos textiles, prendas de vestir y calzado en puestos de venta y mercados",
+"4789":"Venta al por menor de otros productos en puestos de venta y mercados","4791":"Venta al por menor por correo y por internet",
+"4799":"Otras actividades de venta al por menor no realizadas en comercios, puestos de venta o mercados","49":"Transporte por vía terrestre y por tuberías",
+"4911":"Transporte interurbano de pasajeros por ferrocarril","4912":"Transporte de carga por ferrocarril",
+"4921":"Transporte urbano y suburbano de pasajeros por vía terrestre","4922":"Otras actividades de transporte de pasajeros por vía terrestre",
+"4923":"Transporte de carga por carretera","4930":"Transporte por tuberías","50":"Transporte por vía acuática",
+"5011":"Transporte de pasajeros marítimo y de cabotaje","5012":"Transporte de carga marítimo y de cabotaje",
+"5021":"Transporte de pasajeros por vías de navegación interiores","5022":"Transporte de carga, por vías de navegación interiores",
+"51":"Transporte por vía aérea","5110":"Transporte de pasajeros por vía aérea","5120":"Transporte de carga por vía aérea",
+"52":"Almacenamiento y actividades de apoyo al transporte","5210":"Almacenamiento y depósito",
+"5221":"Actividades de servicios vinculadas al transporte terrestre","5222":"Actividades de servicios vinculadas al transporte acuático",
+"5223":"Actividades de servicios vinculadas al transporte aéreo","5224":"Manipulación de carga","5229":"Otras actividades de apoyo al transporte",
+"53":"Actividades postales y de mensajería","5310":"Actividades postales","5320":"Actividades de mensajería","55":"Actividades de alojamiento",
+"5510":"Actividades de alojamiento para estancias cortas","5520":"Actividades de campamentos, parques de vehículos de recreo y parques de caravanas",
+"5590":"Otras actividades de alojamiento","56":"Servicio de alimento y bebida","5610":"Actividades de restaurantes y de servicio móvil de comidas",
+"5621":"Suministro de comidas por encargo","5629":"Otras actividades de servicio de comidas","5630":"Actividades de servicio de bebidas",
+"58":"Actividades de publicación","5811":"Publicación de libros, periódicos y otras actividades de publicación",
+"5812":"Publicación de directorios y de listas de correo","5813":"Publicación de periódicos, diarios y revistas","5819":"Otras publicaciones",
+"5820":"Publicación de programas informáticos",
+"59":"Actividades de producción de películas cinematográficas, vídeos y programas de televisión, grabación de sonido y edición de música",
+"5911":"Actividades de producción de películas cinematográficas, vídeos y programas de televisión",
+"5912":"Actividades de postproducción de películas cinematográficas, vídeos y programas de televisión",
+"5913":"Actividades de distribución de películas cinematográficas, vídeos y programas de televisión",
+"5914":"Actividades de exhibición de películas cinematográficas y cintas de vídeo","5920":"Actividades de grabación de sonido y edición de música",
+"60":"Actividades de programación y transmisión","6010":"Transmisiones de radio","6020":"Programación y transmisiones de televisión","61":"Telecomunicaciones",
+"6110":"Actividades de telecomunicaciones alámbrica","6120":"Actividades de telecomunicaciones inalámbricas",
+"6130":"Actividades de telecomunicaciones por satélite","6190":"Otras actividades de telecomunicaciones",
+"62":"Programación informática, consultoría de informática y actividades conexas","6201":"Actividades de programación informática",
+"6202":"Actividades de consultoría de informática y de gestión de instalaciones informáticas",
+"6209":"Otras actividades de tecnología de la información y de servicios informáticos","63":"Actividades de servicios de información",
+"6311":"Procesamiento de datos, hospedaje y actividades conexas","6312":"Portales web","6391":"Actividades de agencias de noticias",
+"6399":"Otras actividades de servicios de información n.c.p.","64":"Actividades de servicios financieros, excepto las de seguros y fondos de pensiones",
+"6411":"Banca central","6419":"Otros tipos de intermediación monetaria","6420":"Actividades de sociedades de cartera",
+"6430":"Fondos y sociedades de inversión y entidades financieras similares","6491":"Arrendamiento financiero",
+"6492":"Otras actividades de concesión de crédito","6499":"Otras actividades de servicios financieros, excepto las de seguros y fondos de pensiones, n.c.p.",
+"65":"Seguros, reaseguros y fondos de pensiones, excepto los planes de seguridad social de afiliación obligatoria","6511":"Seguros de vida",
+"6512":"Seguros generales","6520":"Reaseguros","6530":"Fondos de pensión","66":"Actividades auxiliares de las actividades de servicios financieros",
+"6611":"Administración de mercados financieros","6612":"Corretaje de valores y de contratos de productos básicos",
+"6619":"Otras actividades auxiliares a las actividades de servicios financieros","6621":"Evaluación de riesgos y daños",
+"6622":"Actividades de los agentes y corredores de seguro","6629":"Otras actividades auxiliares de seguros y fondos de pensiones",
+"6630":"Actividades de gestión de fondos","68":"Actividades inmobiliarias","6810":"Actividades inmobiliarias realizadas con bienes propios o arrendados",
+"6820":"Actividades inmobiliarias realizadas a cambio de una retribución o por contrato","69":"Actividades jurídicas y de contabilidad",
+"6910":"Actividades jurídicas","6920":"Actividades de contabilidad, teneduría de libros y auditorias; consultoría fiscal",
+"70":"Actividades de oficinas principales; actividades de consultoría de gestión","7010":"Actividades de oficinas principales",
+"7020":"Actividades de consultoría de gestión","71":"Actividades de arquitectura e ingeniería; ensayos y análisis técnicos",
+"7110":"Actividades de arquitectura e ingeniería y actividades conexas de consultoría técnica","7120":"Ensayos y análisis técnicos",
+"72":"Investigación científica y desarrollo","7210":"Investigaciones y desarrollo experimental en el campo de las ciencias naturales y la ingeniería",
+"7220":"Investigaciones y desarrollo experimental en el campo de las ciencias sociales y las humanidades","73":"Publicidad y estudios de mercado",
+"7310":"Publicidad","7320":"Estudios de mercado y encuestas de opinión pública","74":"Otras actividades profesionales, científicas y técnicas",
+"7410":"Actividades especializadas de diseño","7420":"Actividades de fotografía","7490":"Otras actividades profesionales, científicas y técnicas n.c.p.",
+"75":"Actividades veterinarias","7500":"Actividades veterinarias","77":"Actividades de alquiler y arrendamiento","7710":"Alquiler de vehículos automotores",
+"7721":"Alquiler de equipo recreativo y deportivo","7722":"Alquiler de cintas de video y discos",
+"7729":"Alquiler otros efectos personales y artículos de uso domésticos","7730":"Alquiler de otros tipos de maquinaria, equipo y bienes tangibles",
+"7740":"Arrendamiento de propiedad intelectual y productos similares, excepto obras protegidas por derechos de autor","78":"Actividades de empleo",
+"7810":"Actividades de agencias de empleo","7820":"Actividades de agencias de empleo temporal","7830":"Otras actividades de dotación de recursos humanos",
+"79":"Actividades de agencias de viajes, operadores turísticos, servicios de reservas y actividades conexas","7911":"Actividades de agencias de viajes",
+"7912":"Actividades de operadores turísticos","7990":"Otros servicios de reservas y actividades conexas","80":"Actividades de seguridad e investigación",
+"8010":"Actividades de seguridad privada","8020":"Actividades de servicios de sistemas de seguridad","8030":"Actividades de investigación",
+"81":"Actividades de servicios a edificios y paisajismo","8110":"Actividades combinadas de apoyo a instalaciones","8121":"Limpieza general de edificios",
+"8129":"Otras actividades de limpieza de edificios e instalaciones industriales","8130":"Actividades de paisajismo y servicios de mantenimiento conexos",
+"82":"Actividades administrativas y de apoyo de oficina y otras actividades de apoyo a las empresas",
+"8211":"Actividades combinadas de servicios administrativos de oficina",
+"8219":"Fotocopiado, preparación de documentos y otras actividades especializadas de apoyo de oficina","8220":"Actividades de centros de llamadas",
+"8230":"Organización de convenciones y exposiciones comerciales","8291":"Actividades de agencias de cobro y agencias de calificación crediticia",
+"8292":"Actividades de envasado y empaquetado","8299":"Otras actividades de servicios de apoyo a empresas n.c.p.",
+"84":"Administración pública y defensa; planes de seguridad social de afiliación obligatoria","8411":"Actividades de la administración pública en general",
+"8412":"Regulación de las actividades de organismos que prestan servicios sanitarios, educativos, culturales y otros servicios sociales, excepto servicios de seguridad social",
+"8413":"Regulación y facilitación de la actividad económica","8421":"Relaciones exteriores","8422":"Actividades de defensa",
+"8423":"Actividades de mantenimiento del orden público y de seguridad","8430":"Actividades de planes de seguridad social de afiliación obligatoria",
+"85":"Enseñanza","8510":"Enseñanza preprimaria y primaria","8521":"Enseñanza secundaria de formación general",
+"8522":"Enseñanza de formación técnica y profesional","8530":"Enseñanza superior","8541":"Enseñanza deportiva y recreativa","8542":"Enseñanza cultural",
+"8549":"Otros tipos de enseñanza n.c.p.","8550":"Actividades de apoyo a la enseñanza","86":"Actividades de atención de la salud humana",
+"8610":"Actividades de hospitales y clínicas","8620":"Actividades de médicos y odontólogos","8690":"Otras actividades de atención de la salud humana",
+"87":"Actividades de atención en instituciones","8710":"Actividades de atención de enfermería en instituciones",
+"8720":"Actividades de atención en instituciones para personas con retraso mental, enfermos mentales y toxicómanos",
+"8730":"Actividades de atención en instituciones para personas de edad y personas con discapacidad","8790":"Otras actividades de atención en instituciones",
+"88":"Actividades de asistencia social sin alojamiento",
+"8810":"Actividades de asistencia social sin alojamiento para personas de edad y personas con discapacidad",
+"8890":"Otras actividades de asistencia social sin alojamiento","90":"Actividades creativas, artísticas y de entretenimiento",
+"9000":"Actividades creativas, artísticas y de entretenimiento","91":"Actividades de bibliotecas, archivos, museos y otras actividades culturales",
+"9101":"Actividades de bibliotecas y archivos","9102":"Actividades de museos y gestión de lugares y edificios históricos",
+"9103":"Actividades de jardines botánicos y zoológicos y reservas naturales","92":"Actividades de juegos de azar y apuestas",
+"9200":"Actividades de juegos de azar y apuestas","93":"Actividades deportivas, de esparcimiento y recreativas",
+"9311":"Explotación de instalaciones deportivas","9312":"Actividades de clubes deportivos","9319":"Otras actividades deportivas",
+"9321":"Actividades de parques de atracciones y parques temáticos","9329":"Otras actividades de esparcimiento y recreativas n.c.p.",
+"94":"Actividades de asociaciones","9411":"Actividades de asociaciones empresariales y de empleadores","9412":"Actividades de asociaciones profesionales",
+"9420":"Actividades de sindicatos","9491":"Actividades de organizaciones religiosas","9492":"Actividades de organizaciones políticas",
+"9499":"Actividades de otras asociaciones n.c.p.","95":"Reparación de computadores y de efectos personales y enseres domésticos",
+"9511":"Reparación de computadoras y equipo periférico",
+"9512":"Reparación de equipo de comunicaciones","9521":"Reparación de aparatos electrónicos de consumo",
+"9522":"Reparación de aparatos de uso doméstico y equipo doméstico y de jardinería","9523":"Reparación de calzado y artículos de cuero",
+"9524":"Reparación de muebles y accesorios domésticos","9529":"Reparación de otros bienes personales y enseres domésticos",
+"96":"Otras actividades de servicios personales","9601":"Lavado y limpieza, incluida la limpieza en seco, de productos textiles y de piel",
+"9602":"Actividades de peluquería y otros tratamientos de belleza","9603":"Pompas fúnebres y actividades conexas",
+"9609":"Otras actividades de servicios personales n.c.p.","97":"Actividades de los hogares como empleadores de personal doméstico",
+"9700":"Actividades de los hogares como empleadores de personal doméstico",
+"98":"Actividades no diferenciadas de los hogares como productores de bienes y servicios para uso propio",
+"9810":"Actividades no diferenciadas de los hogares como productores de bienes y servicios para uso propio",
+"9820":"Actividades no diferenciadas de los hogares como productores de servicios para uso propio",
+"99":"Actividades de organizaciones y órganos extraterritoriales","9900":"Actividades de organizaciones y órganos extraterritoriales",
+};
+
+/* Clases válidas: solo las de 4 dígitos del catálogo oficial */
+var CIIU_VALIDO = (function(){
+  var s = {};
+  Object.keys(CIIU_DESC).forEach(function(c){ if(c.length===4 && !CIIU_REV3[c]) s[c]=true; });
+  return s;
+})();
+
+/* ============================================================
+   2 · MÓDULO DE CARGA, REGLAS Y FILTROS (v2)
+   Copiado de carga-y-filtros-valida-catastral con dos ajustes
+   documentados para este validador:
+     · key() también quita º/° ("N° Piso" -> "n piso").
+     · El estado admite FALSO ERROR, propio de VAL_USO_CIIU.
+     · Una regla puede depender de una columna no obligatoria
+       (col:"ecc"): si el reporte no la trae, se muestra s/c.
+   ============================================================ */
+
+/* ---- 1 · Utilidades --------------------------------------- */
+function norm(v){ return (v===null||v===undefined)?"":String(v).replace(/\s+/g," ").trim(); }
+function key(v){ return norm(v).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[º°]/g,"").replace(/\s+/g," ").trim(); }
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+function $(id){ return document.getElementById(id); }
+function fmt(n){ return Number(n).toLocaleString("en-US"); }
+function cls(e){ return String(e).replace(/ /g,"_"); }
+
+function partirCRC(crc){
+  var s = norm(crc);
+  return {
+    raw:s, ubigeo:s.substr(0,6), sector:s.substr(6,2), manzana:s.substr(8,3),
+    lote:s.substr(11,3), edifica:s.substr(14,2), entrada:s.substr(16,2),
+    piso:s.substr(18,2), unidad:s.substr(20,3), ref:s.substr(23,1), base:s.substr(0,23)
+  };
+}
+function esNivelLote(p){ return p.entrada==="99" && p.piso==="99" && p.unidad==="999"; }
+function esComun(p){ return p.entrada==="99" || p.piso==="99" || p.unidad==="999"; }
+
+function huella(aoa){
+  var h = 0x811c9dc5;
+  for(var i=0;i<aoa.length;i++){
+    var s = aoa[i].join("\u0001")+"\u0002";
+    for(var j=0;j<s.length;j++){ h ^= s.charCodeAt(j); h = Math.imul(h,0x01000193)>>>0; }
+  }
+  return ("0000000"+h.toString(16)).slice(-8)+"-"+aoa.length;
+}
+
+/* ---- 2 · Estado ------------------------------------------- */
+var FILES = {}, DATA = [], VISTA = [], OFF = {};
+SLOTS.forEach(function(s){ FILES[s.id]=[]; });
+var BASE = SLOTS[0];
+
+function slotPorId(id){ for(var i=0;i<SLOTS.length;i++) if(SLOTS[i].id===id) return SLOTS[i]; return null; }
+function hayCruce(id){ return (FILES[id]||[]).some(function(f){ return f.ok; }); }
+var COLS_AUSENTES = {};
+function reglaDisponible(R){
+  if(R.col && COLS_AUSENTES[R.col]) return false;
+  return !R.requiere || hayCruce(R.requiere) || hayLegacy();
+}
+function reglaPorCodigo(c){ for(var i=0;i<REGLAS.length;i++) if(REGLAS[i].c===c) return REGLAS[i]; return null; }
+/* Formato anterior: el propio reporte base ya trae el Código de Uso */
+function hayLegacy(){ return FILES[BASE.id].some(function(f){ return f.ok && f.legacy; }); }
+
+/* ---- 3 · Lectura ------------------------------------------ */
+function leerArchivo(file, slot){
+  return new Promise(function(resolve){
+    var fr = new FileReader();
+    var base = {name:file.name,size:file.size,ok:false,rows:[],msg:""};
+    fr.onload = function(e){
+      try{
+        var wb = XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+        var sh = wb.Sheets["data"] || wb.Sheets[wb.SheetNames[0]];
+        var aoa = XLSX.utils.sheet_to_json(sh,{header:1,raw:false,defval:""});
+        if(!aoa.length){ base.msg="El archivo está vacío."; return resolve(base); }
+
+        var head = aoa[0].map(key);
+        var falta = function(s){ return s.REQ.filter(function(k){ return head.indexOf(s.HDR[k])<0; }); };
+        var faltan = falta(slot);
+        if(faltan.length){
+          var otro = SLOTS.filter(function(s){ return s.id!==slot.id && !falta(s).length; })[0];
+          base.msg = otro ? ("Es un reporte de "+otro.titulo+" — cárgalo en su tarjeta.")
+                          : ("No corresponde al reporte esperado — faltan columnas: "+faltan.map(function(k){return slot.HDR[k];}).join(", "));
+          return resolve(base);
+        }
+
+        var idx = {};
+        Object.keys(slot.HDR).forEach(function(k){ idx[k] = head.indexOf(slot.HDR[k]); });
+        var sin = {};
+        Object.keys(idx).forEach(function(k){ if(idx[k]<0) sin[k]=true; });
+
+        var rows=[], sectores={}, backups={};
+        for(var i=1;i<aoa.length;i++){
+          var r = aoa[i];
+          var crc = norm(r[idx.crc]);
+          if(!crc) continue;
+          var o = {archivo:file.name, fila:i+1, __sin:sin};
+          Object.keys(slot.HDR).forEach(function(k){ o[k] = idx[k]>=0 ? norm(r[idx[k]]) : ""; });
+          rows.push(o);
+          var sec = crc.substr(0,8); sectores[sec]=(sectores[sec]||0)+1;
+          if(o.backup) backups[o.backup]=true;
+        }
+        var m = file.name.match(/(\d{8})/);
+        base.ok=true; base.rows=rows; base.huella=huella(aoa.slice(1));
+        base.sectores=sectores; base.backups=Object.keys(backups).sort();
+        base.nombreSector = m ? m[1] : "";
+        base.legacy = slot.id===BASE.id && idx.uso>=0;
+        base.msg = fmt(rows.length)+" registros · sector "+Object.keys(sectores).map(fmtSector).join(", ")+
+                   (base.legacy?" · formato anterior (ya trae el uso)":"");
+        resolve(base);
+      }catch(err){ base.msg="No se pudo leer el archivo: "+err.message; resolve(base); }
+    };
+    fr.onerror=function(){ base.msg="Error de lectura."; resolve(base); };
+    fr.readAsArrayBuffer(file);
+  });
+}
+function fmtSector(s){ return s.substr(0,6)+"-"+s.substr(6,2); }
+
+function cargar(files, slot){
+  var lista = Array.prototype.slice.call(files).filter(function(f){ return /\.xlsx?$/i.test(f.name); });
+  if(!lista.length) return;
+  Promise.all(lista.map(function(f){ return leerArchivo(f,slot); })).then(function(res){
+    res.forEach(function(r){
+      if(r.ok){
+        var gemelo = null;
+        SLOTS.forEach(function(s){ FILES[s.id].forEach(function(f){ if(f.ok && f.huella===r.huella) gemelo=f; }); });
+        if(gemelo){ r.ok=false; r.rows=[]; r.msg="Idéntico a "+gemelo.name+" (mismo contenido) — no se carga dos veces."; }
+      }
+      var ya = FILES[slot.id].some(function(f){ return f.name===r.name && f.size===r.size && f.msg===r.msg; });
+      if(!ya) FILES[slot.id].push(r);
+    });
+    DATA=[]; VISTA=[];
+    sincronizar();
+  });
+}
+
+/* ---- 4 · Avisos de carga (por contenido, nunca solo por nombre) ---- */
+function avisosCarga(){
+  var avisos = [];
+  SLOTS.forEach(function(s){
+    var ok = FILES[s.id].filter(function(f){ return f.ok; });
+    var porSector = {};
+    ok.forEach(function(f){ Object.keys(f.sectores).forEach(function(sec){ (porSector[sec]=porSector[sec]||[]).push(f); }); });
+    Object.keys(porSector).forEach(function(sec){
+      var fs = porSector[sec];
+      if(fs.length<2) return;
+      var ult = fs.map(function(f){ return f.backups[f.backups.length-1]||""; });
+      var max = ult.slice().sort().pop();
+      avisos.push("<b>Sector "+fmtSector(sec)+" repetido en "+s.titulo+":</b> viene en "+fs.length+" archivos — "+
+        fs.map(function(f,i){ return esc(f.name)+" (backup "+esc(ult[i]||"s/d")+(ult[i]===max&&max?", <b>más reciente</b>":"")+")"; }).join(" · ")+
+        ". Quita el que sobra para no duplicar registros.");
+    });
+    ok.forEach(function(f){
+      if(f.nombreSector && !f.sectores[f.nombreSector]){
+        avisos.push("<b>Nombre engañoso:</b> "+esc(f.name)+" indica el sector "+fmtSector(f.nombreSector)+
+          ", pero su contenido es del "+Object.keys(f.sectores).map(fmtSector).join(", ")+".");
+      }
+    });
+  });
+  var ubis = {};
+  FILES[BASE.id].forEach(function(f){ if(f.ok) Object.keys(f.sectores).forEach(function(sec){ ubis[sec.substr(0,6)]=true; }); });
+  if(Object.keys(ubis).length>1){
+    avisos.push("<b>Ubigeo mezclado:</b> los archivos contienen "+Object.keys(ubis).length+" distritos ("+Object.keys(ubis).join(", ")+"). Verifica que pertenezcan al mismo polígono.");
+  }
+  var secBase = {};
+  FILES[BASE.id].forEach(function(f){ if(f.ok) Object.keys(f.sectores).forEach(function(sec){ secBase[sec]=true; }); });
+  SLOTS.slice(1).forEach(function(s){
+    var dep = REGLAS.filter(function(R){ return R.requiere===s.id; }).map(function(R){ return R.c; });
+    if(!hayCruce(s.id)){
+      if(Object.keys(secBase).length && !hayLegacy())
+        avisos.push("<b>Sin "+s.titulo+":</b> de ahí sale el Código de Uso de cada CRC. Sin ese reporte no se puede validar nada; cárgalo en su tarjeta.");
+      return;
+    }
+    var secC = {};
+    FILES[s.id].forEach(function(f){ if(f.ok) Object.keys(f.sectores).forEach(function(sec){ secC[sec]=true; }); });
+    var sinC = Object.keys(secBase).filter(function(sec){ return !secC[sec]; });
+    if(sinC.length) avisos.push("<b>"+s.titulo+" incompleto:</b> no cubre el sector "+sinC.map(fmtSector).join(", ")+"; ahí las líneas saldrán con "+dep.join(", ")+".");
+  });
+  return avisos;
+}
+
+/* ---- 5 · Contexto y reglas de dominio --------------------- */
+function descOf(code){
+  var c = norm(code); if(!c) return "";
+  if(CIIU_DESC[c]) return CIIU_DESC[c];
+  if(c.length>2 && CIIU_DESC[c.slice(0,2)]) return CIIU_DESC[c.slice(0,2)]+" (división "+c.slice(0,2)+")";
+  return "";
+}
+function stripLetters(v){ return norm(v).replace(/^[A-Za-z]+/,"").trim(); }
+
+/* Nombres de los usos según el Glosario de la Tabla de Usos (respaldo si el reporte no trae la descripción) */
+var USO_NOMBRE = {"010101": "Vivienda", "010102": "Depósito de vivienda", "010103": "Tendal", "010201": "Cochera", "020101": "Tienda por departamentos, supermercado, galería comercial, hiperbodega y similares", "020102": "Mercado o campo ferial", "020103": "Almacén o depósito", "020104": "Grifo venta de combustibles para vehículos", "020105": "Tienda de venta de artículos al por menor", "020106": "Puesto (o stand) en galería comercial, mercado o campo ferial", "020199": "Otros usos comerciales no especificados", "020201": "Local de servicios diversos", "020202": "Taller", "020203": "Restaurantes, bares y cantinas", "020204": "Alojamiento", "020205": "Centro Veterinario", "020301": "Oficina", "020302": "Estacionamiento o deposito en edificio de oficinas", "020303": "Centro Comercial", "020304": "Comercial no identificado", "030101": "Elaboración de productos alimenticios", "030102": "Elaboración de bebidas", "030103": "Elaboración de productos de tabaco", "030104": "Elaboración de productos textiles", "030105": "Elaboración de prendas de vestir", "030106": "Elaboración de cueros y productos conexos", "030107": "Producción de madera y fabricación de productos de madera y corcho, excepto muebles", "030108": "Fabricación de papel y de productos de papel", "030109": "Impresión y reproducción de grabaciones", "030110": "Fabricación de coque y productos de la refinación del petróleo", "030111": "Fabricación de sustancias y productos químicos", "030112": "Fabricación de productos farmacéuticos, sustancias químicas medicinales y productos botánicos de uso farmacéutico", "030113": "Fabricación de productos de caucho y de plástico", "030114": "Fabricación de otros productos minerales no metálicos", "030115": "Fabricación de metales comunes", "030116": "Fabricación de productos elaborados de metal, excepto maquinaria y equipo", "030117": "Fabricación de productos de informática, de electrónica, relojes y de óptica", "030118": "Fabricación de equipo eléctrico", "030119": "Fabricación de maquinaria y equipo n.c.p.", "030120": "Fabricación de vehículos automotores, remolques y semirremolques", "030121": "Fabricación de otros tipos de equipo de transporte", "030122": "Fabricación de muebles", "030199": "Otras industrias manufactureras", "040101": "Parques (local, zonal y metropolitano)", "040102": "Estadio, hipódromo o coliseo", "040103": "Club, círculo o centro deportivo", "040104": "Gimnasio y similares", "040105": "Educación deportiva", "040199": "Otros usos deportivos NEP", "040201": "Museo", "040202": "Sala de exposición, galería de arte", "040203": "Teatro", "040204": "Biblioteca", "040205": "Centro cultural", "040206": "Jardín botánico y zoológico", "040299": "Otros usos culturales NEP", "040301": "Club social", "040302": "Cine", "040303": "Bingo, casino de juego, tragamonedas, casas de apuestas o similar", "040304": "Pinball y juegos recreativos", "040305": "Peña, discoteca, salón de bailes o similares", "040306": "Café teatro, cabaré, centro nocturno, boite", "040307": "Casa de cita, prostíbulo", "040399": "Otros servicios de recreación o esparcimiento NEP", "050101": "Educación inicial, primaria y/o secundaria", "050102": "Educación preuniversitaria (Academia)", "050103": "Educación superior (Universitaria o instituto)", "050104": "Educación técnica y CENECAPE", "050105": "Cuna, guardería", "050199": "Otros usos educativos NEP", "050201": "Establecimiento de Salud", "050202": "Consultorio médico", "050203": "Cementerio", "050204": "Velatorio", "050299": "Otros usos de salud NEP", "050301": "Terminal terrestre y servicios relacionados", "050302": "Terminal ferroviario y servicios relacionados", "050303": "Terminal marítimo y servicios relacionados", "050304": "Terminal aéreo y servicios relacionados", "050305": "Playa o edificio de estacionamiento", "050401": "Correo o mensajería", "050402": "Radio o televisión", "050403": "Periodismo", "050404": "Telefonía o internet", "050499": "Otros usos de información y/o comunicación NEP", "050501": "Generación, distribución o transmisión de energía eléctrica", "050502": "Centro de captación, purificación y distribución de agua", "050503": "Producción y distribución de gas", "050504": "Subestación eléctrica o telefónica", "060101": "Sede de entidad pública", "060199": "Otros usos de administración pública en general NEP", "060201": "Cuartel policial o militar", "060202": "Comisaría o delegación policial", "060203": "Centro de rehabilitación y asistencia social (C.R.A.S.-Cárceles)", "060204": "Sede de compañía de bomberos", "060301": "Sede o agencia de entidad financiera", "060302": "Sede o agencia de seguros o AFP", "060303": "Casa de cambio", "060399": "Otros establecimientos NEP", "060401": "Embajada, consulado o legación", "060501": "Sede de organismo internacional", "060601": "Templo", "060602": "Convento o monasterio", "060603": "Parroquia", "060604": "Sede de entidad religiosa", "060699": "Otros usos de entidades religiosas NEP", "060701": "Hospicio, albergue, puericultorio o asilo", "060799": "Otros usos de entidad social-comunal sin alojamiento NEP", "060801": "Actividad sindical", "060802": "Actividad política", "060803": "Asociaciones empresariales o colegios profesionales", "060899": "Otros usos de asociación y/o fundación NEP", "060901": "Instituto de investigación y científico", "070101": "Terreno sin construir", "070201": "Aires"};
+
+/* Esperado principal: en usos con lista larga, se muestra lo que corresponde a la unidad típica
+   y el resto se resume en la descripción. No cambia qué CIIU son válidos. */
+var ESPERADO_PRINCIPAL = {
+  "020102":{lista:["6810","6820"], resto:"o el giro de un puesto: 478x, venta especializada, comidas o servicios de puesto"},
+  "020106":{lista:["4781","4782","4789"], resto:"o el giro o servicio del puesto: venta especializada, comidas o servicios"}
+};
+
+/* Índice inverso del glosario: CIIU -> usos que lo admiten.
+   Sirve para decirle al técnico qué uso específico reemplaza al 020199. */
+var USOS_POR_CIIU = (function(){
+  var m = {};
+  Object.keys(CIIU).forEach(function(uso){
+    if(uso===USO_RESIDUAL || uso===USO_DESOCUPADO) return;
+    CIIU[uso].forEach(function(c){ (m[c]=m[c]||[]).push(uso); });
+  });
+  return m;
+})();
+function nombreUso(uso, ctx){ var n = (ctx && ctx.nombres[uso]) || USO_NOMBRE[uso]; return n ? uso+" · "+n : uso; }
+
+/* Resumen de CIIU de una unidad de varias líneas: "5210 ×2 / 4711 / sin CIIU ×1" */
+function resumenCIIU(lista){
+  var cnt = {}, orden = [];
+  lista.forEach(function(c){ var k = c || "sin CIIU"; if(!cnt[k]){ cnt[k]=0; orden.push(k); } cnt[k]++; });
+  return orden.map(function(k){ return k+(cnt[k]>1?" ×"+cnt[k]:""); }).join(" / ");
+}
+
+/* ECC (estado de construcción): solo TERMINADO admite actividad.
+   Se lee sin tildes ni mayúsculas y tolera "02 - EN CONSTRUCCIÓN". */
+var ECC_SIN_ACTIVIDAD = {"en construccion":1,"inconclusa":1,"en ruinas":1};
+function eccClave(v){ return key(v).replace(/^[\d\s.\-]+/,"").trim(); }
+function eccTexto(v){ return norm(v).replace(/^[\d\s.\-]+/,"").toUpperCase(); }
+function eccSinActividad(r){ return !(r.__sin && r.__sin.ecc) && !!ECC_SIN_ACTIVIDAD[eccClave(r.ecc)]; }
+
+/* Usos que exigen CIIU: los que tienen lista en el glosario (salvo los
+   opcionales) y el residual 020199. El ECC solo se evalúa en estos. */
+function exigeCIIU(uso){
+  return uso===USO_RESIDUAL || (uso in CIIU && CIIU[uso].length>0 && !CIIU_OPCIONAL[uso]);
+}
+/* ¿El CIIU de una línea sostiene a la unidad? Uso normal: está en la lista
+   del glosario. 020199: existe en la Rev. 4. Un CIIU observado por R3D
+   (línea en obra) no sostiene a nadie. */
+function ciiuSostiene(l, uso){
+  if(!l.ciiu || l.sinAct) return false;
+  if(uso===USO_RESIDUAL) return !!CIIU_VALIDO[l.ciiu];
+  return (CIIU[uso]||[]).indexOf(l.ciiu)>=0;
+}
+function textoOtrasLineas(r, lst){
+  return "Línea sin CIIU en una unidad de "+r.lineas+" líneas que declara "+lst.join(" / ")+" en otras líneas. "+
+         "Verificar en campo: si el piso no tiene actividad económica (desocupado o de vivienda), sustentarlo en "+
+         "Observaciones de la ficha; si la tiene, declarar el CIIU.";
+}
+
+function prepararContexto(cruces, base){
+  var U = {}, usos = {}, repetidos = 0;
+  (cruces.unid||[]).forEach(function(u){
+    if(!U[u.crc]){ U[u.crc]=u; usos[u.crc]={}; } else repetidos++;
+    usos[u.crc][norm(u.uso)] = true;
+  });
+  var lineas = {}, ciius = {}, det = {}, nombres = {};
+  base.forEach(function(r){
+    lineas[r.crc]=(lineas[r.crc]||0)+1;
+    (ciius[r.crc]=ciius[r.crc]||[]).push(stripLetters(r.ciiu));
+    (det[r.crc]=det[r.crc]||[]).push({ciiu:stripLetters(r.ciiu), sinAct:eccSinActividad(r)});
+    if(norm(r.uso) && norm(r.desc) && !nombres[norm(r.uso)]) nombres[norm(r.uso)] = norm(r.desc);
+  });
+  (cruces.unid||[]).forEach(function(u){
+    if(norm(u.uso) && norm(u.desc) && !nombres[norm(u.uso)]) nombres[norm(u.uso)] = norm(u.desc);
+  });
+  return {U:U, usos:usos, lineas:lineas, ciius:ciius, det:det, nombres:nombres, repetidos:repetidos, hayUnid:Object.keys(U).length>0};
+}
+
+function validar(r, ctx){
+  var hits = [];
+  function H(c,txt,marcas){ hits.push({c:c, txt:"["+c+"] "+txt, marcas:marcas||[]}); }
+
+  var p = partirCRC(r.crc), comun = esComun(p);
+  var propio = !(r.__sin && r.__sin.uso);          // el reporte base ya trae el uso
+  var u = ctx.U[r.crc];
+  if(!propio && u){ r.uso = u.uso; r.desc = u.desc; }
+  var uso = norm(r.uso), ciiu = stripLetters(r.ciiu);
+  r.lineas = ctx.lineas[r.crc] || 1;
+  r.ciiuDesc = ciiu ? (descOf(ciiu) || "No existe en la CIIU Rev. 4") : "";
+  r.esperado = ""; r.esperadoDesc = "";
+
+  function fijarEsperado(lista){
+    var pr = ESPERADO_PRINCIPAL[uso];
+    if(pr){
+      r.esperado = pr.lista.join(" / ");
+      r.esperadoDesc = pr.lista.map(function(c){ return c+": "+descOf(c); }).join("  |  ")+"  |  "+pr.resto;
+      return;
+    }
+    r.esperado = lista.join(" / ");
+    r.esperadoDesc = lista.map(function(c){ return c+": "+descOf(c); }).join("  |  ");
+  }
+
+  /* R10 · el código existe en la Rev. 4 (independiente del uso) */
+  if(ciiu && !CIIU_VALIDO[ciiu]){
+    if(CIIU_REV3[ciiu]) H("R10","El CIIU "+ciiu+" no existe en la Rev. 4: corresponde a "+CIIU_REV3[ciiu],["ciiu"]);
+    else if(ciiu.length<4) H("R10","El CIIU "+ciiu+" es una división, no una clase. Registrar la clase de 4 dígitos.",["ciiu"]);
+    else H("R10","El CIIU "+ciiu+" no existe en la CIIU Rev. 4.",["ciiu"]);
+  }
+
+  /* R5 / R6 · control del cruce */
+  if(!propio){
+    if(!u){ H("R5","El CRC no está en Unidades Administrativas; sin Código de Uso no se puede validar.",["crc"]); return hits; }
+    var lst = Object.keys(ctx.usos[r.crc]||{});
+    if(lst.length>1){ H("R6","El CRC figura en Unidades con usos distintos ("+lst.join(" / ")+"). Una unidad tiene un solo uso.",["uso"]); return hits; }
+  }
+
+  /* R1 · sin uso */
+  if(!uso || uso==="0"){ H("R1","La unidad no tiene Código de Uso registrado.",["uso"]); return hits; }
+
+  /* CIIU de la unidad que sostienen el uso (para R3A/R3B y R8A/R8C) */
+  var sosten = [];
+  (ctx.det[r.crc]||[]).forEach(function(l){ if(ciiuSostiene(l,uso) && sosten.indexOf(l.ciiu)<0) sosten.push(l.ciiu); });
+
+  /* R3C / R3D · ECC: solo en usos que exigen CIIU y fuera del uso común */
+  if(!comun && exigeCIIU(uso) && eccSinActividad(r)){
+    var et = eccTexto(r.ecc);
+    if(!ciiu){
+      H("R3C","Línea sin CIIU con ECC "+et+": sin actividad que declarar. Sustentar el estado en Observaciones de la ficha.");
+      return hits;
+    }
+    H("R3D","Línea con CIIU "+ciiu+" y ECC "+et+": no debería haber actividad. Revisar en campo: si el ECC está bien, "+
+      "retirar el CIIU y sustentar en Observaciones; si el negocio funciona, corregir el ECC.",["ciiu","ecc"]);
+  }
+
+  /* Uso comercial residual — siempre a revisar */
+  if(uso===USO_RESIDUAL){
+    if(comun){ r.esperado="N/A (uso común)"; return hits; }
+    r.esperado = "Libre — verificar uso";
+    r.esperadoDesc = "Sugeridos: "+SUGERIDOS_RESIDUAL;
+
+    /* Unidad de varias líneas: se listan los CIIU de todas sus líneas */
+    var varias = r.lineas>1
+      ? " Unidad de "+r.lineas+" líneas con CIIU "+resumenCIIU(ctx.ciius[r.crc]||[])+": verificar la actividad de cada línea."
+      : "";
+
+    if(!ciiu){
+      if(sosten.length) H("R8C",textoOtrasLineas(r,sosten),["uso","ciiu"]);
+      else H("R8A","Uso residual sin CIIU y ninguna línea de la unidad lo declara. Declarar la actividad o, si es un comercio con uso propio en el glosario, cambiar el uso. Sugeridos para 020199: "+SUGERIDOS_RESIDUAL+"."+varias,["uso","ciiu"]);
+      return hits;
+    }
+
+    /* ¿Ese CIIU tiene un uso específico en el glosario? */
+    var alt = USOS_POR_CIIU[ciiu] || [];
+    if(alt.length){
+      var txtAlt = alt.map(function(x){ return nombreUso(x,ctx); }).join(" o ");
+      r.esperadoDesc = "Uso sugerido: "+txtAlt+"  |  "+r.esperadoDesc;
+      H("R8B","Uso residual con CIIU "+ciiu+", que en el glosario corresponde al uso "+txtAlt+
+        ". Verificar si el uso debió ser "+(alt.length>1?"uno de esos":alt[0])+" en lugar de 020199."+varias,["uso","ciiu"]);
+    }else{
+      r.esperadoDesc = "Sin uso específico en el glosario para "+ciiu+"  |  "+r.esperadoDesc;
+      H("R8B","Uso residual con CIIU "+ciiu+", que no tiene un uso específico en el glosario: el 020199 es coherente, solo confirmar la actividad."+varias,["uso","ciiu"]);
+    }
+    return hits;
+  }
+
+  /* Comercial no identificado — local desocupado */
+  if(uso===USO_DESOCUPADO){
+    if(ciiu && !comun){
+      r.esperado = "Sin CIIU (local desocupado)";
+      H("R9","El uso indica local desocupado, pero la línea declara el CIIU "+ciiu+". Revisar si el uso debió ser el específico de esa actividad o si el CIIU sobra.",["uso","ciiu"]);
+    }else{
+      r.esperado = "N/A (sin actividad)";
+      H("R7","Uso comercial no identificado: local desocupado, sin actividad que declarar. Se reporta para sustento del informe.");
+    }
+    return hits;
+  }
+
+  /* R2 · fuera del glosario */
+  if(!(uso in CIIU)){ H("R2","El Código de Uso "+uso+" no existe en el Glosario de la Tabla de Usos.",["uso"]); return hits; }
+
+  /* Uso común: el SICUN no permite CIIU */
+  if(comun){ r.esperado = "N/A (uso común)"; return hits; }
+
+  var esp = CIIU[uso];
+  if(!esp.length){ r.esperado = "N/A"; return hits; }
+  fijarEsperado(esp);
+
+  if(!ciiu){
+    if(CIIU_OPCIONAL[uso]) return hits;
+    if(sosten.length) H("R3B",textoOtrasLineas(r,sosten),["ciiu"]);
+    else H("R3A","El uso "+uso+" exige CIIU y ninguna línea de la unidad declara un CIIU válido para el uso.",["ciiu"]);
+    return hits;
+  }
+  if(esp.indexOf(ciiu)<0){
+    /* ¿Ese CIIU tiene un uso propio en el glosario? Se avisa para que el técnico vea las dos salidas */
+    var otros = (USOS_POR_CIIU[ciiu]||[]).filter(function(x){ return x!==uso; }), aviso = "";
+    if(otros.length){
+      var txtU = otros.length<=2 ? otros.map(function(x){ return nombreUso(x,ctx); }).join(" o ") : otros.join(", ");
+      aviso = " El "+ciiu+" corresponde en el glosario al uso "+txtU+": si esa es la actividad, revisar el uso.";
+      r.esperadoDesc += "  |  Uso del "+ciiu+" en el glosario: "+txtU;
+    }
+    if(r.lineas<=1) H("R4A","El CIIU "+ciiu+" no corresponde al uso "+uso+". Unidad de una sola línea: debe ser exacto."+aviso,["ciiu"]);
+    else            H("R4B","El CIIU "+ciiu+" no corresponde al uso "+uso+". Unidad de "+r.lineas+" líneas: revisar la actividad de esta línea."+aviso,["ciiu"]);
+  }
+  return hits;
+}
+
+/* ---- 6 · Ejecución y motor de estado ---------------------- */
+function ejecutar(){
+  var base = [];
+  FILES[BASE.id].forEach(function(f){ if(f.ok) base = base.concat(f.rows); });
+  if(!base.length) return;
+  var cruces = {};
+  SLOTS.slice(1).forEach(function(s){
+    cruces[s.id] = [];
+    FILES[s.id].forEach(function(f){ if(f.ok) cruces[s.id] = cruces[s.id].concat(f.rows); });
+  });
+  var sinEcc = base.filter(function(r){ return r.__sin && r.__sin.ecc; }).length;
+  COLS_AUSENTES = {}; if(sinEcc===base.length) COLS_AUSENTES.ecc = true;
+  var ctx = prepararContexto(cruces, base);
+
+  var largoMal = 0, sinLinea = 0, usados = {};
+  DATA = base.map(function(r){
+    var p = partirCRC(r.crc);
+    if(p.raw.length!==24) largoMal++;
+    if(ctx.U[r.crc]) usados[r.crc]=true;
+    var d = r; d.p = p; d.nivelLote = esNivelLote(p); d.comun = esComun(p);
+    d.hits = validar(r, ctx).filter(function(h){ return reglaDisponible(reglaPorCodigo(h.c)); });
+    return d;
+  });
+  recalcular();
+
+  var avisos = avisosCarga();
+  if(ctx.hayUnid){
+    var nU = Object.keys(ctx.U).length, nNo = DATA.filter(function(d){ return d.reglas.indexOf("R5")>=0; }).length;
+    avisos.unshift("<b>Cruce por CRC:</b> "+fmt(DATA.length)+" líneas de Construcciones contra "+fmt(nU)+" unidades."+
+      (nNo?" <b>"+fmt(nNo)+"</b> líneas sin coincidencia (R5).":" Todas recibieron su Código de Uso."));
+    sinLinea = Object.keys(ctx.U).filter(function(k){ return !usados[k]; }).length;
+    if(sinLinea) avisos.push(fmt(sinLinea)+" unidades no tienen líneas en Construcciones (por ejemplo terreno sin construir); no se validan.");
+  }
+  if(ctx.repetidos) avisos.push("<b>Unidades repetidas:</b> "+fmt(ctx.repetidos)+" registros aparecen más de una vez en Unidades Administrativas.");
+  if(largoMal) avisos.push("<b>CRC de longitud distinta de 24:</b> "+fmt(largoMal)+" líneas. Código truncado o mal exportado.");
+  if(sinEcc===base.length) avisos.push("<b>Sin columna ECC:</b> el reporte de Construcciones no la trae (formato anterior). R3C y R3D no se evalúan.");
+  else if(sinEcc) avisos.push("<b>ECC incompleto:</b> "+fmt(sinEcc)+" líneas vienen de archivos sin la columna ECC; en ellas R3C y R3D no se evalúan.");
+  var nb = $("loadNotice");
+  if(avisos.length){ nb.innerHTML = avisos.join("<br>"); nb.classList.remove("hidden"); }
+  else { nb.innerHTML=""; nb.classList.add("hidden"); }
+
+  pintarUniverso();
+  poblarSelectores();
+  ["resultSection","filterSection","tableSection"].forEach(function(id){ $(id).classList.remove("hidden"); });
+  aplicarFiltros();
+  $("resultSection").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+/* Prioridad de estado: ERROR › ADVERTENCIA › FALSO ERROR › CONFORME */
+function recalcular(){
+  DATA.forEach(function(d){
+    var act = d.hits.filter(function(h){ return !OFF[h.c]; });
+    var sevs = act.map(function(h){ return reglaPorCodigo(h.c).sev; });
+    d.estado = sevs.indexOf("ERROR")>=0 ? "ERROR"
+             : sevs.indexOf("ADVERTENCIA")>=0 ? "ADVERTENCIA"
+             : sevs.indexOf("FALSO ERROR")>=0 ? "FALSO ERROR" : "CONFORME";
+    d.reglas = []; act.forEach(function(h){ if(d.reglas.indexOf(h.c)<0) d.reglas.push(h.c); });
+    d.texto  = act.map(function(h){ return h.txt; }).join(" ");
+    if(!d.texto) d.texto = d.comun ? "Uso común: el CIIU no aplica."
+                         : (d.esperado==="N/A" ? "Uso sin CIIU asociado: es opcional." : "El CIIU corresponde al uso.");
+    d.marcados = {}; act.forEach(function(h){ (h.marcas||[]).forEach(function(k){ d.marcados[k]=true; }); });
+  });
+}
+
+/* ---- 7 · Métricas y chips de regla ------------------------ */
+function pintarUniverso(){
+  var e=0,w=0,fe=0,o=0,c=0,uni={};
+  DATA.forEach(function(d){
+    if(d.estado==="ERROR") e++; else if(d.estado==="ADVERTENCIA") w++;
+    else if(d.estado==="FALSO ERROR") fe++; else o++;
+    if(d.comun) c++; uni[d.p.base]=true;
+  });
+  $("stTotal").textContent=fmt(DATA.length); $("stUnid").textContent=fmt(Object.keys(uni).length);
+  $("stOk").textContent=fmt(o); $("stErr").textContent=fmt(e); $("stWarn").textContent=fmt(w);
+  $("stFalso").textContent=fmt(fe); $("stComun").textContent=fmt(c);
+
+  var box = $("ruleChips"); box.innerHTML="";
+  REGLAS.forEach(function(R){
+    var n = DATA.filter(function(d){ return d.hits.some(function(h){ return h.c===R.c; }); }).length;
+    var disp = reglaDisponible(R);
+    var b = document.createElement("button");
+    b.type="button";
+    b.className = "rchip "+(R.sev==="ERROR"?"err":R.sev==="ADVERTENCIA"?"adv":"fal")+(OFF[R.c]?" off":"")+(disp?"":" na");
+    b.title = R.n+(disp?(OFF[R.c]?" — apagada (clic para encender)":" — clic para apagar")
+                       :(R.col?" — el reporte de Construcciones no trae la columna "+R.col.toUpperCase():" — requiere "+slotPorId(R.requiere).titulo));
+    b.innerHTML = esc(R.c)+" <b>"+(disp?fmt(n):"s/c")+"</b>";
+    if(disp) b.addEventListener("click",function(){
+      if(OFF[R.c]) delete OFF[R.c]; else OFF[R.c]=true;
+      recalcular(); pintarUniverso(); poblarSelectores(); aplicarFiltros();
+    });
+    box.appendChild(b);
+  });
+  var h = document.createElement("div");
+  h.className="rhint";
+  h.textContent="Clic en una regla para apagarla o encenderla: una regla apagada no cuenta en el estado, las observaciones, el pintado ni la exportación. Pasa el cursor para ver su nombre.";
+  box.appendChild(h);
+}
+
+function poblarSelectores(){
+  var sr = $("fRegla"), cur = sr.value;
+  sr.innerHTML = "<option value=\"\">Todas</option>";
+  REGLAS.forEach(function(R){
+    var n = DATA.filter(function(d){ return d.reglas.indexOf(R.c)>=0; }).length;
+    var op = document.createElement("option");
+    op.value=R.c; op.textContent=R.c+" · "+R.n+" ("+fmt(n)+")"+(OFF[R.c]?" — apagada":"");
+    sr.appendChild(op);
+  });
+  sr.value = cur;
+  var sa = $("fArchivo"), ca = sa.value;
+  sa.innerHTML = "<option value=\"\">Todos</option>";
+  FILES[BASE.id].forEach(function(f){ if(f.ok){ var op=document.createElement("option"); op.value=f.name; op.textContent=f.name; sa.appendChild(op); } });
+  sa.value = ca;
+}
+
+/* ---- 8 · Filtros ------------------------------------------ */
+function listaCRC(){
+  var raw = $("fCrc").value || "";
+  var parts = raw.split(/[\s,;]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+  var set = {}, n = 0;
+  parts.forEach(function(p){
+    var b = p.replace(/\D/g,"");
+    if(b.length>=23) b = b.substr(0,23);
+    if(b && !set[b]){ set[b]=true; n++; }
+  });
+  return {set:set, n:n, any:n>0};
+}
+function pad(v,n){ v=String(v||"").replace(/\D/g,""); return v?v.padStart(n,"0"):""; }
+function leerFiltros(){
+  return {
+    sector:pad($("fSector").value,2), mz:pad($("fMz").value,3), lote:pad($("fLote").value,3),
+    edif:pad($("fEdif").value,2), entr:pad($("fEntr").value,2), piso:pad($("fPiso").value,2),
+    unid:pad($("fUnid").value,3),
+    estado:$("fEstado").value, regla:$("fRegla").value, archivo:$("fArchivo").value
+  };
+}
+function coincide(d,f,crcL){
+  if(f.sector && d.p.sector!==f.sector) return false;
+  if(f.mz     && d.p.manzana!==f.mz)    return false;
+  if(f.lote   && d.p.lote!==f.lote)     return false;
+  if(f.edif   && d.p.edifica!==f.edif)  return false;
+  if(f.entr   && d.p.entrada!==f.entr)  return false;
+  if(f.piso   && d.p.piso!==f.piso)     return false;
+  if(f.unid   && d.p.unidad!==f.unid)   return false;
+  if(f.archivo && d.archivo!==f.archivo) return false;
+  if(f.regla  && d.reglas.indexOf(f.regla)<0) return false;
+  if(f.estado==="OBS" && d.estado!=="ERROR" && d.estado!=="ADVERTENCIA") return false;
+  if(f.estado && f.estado!=="OBS" && d.estado!==f.estado) return false;
+  if(crcL.any && !crcL.set[d.p.base]) return false;
+  return true;
+}
+
+function aplicarFiltros(){
+  var f = leerFiltros(), crcL = listaCRC();
+  VISTA = DATA.filter(function(d){ return coincide(d,f,crcL); });
+  if(crcL.any){
+    var existentes = {};
+    DATA.forEach(function(d){ existentes[d.p.base]=true; });
+    var falt = Object.keys(crcL.set).filter(function(b){ return !existentes[b]; });
+    $("crcMeta").innerHTML = crcL.n+" CRC en la lista · "+(crcL.n-falt.length)+" encontrados"+
+      (falt.length?" · <b>"+falt.length+" no están en los archivos cargados</b>":"");
+  }else{
+    $("crcMeta").textContent = "Sin lista. La comparación ignora el último dígito de referencia.";
+  }
+  var e=0,w=0,fe=0,o=0;
+  VISTA.forEach(function(d){ if(d.estado==="ERROR") e++; else if(d.estado==="ADVERTENCIA") w++; else if(d.estado==="FALSO ERROR") fe++; else o++; });
+  var off = Object.keys(OFF);
+  $("selLine").innerHTML = "Selección: <b>"+fmt(VISTA.length)+"</b> de "+fmt(DATA.length)+" líneas · "+
+    "<span class=\"r\">"+fmt(e)+" con error</span> · "+fmt(w)+" con advertencia · "+fmt(fe)+" falso error · "+fmt(o)+" conformes"+
+    (off.length?" · <span class=\"r\">reglas apagadas: "+off.join(", ")+"</span>":"");
+  pintarTabla();
+}
+
+/* ---- 9 · Tabla en pantalla (límite 3,000 filas) ----------- */
+var LIMITE = 3000;
+function pintarTabla(){
+  var t = $("resTable");
+  var h = "<tr><th>#</th><th class=\"crc-h\">CRC</th><th class=\"crc-h\">Sec</th><th class=\"crc-h\">Mz</th><th class=\"crc-h\">Lt</th><th class=\"crc-h\">Ed</th><th class=\"crc-h\">En</th><th class=\"crc-h\">Pi</th><th class=\"crc-h\">Un</th>";
+  TABLA.forEach(function(c){ h+="<th>"+esc(c.t)+"</th>"; });
+  h += "<th>Estado</th><th>Reglas</th><th>Observaciones</th><th>Archivo</th></tr>";
+  t.tHead.innerHTML = h;
+  var rows = VISTA.slice(0,LIMITE), out = [];
+  rows.forEach(function(d,i){
+    var s = "<tr class=\"st-"+cls(d.estado)+"\"><td class=\"col-num\">"+(i+1)+"</td><td class=\"crc\">"+esc(d.crc)+"</td>";
+    ["sector","manzana","lote","edifica","entrada","piso","unidad"].forEach(function(k){ s+="<td class=\"crc\">"+esc(d.p[k])+"</td>"; });
+    TABLA.forEach(function(c){
+      var v = d[c.k]; var mk = d.marcados[c.k];
+      if(mk && !String(v||"").trim()) v = "(VACÍO)";
+      if(v===undefined||v===null||v==="") v = "—";
+      s += "<td class=\""+(c.cls||"")+(mk?" mk":"")+"\" title=\""+esc(v)+"\">"+esc(v)+"</td>";
+    });
+    s += "<td class=\"est\">"+esc(d.estado)+"</td><td class=\"mono\">"+esc(d.reglas.join(" "))+"</td><td class=\"obs-t\">"+esc(d.texto)+"</td><td class=\"col-num\">"+esc(d.archivo)+"</td></tr>";
+    out.push(s);
+  });
+  t.tBodies[0].innerHTML = out.join("");
+  $("emptyBox").classList.toggle("hidden", VISTA.length>0);
+  $("tableNote").textContent = VISTA.length>LIMITE
+    ? "Mostrando "+fmt(LIMITE)+" de "+fmt(VISTA.length)+" — la exportación incluye todo"
+    : fmt(VISTA.length)+" líneas";
+}
+
+/* ---- 10 · Tarjetas de carga ------------------------------- */
+var ICONOS = {
+  tabla:"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"1\"/><line x1=\"8\" y1=\"9\" x2=\"16\" y2=\"9\"/><line x1=\"8\" y1=\"13\" x2=\"16\" y2=\"13\"/><line x1=\"8\" y1=\"17\" x2=\"13\" y2=\"17\"/></svg>",
+  grilla:"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"1\"/><line x1=\"4\" y1=\"10\" x2=\"20\" y2=\"10\"/><line x1=\"4\" y1=\"15\" x2=\"20\" y2=\"15\"/><line x1=\"10\" y1=\"4\" x2=\"10\" y2=\"20\"/><line x1=\"15\" y1=\"4\" x2=\"15\" y2=\"20\"/></svg>"
+};
+function construirTarjetas(){
+  var box = $("slots"); box.innerHTML="";
+  SLOTS.forEach(function(s){
+    var c = document.createElement("div");
+    c.className="intake card"; c.id="slot_"+s.id; c.tabIndex=0;
+    c.innerHTML =
+      "<div class=\"empty-v\"><div class=\"slot\">"+(ICONOS[s.icono]||ICONOS.tabla)+"</div>"+
+      "<h3>"+esc(s.titulo)+"</h3><p>"+esc(s.sub)+"</p>"+
+      "<span class=\"badge\">"+(s.obligatorio?"Obligatorio":"Para el cruce")+"</span></div>"+
+      "<div class=\"loaded-v hidden\"><div class=\"lhead\"><span class=\"lt\">"+esc(s.titulo)+"</span>"+
+      "<span class=\"badge\">"+(s.obligatorio?"Obligatorio":"Para el cruce")+"</span></div>"+
+      "<div class=\"filelist\"></div><div class=\"addmore\">"+
+      "<button class=\"reset add\" type=\"button\">Agregar archivo</button>"+
+      "<button class=\"reset clr\" type=\"button\">Quitar</button></div></div>"+
+      "<input type=\"file\" accept=\".xlsx,.xls\" multiple class=\"hidden\">";
+    var inp = c.querySelector("input");
+    c.addEventListener("click",function(){ if(!FILES[s.id].length) inp.click(); });
+    c.addEventListener("keydown",function(e){ if((e.key==="Enter"||e.key===" ")&&!FILES[s.id].length){ e.preventDefault(); inp.click(); } });
+    c.addEventListener("dragover",function(e){ e.preventDefault(); c.classList.add("drag"); });
+    c.addEventListener("dragleave",function(){ c.classList.remove("drag"); });
+    c.addEventListener("drop",function(e){ e.preventDefault(); c.classList.remove("drag"); cargar(e.dataTransfer.files,s); });
+    inp.addEventListener("change",function(e){ cargar(e.target.files,s); inp.value=""; });
+    c.querySelector(".add").addEventListener("click",function(e){ e.stopPropagation(); inp.click(); });
+    c.querySelector(".clr").addEventListener("click",function(e){ e.stopPropagation(); FILES[s.id]=[]; DATA=[]; VISTA=[]; sincronizar(); });
+    box.appendChild(c);
+  });
+}
+
+function pintarArchivos(s){
+  var c = $("slot_"+s.id), list = c.querySelector(".filelist"); list.innerHTML="";
+  FILES[s.id].forEach(function(f,i){
+    var d = document.createElement("div");
+    d.className = "filechip";
+    d.innerHTML = "<div class=\"ic"+(f.ok?"":" bad")+"\"></div>"+
+      "<div class=\"meta\"><div class=\"nm\">"+esc(f.name)+"</div>"+
+      "<div class=\"sub"+(f.ok?"":" bad")+"\">"+esc(f.msg)+"</div></div>"+
+      "<button class=\"reset\" type=\"button\">Quitar</button>";
+    d.querySelector("button").addEventListener("click",function(ev){
+      ev.stopPropagation(); FILES[s.id].splice(i,1); DATA=[]; VISTA=[]; sincronizar();
+    });
+    list.appendChild(d);
+  });
+}
+
+function sincronizar(){
+  SLOTS.forEach(function(s){
+    var c = $("slot_"+s.id), hay = FILES[s.id].length>0;
+    c.querySelector(".empty-v").classList.toggle("hidden",hay);
+    c.querySelector(".loaded-v").classList.toggle("hidden",!hay);
+    c.classList.toggle("loaded",hay);
+    pintarArchivos(s);
+  });
+  /* Ajuste propio: sin el Código de Uso no hay nada que validar */
+  $("runBtn").disabled = !(hayCruce(BASE.id) && (hayCruce("unid") || hayLegacy()));
+  ["resultSection","filterSection","tableSection"].forEach(function(id){ $(id).classList.add("hidden"); });
+  var avisos = avisosCarga(), nb = $("loadNotice");
+  if(avisos.length){ nb.innerHTML = avisos.join("<br>"); nb.classList.remove("hidden"); }
+  else { nb.innerHTML=""; nb.classList.add("hidden"); }
+}
+
+construirTarjetas();
+sincronizar();
+$("runBtn").addEventListener("click",ejecutar);
+$("resetBtn").addEventListener("click",function(){ SLOTS.forEach(function(s){ FILES[s.id]=[]; }); OFF={}; DATA=[]; VISTA=[]; sincronizar(); });
+
+["fSector","fMz","fLote","fEdif","fEntr","fPiso","fUnid","fCrc"].forEach(function(id){
+  $(id).addEventListener("input",function(){ if(DATA.length) aplicarFiltros(); });
+});
+["fEstado","fRegla","fArchivo"].forEach(function(id){
+  $(id).addEventListener("change",function(){ if(DATA.length) aplicarFiltros(); });
+});
+$("clearBtn").addEventListener("click",function(){
+  ["fSector","fMz","fLote","fEdif","fEntr","fPiso","fUnid","fCrc"].forEach(function(id){ $(id).value=""; });
+  $("fEstado").value=""; $("fRegla").value=""; $("fArchivo").value="";
+  if(DATA.length) aplicarFiltros();
+});
+
+/* ============================================================
+   3 · EXPORTACIÓN ESTÁNDAR
+   Copiada de exportacion-valida-catastral. Único ajuste propio:
+   color del estado FALSO ERROR.
+   ============================================================ */
+var NOMBRE_MODULO = "VAL_USO_CIIU";
+
+var CAMPOS = [
+  {k:"npiso",        t:"N° Piso",                   w:9},
+  {k:"ecc",          t:"ECC",                       w:16, txt:true},
+  {k:"lineas",       t:"Líneas constructivas",      w:12},
+  {k:"uso",          t:"Código De Uso",             w:13, txt:true},
+  {k:"desc",         t:"Descripción Del Uso",       w:34},
+  {k:"ciiu",         t:"CIIU",                      w:10, txt:true},
+  {k:"ciiuDesc",     t:"Descripción CIIU",          w:42},
+  {k:"esperado",     t:"CIIU Esperado (Glosario)",  w:28},
+  {k:"esperadoDesc", t:"Descripción CIIU Esperado", w:60}
+];
+
+/* ---- Contrato de columnas (NO modificar) ------------------ */
+var CRC_COLS = [
+  {k:"crc",     t:"CRC",      w:26},
+  {k:"sector",  t:"Sector",   w:8},
+  {k:"manzana", t:"Manzana",  w:9},
+  {k:"lote",    t:"Lote",     w:8},
+  {k:"edifica", t:"Edifica",  w:8},
+  {k:"entrada", t:"Entrada",  w:8},
+  {k:"piso",    t:"Piso",     w:8},
+  {k:"unidad",  t:"Unidad",   w:8}
+];
+var CIERRE_COLS = [
+  {k:"nivel",  t:"Nivel",         w:9},
+  {k:"estado", t:"Estado",        w:14},
+  {k:"reglas", t:"Reglas",        w:12},
+  {k:"texto",  t:"Observaciones", w:70}
+];
+var EXP_HEAD = CRC_COLS.concat(CAMPOS).concat(CIERRE_COLS).map(function(c){ return c.t; });
+
+var COL_IDX = (function(){
+  var m = {crc:1}, off = CRC_COLS.length;
+  CAMPOS.forEach(function(c,i){ m[c.k] = off + i + 1; });
+  return m;
+})();
+var COL_ESTADO = CRC_COLS.length + CAMPOS.length + 2;
+var COL_OBS    = CRC_COLS.length + CAMPOS.length + 4;
+
+var COLS_TEXTO = (function(){
+  var a = [];
+  for(var i=1;i<=CRC_COLS.length;i++) a.push(i);
+  CAMPOS.forEach(function(c,i){ if(c.txt) a.push(CRC_COLS.length+i+1); });
+  return a;
+})();
+
+function aNumero(v){
+  var s = String(v===undefined||v===null?"":v).trim().replace(",",".");
+  if(s==="" || !/^-?\d+(\.\d+)?$/.test(s)) return v;
+  return Number(s);
+}
+function filaExport(d){
+  var out = [d.crc, d.p.sector, d.p.manzana, d.p.lote, d.p.edifica, d.p.entrada, d.p.piso, d.p.unidad];
+  CAMPOS.forEach(function(c){ out.push(c.num ? aNumero(d[c.k]) : (d[c.k]===undefined?"":d[c.k])); });
+  out.push(d.nivelLote?"LOTE":"UNIDAD", d.estado, d.reglas.join(" "), d.texto);
+  return out;
+}
+function nombreArchivo(pref){
+  var d=new Date(), p=function(n){return String(n).padStart(2,"0");};
+  return NOMBRE_MODULO+"_"+pref+"_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes())+".xlsx";
+}
+
+function exportar(set,pref){
+  if(!set.length){ mostrarExpError("No hay registros que exportar con la selección actual."); return; }
+  if(typeof ExcelJS!=="undefined"){
+    exportarExcelJS(set,pref).catch(function(err){
+      mostrarExpError("No se pudo generar el Excel con formato ("+err.message+"). Se descarga la versión sin color.");
+      exportarSheetJS(set,pref);
+    });
+  }else{
+    exportarSheetJS(set,pref);
+  }
+}
+
+function exportarExcelJS(set,pref){
+  var wb = new ExcelJS.Workbook();
+  wb.creator = "ValidaCatastral ©diegocampos";
+  var ws = wb.addWorksheet(NOMBRE_MODULO,{views:[{state:"frozen",ySplit:1}]});
+  ws.addRow(EXP_HEAD);
+  var hr = ws.getRow(1);
+  hr.font = {bold:true,color:{argb:"FFFFFFFF"},size:10};
+  hr.fill = {type:"pattern",pattern:"solid",fgColor:{argb:"FF1F3A4D"}};
+  hr.alignment = {vertical:"middle",horizontal:"center",wrapText:true};
+  hr.height = 30;
+
+  set.forEach(function(d){
+    var row = ws.addRow(filaExport(d));
+    COLS_TEXTO.forEach(function(c){ row.getCell(c).numFmt="@"; row.getCell(c).alignment={horizontal:"left"}; });
+    if(d.estado==="ERROR")            row.getCell(COL_ESTADO).font={bold:true,color:{argb:"FFB00020"}};
+    else if(d.estado==="ADVERTENCIA") row.getCell(COL_ESTADO).font={bold:true,color:{argb:"FF8A6100"}};
+    else if(d.estado==="FALSO ERROR") row.getCell(COL_ESTADO).font={bold:true,color:{argb:"FF5F51C9"}};
+    else                              row.getCell(COL_ESTADO).font={color:{argb:"FF0F6E56"}};
+    Object.keys(d.marcados).forEach(function(k){
+      var ci = COL_IDX[k];
+      if(!ci) return;
+      var cell = row.getCell(ci);
+      cell.fill = {type:"pattern",pattern:"solid",fgColor:{argb:"FFFDE0E0"}};
+      cell.font = {bold:true,color:{argb:"FFB00020"}};
+      if(!String(d[k]||"").trim() && k!=="crc"){ cell.value = "(VACÍO)"; }
+    });
+    row.getCell(COL_OBS).alignment={wrapText:true,vertical:"top"};
+  });
+
+  CRC_COLS.concat(CAMPOS).concat(CIERRE_COLS).forEach(function(c,i){ ws.getColumn(i+1).width=c.w; });
+  ws.autoFilter = {from:{row:1,column:1},to:{row:1,column:EXP_HEAD.length}};
+
+  return wb.xlsx.writeBuffer().then(function(buf){
+    descargar(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), nombreArchivo(pref));
+  });
+}
+
+function exportarSheetJS(set,pref){
+  var aoa = [EXP_HEAD].concat(set.map(function(d){ return filaExport(d); }));
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,NOMBRE_MODULO);
+  XLSX.writeFile(wb,nombreArchivo(pref));
+}
+
+function descargar(blob,name){
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1500);
+}
+function mostrarExpError(m){
+  var b=document.getElementById("expError");
+  if(!b){ alert(m); return; }
+  b.textContent=m; b.classList.remove("hidden");
+}
+$("expSelBtn").addEventListener("click",function(){ exportar(VISTA,"SELECCION"); });
+$("expAllBtn").addEventListener("click",function(){ exportar(DATA,"TOTAL"); });
+
+/* Acceso para pruebas */
+window.__VAL = {SLOTS:SLOTS,REGLAS:REGLAS,CIIU:CIIU,CIIU_DESC:CIIU_DESC,
+  validar:validar, prepararContexto:prepararContexto, partirCRC:partirCRC,
+  DATA:function(){return DATA;}, FILES:function(){return FILES;},
+  ejecutar:ejecutar, recalcular:recalcular, OFF:OFF};
+})();
+</script>
+</body>
+</html>

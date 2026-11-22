@@ -1,0 +1,1207 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  VALIDA CATASTRAL — VAL_OBRAS_COMPLEN · Validador de Obras Complementarias
+  ValidaCatastral ©diegocampos — Todos los derechos reservados.
+  Herramienta de uso interno para control de calidad catastral.
+  Prohibida su reproducción, distribución o modificación
+  sin autorización expresa del autor.
+  ============================================================
+-->
+<html lang="es" data-vctheme="vcwarm">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="ValidaCatastral ©diegocampos">
+<title>VAL_OBRAS_COMPLEN · Obras Complementarias · VALIDA CATASTRAL</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@500;600&display=swap');
+
+/* ===== TEMA 1 · NEON (por defecto) ===== */
+:root{
+  --bg-void:#07090d;--bg-deep:#0c1015;--bg-panel:#10151c;--bg-card:#151b23;--bg-hover:#1b232d;
+  --border:#23303f;--border-soft:#1a2430;
+  --accent:#3fc6ee;--accent-2:#2f9fd0;--purple:#a78bfa;--green:#3fd99a;--amber:#e8b14a;--red:#e87070;
+  --text-prime:#dce4ec;--text-mute:#9fb3c4;--text-dim:#5c7186;
+  --font-mono:'Share Tech Mono',ui-monospace,monospace;--font-head:'Rajdhani',sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(63,198,238,.10);--red-wash:rgba(232,112,112,.10);--purple-wash:rgba(167,139,250,.08);
+  --glow:0 0 18px rgba(63,198,238,.15);--radius:10px;
+}
+/* ===== TEMA 2 · OSCURO VC (sobrio) ===== */
+html[data-vctheme="vcdark"]{
+  --bg-void:#0b0b0c;--bg-deep:#111113;--bg-panel:#151517;--bg-card:#1b1b1e;--bg-hover:#222226;
+  --border:#2a2a2e;--border-soft:#232327;
+  --accent:#5dcaa5;--accent-2:#3fae89;--purple:#a79bef;--green:#5dcaa5;--amber:#e2b35c;--red:#e07b7b;
+  --text-prime:#ededee;--text-mute:#a6a6ac;--text-dim:#6e6e74;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Inter',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(93,202,165,.10);--red-wash:rgba(224,123,123,.10);--purple-wash:rgba(167,155,239,.08);
+  --glow:none;
+}
+/* ===== TEMA 3 · CLARO ===== */
+html[data-vctheme="vclight"]{
+  --bg-void:#fafafa;--bg-deep:#f1f1f2;--bg-panel:#ffffff;--bg-card:#f5f5f6;--bg-hover:#ececee;
+  --border:#e3e3e6;--border-soft:#ebebee;
+  --accent:#0f6e56;--accent-2:#128a68;--purple:#5f51c9;--green:#0f6e56;--amber:#925f0e;--red:#b54a4a;
+  --text-prime:#19191b;--text-mute:#56565d;--text-dim:#9a9aa0;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Inter',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(15,110,86,.08);--red-wash:rgba(181,74,74,.08);--purple-wash:rgba(95,81,201,.07);
+  --glow:none;
+}
+
+/* ===== TEMA 4 · CÁLIDO (editorial oscuro, serif) ===== */
+html[data-vctheme="vcwarm"]{
+  --bg-void:#1a1918;--bg-deep:#21201e;--bg-panel:#262624;--bg-card:#2c2b28;--bg-hover:#34322e;
+  --border:#3a3833;--border-soft:#31302b;
+  --accent:#d97757;--accent-2:#c15f3c;--purple:#a996e0;--green:#6fbf8f;--amber:#d9a441;--red:#e05d5d;
+  --text-prime:#f0eee6;--text-mute:#b8b3a7;--text-dim:#7d786d;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Lora',Georgia,serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(217,119,87,.10);--red-wash:rgba(224,93,93,.10);--purple-wash:rgba(169,150,224,.08);
+  --glow:none;--radius:16px;
+}
+html[data-vctheme="vcwarm"] .btn{text-transform:none;letter-spacing:.2px;font-weight:600;}
+html[data-vctheme="vcwarm"] .brand .nm{letter-spacing:1px;}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg-void);color:var(--text-prime);font-family:var(--font-body);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
+
+/* ===== Topbar ===== */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px 22px;background:var(--bg-deep);border-bottom:1px solid var(--border);}
+.brand{display:flex;align-items:center;gap:11px;min-width:0;}
+.brand .mark{width:30px;height:30px;flex:none;color:var(--accent);filter:drop-shadow(0 0 6px var(--accent-wash));}
+.brand .nm{font-family:var(--font-head);font-weight:700;font-size:16px;letter-spacing:2.5px;color:var(--accent);white-space:nowrap;}
+.brand .mod{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);letter-spacing:1px;white-space:nowrap;}
+.topbar-right{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:11px;color:var(--text-mute);}
+.pill{border:1px solid var(--border);background:var(--bg-panel);color:var(--text-mute);border-radius:20px;
+  padding:5px 13px;font-family:var(--font-mono);font-size:10.5px;letter-spacing:1px;cursor:pointer;transition:border-color .15s,color .15s;white-space:nowrap;}
+.pill:hover{border-color:var(--accent);color:var(--accent);}
+.pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:1px;}
+
+.wrap{max-width:1280px;margin:0 auto;padding:28px 24px 70px;}
+
+/* ===== Masthead ===== */
+header.masthead{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;box-shadow:var(--glow);}
+.eyebrow{font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin:0 0 8px;display:flex;align-items:center;gap:8px;}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+h1{font-family:var(--font-head);font-size:27px;line-height:1.12;margin:0 0 8px;font-weight:700;letter-spacing:.5px;}
+.lede{margin:0;color:var(--text-mute);max-width:70ch;font-size:14px;}
+.keyline{margin-top:16px;padding-top:14px;border-top:1px dashed var(--border);font-size:12.5px;color:var(--text-mute);}
+.keyline code{font-family:var(--font-mono);background:var(--accent-wash);color:var(--accent);padding:2px 8px;border-radius:5px;font-size:12px;letter-spacing:.5px;border:1px solid var(--border-soft);}
+.keyline b{color:var(--purple);font-weight:600;}
+
+section{margin-top:24px;}
+.sec-label{font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-dim);margin:0 0 12px;display:flex;align-items:center;gap:12px;}
+.sec-label::after{content:"";height:1px;flex:1;background:var(--border);}
+
+/* ===== Zona de carga ===== */
+.intake{background:var(--bg-panel);border:1.5px dashed var(--border);border-radius:var(--radius);padding:36px 26px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;}
+.intake:hover{border-color:var(--accent);background:var(--bg-card);}
+.intake.drag{border-color:var(--accent);background:var(--accent-wash);border-style:solid;}
+.intake.loaded{border-style:solid;border-color:var(--border);text-align:left;cursor:default;}
+.intake .slot{width:46px;height:46px;border-radius:9px;margin:0 auto 14px;display:grid;place-items:center;background:var(--accent-wash);color:var(--accent);border:1px solid var(--border-soft);}
+.intake .slot svg{width:24px;height:24px;}
+.intake h3{margin:0 0 5px;font-size:15.5px;font-weight:600;font-family:var(--font-head);letter-spacing:.4px;}
+.intake p{margin:0;color:var(--text-mute);font-size:13px;}
+.intake .browse{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px;}
+.filechip{display:flex;align-items:center;gap:14px;}
+.filechip .ic{width:40px;height:40px;border-radius:8px;background:var(--green);color:var(--bg-void);display:grid;place-items:center;flex:none;}
+.filechip .ic svg{width:20px;height:20px;}
+.filechip .meta{min-width:0;flex:1;}
+.filechip .nm{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.filechip .sub{font-size:12px;color:var(--text-mute);font-family:var(--font-mono);}
+.filechip .reset{border:1px solid var(--border);background:var(--bg-card);color:var(--text-mute);border-radius:7px;padding:7px 13px;font-size:12px;cursor:pointer;font-family:var(--font-mono);letter-spacing:.5px;white-space:nowrap;}
+.filechip .reset:hover{border-color:var(--red);color:var(--red);}
+
+/* ===== Botones ===== */
+.btn{font-family:var(--font-head);font-size:14px;font-weight:600;letter-spacing:.8px;border-radius:8px;cursor:pointer;padding:11px 22px;border:1px solid transparent;display:inline-flex;align-items:center;gap:9px;transition:background .15s,border-color .15s,opacity .15s,box-shadow .15s;text-transform:uppercase;}
+.btn svg{width:17px;height:17px;}
+.btn-primary{background:var(--accent);color:var(--bg-void);}
+.btn-primary:hover{background:var(--accent-2);box-shadow:0 0 16px var(--accent-wash);}
+.btn-ghost{background:var(--bg-panel);color:var(--text-prime);border-color:var(--border);}
+.btn-ghost:hover{border-color:var(--green);color:var(--green);}
+.btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
+.actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:18px;}
+
+/* ===== Métricas ===== */
+.panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.panel-head{border-top:2px solid var(--accent);}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);}
+.stat{padding:18px 22px;border-right:1px solid var(--border);}
+.stat:last-child{border-right:none;}
+.stat .k{font-family:var(--font-mono);font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);}
+.stat .v{font-family:var(--font-mono);font-size:33px;line-height:1.05;margin-top:9px;font-variant-numeric:tabular-nums;color:var(--accent);}
+.stat.dup .v{color:var(--red);}
+.stat.grp .v{color:var(--amber);}
+
+/* ===== Tablas ===== */
+.tablecard{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.tablecard .cap{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.tablecard .cap h3{margin:0;font-size:13.5px;font-weight:600;font-family:var(--font-head);letter-spacing:.8px;text-transform:uppercase;}
+.tablecard .cap .note{font-size:11.5px;color:var(--text-mute);font-family:var(--font-mono);letter-spacing:.4px;}
+.scroll{overflow:auto;max-height:580px;}
+table{border-collapse:collapse;width:100%;font-size:12.5px;}
+th,td{padding:9px 12px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border-soft);}
+thead th{position:sticky;top:0;background:var(--bg-card);z-index:2;font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-mute);font-weight:500;border-bottom:1px solid var(--border);}
+tbody tr:hover{background:var(--bg-hover);}
+td.mono,th.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.col-num{color:var(--text-dim);font-family:var(--font-mono);font-size:11.5px;}
+th.crc-h{background:var(--purple-wash);color:var(--purple);}
+td.crc{background:var(--purple-wash);font-family:var(--font-mono);color:var(--purple);font-variant-numeric:tabular-nums;}
+tr.dup td{background:var(--red-wash);}
+tr.dup td:first-child{box-shadow:inset 3px 0 0 var(--red);}
+.grp-chip{display:inline-block;font-family:var(--font-mono);font-size:11px;background:var(--red);color:var(--bg-void);padding:2px 9px;border-radius:20px;letter-spacing:.5px;}
+.obs{font-family:var(--font-mono);color:var(--red);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;}
+.reps{font-family:var(--font-mono);color:var(--amber);}
+.empty{padding:46px 24px;text-align:center;color:var(--text-mute);}
+.empty .big{font-size:15px;font-weight:600;color:var(--text-prime);margin-bottom:6px;font-family:var(--font-head);letter-spacing:.5px;}
+.empty.clean .big{color:var(--green);}
+.hidden{display:none;}
+.err{background:var(--red-wash);border:1px solid var(--red);color:var(--red);padding:12px 16px;border-radius:8px;font-size:13px;margin-top:14px;font-family:var(--font-mono);}
+
+footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--border);text-align:center;color:var(--text-dim);font-family:var(--font-mono);font-size:11px;letter-spacing:1px;line-height:2;}
+footer .cr{color:var(--text-mute);}
+footer .cr b{color:var(--accent);font-weight:500;}
+
+@media (max-width:760px){
+  .wrap{padding:20px 14px 60px;}
+  .stats{grid-template-columns:repeat(2,1fr);}
+  .stat:nth-child(2){border-right:none;}
+  .stat:nth-child(1),.stat:nth-child(2){border-bottom:1px solid var(--border);}
+  h1{font-size:22px;}.stat .v{font-size:27px;}
+  .brand .mod{display:none;}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
+
+/* ===== VALIDA CATASTRAL · Componentes de carga, reglas y filtros (v2) =====
+   Complemento de estilo-valida-catastral. Solo usa sus variables. */
+.slots{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;}
+.intake.card{padding:30px 22px;min-height:190px;display:flex;flex-direction:column;justify-content:center;}
+.intake.card.loaded{padding:18px 20px;justify-content:flex-start;}
+.intake .badge{display:inline-block;margin-top:12px;font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);border:1px solid var(--border);border-radius:20px;padding:3px 10px;}
+.intake .lhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}
+.intake .lhead .lt{font-family:var(--font-head);font-weight:600;font-size:15px;letter-spacing:.4px;}
+.intake .lhead .badge{margin-top:0;}
+.filelist{display:flex;flex-direction:column;gap:10px;}
+.filelist .filechip .ic{width:10px;height:10px;border-radius:50%;background:var(--green);flex:none;}
+.filelist .filechip .ic.bad{background:var(--red);}
+.filelist .filechip .nm{font-size:13px;}
+.filechip .sub.bad{color:var(--red);white-space:normal;}
+.addmore{display:flex;gap:10px;margin-top:14px;}
+.reset{border:1px solid var(--border);background:var(--bg-card);color:var(--text-mute);border-radius:7px;padding:7px 13px;font-size:12px;cursor:pointer;font-family:var(--font-mono);letter-spacing:.5px;white-space:nowrap;}
+.reset:hover{border-color:var(--red);color:var(--red);}
+.reset.add:hover{border-color:var(--accent);color:var(--accent);}
+.notice{background:rgba(217,164,65,.08);border:1px solid var(--amber);color:var(--text-prime);padding:12px 16px;border-radius:8px;font-size:12.5px;margin-top:14px;line-height:1.7;}
+.notice b{color:var(--amber);}
+.stats.s6{grid-template-columns:repeat(6,1fr);}
+.stat.ok .v{color:var(--green);}
+.stat.pur .v{color:var(--purple);}
+.substats{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 20px;border-top:1px solid var(--border);}
+.rchip{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;border-radius:20px;padding:3px 11px;background:transparent;cursor:pointer;border:1px solid var(--red);color:var(--red);transition:opacity .15s;}
+.rchip b{color:var(--text-prime);font-weight:600;margin-left:3px;}
+.rchip.adv{border-color:var(--amber);color:var(--amber);}
+.rchip.off{opacity:.5;border-style:dashed;text-decoration:line-through;}
+.rchip.na{opacity:.35;cursor:not-allowed;border-style:dotted;}
+.rhint{flex-basis:100%;font-family:var(--font-mono);font-size:10.5px;color:var(--text-dim);letter-spacing:.3px;}
+.filters{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+.fgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;}
+.frow{display:grid;grid-template-columns:2fr 1fr;gap:18px;margin-top:16px;}
+.fld label{display:block;font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;}
+.fld input,.fld select,.fld textarea{width:100%;background:var(--bg-card);border:1px solid var(--border);color:var(--text-prime);border-radius:7px;padding:8px 10px;font-family:var(--font-mono);font-size:12.5px;}
+.fld textarea{min-height:120px;resize:vertical;}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--accent);}
+.fmeta{font-family:var(--font-mono);font-size:11px;color:var(--text-mute);margin-top:6px;}
+.fbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;}
+.selline{font-family:var(--font-mono);font-size:11.5px;color:var(--text-mute);}
+.selline b{color:var(--text-prime);}
+.selline .r{color:var(--red);}
+td.mk{background:var(--red-wash);color:var(--red);font-weight:600;}
+td.desc{max-width:260px;overflow:hidden;text-overflow:ellipsis;}
+td.est{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;}
+tr.st-ERROR td.est{color:var(--red);font-weight:600;}
+tr.st-ADVERTENCIA td.est{color:var(--amber);font-weight:600;}
+tr.st-CONFORME td.est{color:var(--green);}
+td.obs-t{white-space:normal;min-width:280px;font-size:12px;color:var(--text-mute);}
+@media (max-width:760px){.stats.s6{grid-template-columns:repeat(2,1fr);}.fgrid{grid-template-columns:repeat(3,1fr);}.frow{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 8 L14 26 L28 4"/><path d="M4 8 L9 8" opacity=".45"/>
+    </svg>
+    <span class="nm">VALIDA CATASTRAL</span>
+    <span class="mod">// VAL_OBRAS_COMPLEN</span>
+  </div>
+  <div class="topbar-right">
+    <span id="clock">--:--:--</span>
+    <button class="pill" id="themeBtn" type="button" title="Cambiar tema"><span class="dot"></span><span id="themeName">Cálido</span></button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Control de calidad · SICUN</p>
+    <h1>Validación de obras complementarias</h1>
+    <p class="lede">Valida cada obra del reporte de Obras Complementarias contra el Anexo III.1 (Lima-Callao 2025): metrados de 1, unidad de medida, capacidad de tanques, material, estado de construcción y obras repetidas. Si cargas también el reporte de Construcciones, compara las fechas de tanques elevados y parapetos con los pisos de su edificación.</p>
+    <div class="keyline">
+      Reglas: <code>R1</code> producto = 1 · <code>R2</code> unidad · <code>R3</code> capacidad · <code>R4</code> repetida · <code>R5</code> MEP · <code>R6</code> ECC · <code>R7</code> tanque vs último piso · <code>R7P</code> parapeto vs piso 1. Con UCA no aplican <b>R1, R7 ni R7P</b>. Pisos <b>1–70</b>, mezanines <b>71–79</b>, sótanos <b>81–89</b>.
+    </div>
+  </header>
+
+
+<!-- 1 · CARGA -------------------------------------------------->
+<section>
+  <p class="sec-label">1 · Cargar reportes</p>
+  <div class="slots" id="slots"></div>
+  <div id="loadNotice" class="notice hidden"></div>
+  <div class="actions">
+    <button class="btn btn-primary" id="runBtn" type="button" disabled>Analizar</button>
+    <button class="btn btn-ghost" id="resetBtn" type="button">Quitar todo</button>
+  </div>
+</section>
+
+<!-- 2 · MÉTRICAS DEL UNIVERSO + REGLAS ------------------------->
+<section id="resultSection" class="hidden">
+  <p class="sec-label">2 · Resultado del universo cargado</p>
+  <div class="panel panel-head">
+    <div class="stats s6">
+      <div class="stat"><div class="k">Registros</div><div class="v" id="stTotal">0</div></div>
+      <div class="stat ok"><div class="k">Conformes</div><div class="v" id="stOk">0</div></div>
+      <div class="stat dup"><div class="k">Con error</div><div class="v" id="stErr">0</div></div>
+      <div class="stat grp"><div class="k">Con advertencia</div><div class="v" id="stWarn">0</div></div>
+      <div class="stat pur"><div class="k">Nivel lote</div><div class="v" id="stLote">0</div></div>
+      <div class="stat pur"><div class="k">Predios</div><div class="v" id="stPred">0</div></div>
+    </div>
+    <div class="substats" id="ruleChips"></div>
+  </div>
+</section>
+
+<!-- 3 · FILTROS ------------------------------------------------>
+<section id="filterSection" class="hidden">
+  <p class="sec-label">3 · Filtrar</p>
+  <div class="filters">
+    <div class="fgrid">
+      <div class="fld"><label>Sector</label><input id="fSector" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+      <div class="fld"><label>Manzana</label><input id="fMz" placeholder="· · ·" maxlength="3" autocomplete="off"></div>
+      <div class="fld"><label>Lote</label><input id="fLote" placeholder="· · ·" maxlength="3" autocomplete="off"></div>
+      <div class="fld"><label>Edificación</label><input id="fEdif" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+      <div class="fld"><label>Entrada</label><input id="fEntr" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+      <div class="fld"><label>Piso</label><input id="fPiso" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+      <div class="fld"><label>Unidad</label><input id="fUnid" placeholder="· · ·" maxlength="3" autocomplete="off"></div>
+    </div>
+    <div class="frow">
+      <div class="fld">
+        <label>Lista de CRC pegada</label>
+        <textarea id="fCrc" placeholder="Pega aquí los CRC — uno por línea, o separados por comas, espacios o tabulaciones."></textarea>
+        <div class="fmeta" id="crcMeta">Sin lista. La comparación ignora el último dígito de referencia.</div>
+      </div>
+      <div>
+        <div class="fld"><label>Estado</label>
+          <select id="fEstado">
+            <option value="">Todos</option>
+            <option value="ERROR">Solo errores</option>
+            <option value="ADVERTENCIA">Solo advertencias</option>
+            <option value="OBS">Errores + advertencias</option>
+            <option value="CONFORME">Solo conformes</option>
+          </select>
+        </div>
+        <div class="fld" style="margin-top:12px;"><label>Regla</label>
+          <select id="fRegla"><option value="">Todas</option></select>
+        </div>
+        <div class="fld" style="margin-top:12px;"><label>Archivo de origen</label>
+          <select id="fArchivo"><option value="">Todos</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="fbar">
+      <button class="reset" id="clearBtn" type="button">Limpiar filtros</button>
+      <span class="selline" id="selLine">—</span>
+    </div>
+  </div>
+</section>
+
+<!-- 4 · TABLA + EXPORTACIÓN ------------------------------------>
+<section id="tableSection" class="hidden">
+  <p class="sec-label">4 · Detalle</p>
+  <div class="actions" style="margin-top:0;margin-bottom:14px;">
+    <button class="btn btn-primary" id="expSelBtn" type="button">Exportar selección</button>
+    <button class="btn btn-ghost" id="expAllBtn" type="button">Exportar todo</button>
+  </div>
+  <div class="tablecard">
+    <div class="cap"><h3>Registros validados</h3><span class="note" id="tableNote">—</span></div>
+    <div class="scroll"><table id="resTable"><thead></thead><tbody></tbody></table></div>
+    <div id="emptyBox" class="empty hidden"><div class="big">Sin resultados</div><div>Ningún registro coincide con los filtros aplicados.</div></div>
+  </div>
+  <div id="expError" class="err hidden"></div>
+</section>
+
+  <footer>
+    VALIDA CATASTRAL · VAL_OBRAS_COMPLEN · Procesamiento 100% local · SheetJS + ExcelJS<br>
+    <span class="cr"><b>ValidaCatastral ©diegocampos</b> — Uso interno. Prohibida su reproducción o distribución no autorizada.</span>
+  </footer>
+</div>
+
+<script>
+/* ValidaCatastral ©diegocampos — Todos los derechos reservados. */
+(function(){
+  "use strict";
+  var THEMES=[["vcwarm","C\u00e1lido"],["neon","Neon"],["vcdark","Oscuro VC"],["vclight","Claro"]], tIdx=0;
+  var themeBtn=document.getElementById("themeBtn"), themeName=document.getElementById("themeName");
+  themeBtn.addEventListener("click",function(){
+    tIdx=(tIdx+1)%THEMES.length;
+    document.documentElement.setAttribute("data-vctheme",THEMES[tIdx][0]);
+    themeName.textContent=THEMES[tIdx][1];
+  });
+  var clock=document.getElementById("clock");
+  function tick(){ var d=new Date(),p=function(n){return String(n).padStart(2,"0");}; clock.textContent=p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds()); }
+  tick(); setInterval(tick,1000);
+})();
+</script>
+<script>
+/* ValidaCatastral ©diegocampos — Todos los derechos reservados. */
+(function(){
+"use strict";
+/* ============================================================
+   VAL_OBRAS_COMPLEN · Configuración y reglas del validador
+   ValidaCatastral ©diegocampos — Todos los derechos reservados.
+   ============================================================ */
+
+/* ---- A · Tarjetas de carga -------------------------------- */
+var SLOTS = [
+  { id:"obc", titulo:"Obras Complementarias", sub:"Reporte base · una fila por obra", obligatorio:true, icono:"tabla",
+    HDR:{ crc:"codigo de referencia catastral", backup:"nombre backup", cod:"codigo", desc:"descripcion",
+          fecha:"fecha de construccion", mep:"mep", ecs:"ecs", ecc:"ecc", pt:"producto total",
+          um:"unidad de medida", uca:"uca" },
+    REQ:["crc","cod","desc","pt","um","uca"] },
+  { id:"cons", titulo:"Construcciones", sub:"Aporta los pisos y sus fechas", obligatorio:false, icono:"grilla",
+    HDR:{ crc:"codigo de referencia catastral", backup:"nombre backup", piso:"n° piso", fecha:"fecha construccion" },
+    REQ:["crc","piso","fecha"] }
+];
+
+/* ---- B · Catálogo de reglas ------------------------------- */
+var REGLAS = [
+  {c:"R1",  n:"Producto total = 1 en m², m³ o ml",              sev:"ERROR"},
+  {c:"R2",  n:"Unidad de medida distinta al Anexo III.1",       sev:"ERROR"},
+  {c:"R3",  n:"Capacidad que no corresponde al código",         sev:"ERROR"},
+  {c:"R4",  n:"Obra repetida idéntica en el predio",            sev:"ADVERTENCIA"},
+  {c:"R5",  n:"MEP que no corresponde al material",             sev:"ERROR"},
+  {c:"R6",  n:"ECC distinto de terminado en tanque de plástico",sev:"ERROR"},
+  {c:"R7",  n:"Tanque elevado anterior al último piso",         sev:"ERROR",       requiere:"cons"},
+  {c:"R7P", n:"Parapeto anterior al piso 1",                    sev:"ADVERTENCIA", requiere:"cons"}
+];
+
+/* ---- C · Columnas en pantalla ----------------------------- */
+var TABLA = [
+  {k:"cod",   t:"Cód.",        cls:"mono"},
+  {k:"desc",  t:"Descripción", cls:"desc"},
+  {k:"fecha", t:"Fecha",       cls:"mono"},
+  {k:"mep",   t:"MEP",         cls:"mono"},
+  {k:"ecc",   t:"ECC",         cls:"mono"},
+  {k:"pt",    t:"Producto",    cls:"mono"},
+  {k:"um",    t:"U. Medida",   cls:"mono"},
+  {k:"uca",   t:"UCA",         cls:""}
+];
+
+/* ---- D · Tablas de referencia (Anexo III.1, Lima-Callao 2025) ---- */
+function rango(a,b){ var o=[]; for(var i=a;i<=b;i++) o.push(i); return o; }
+function asignar(map,codes,val){ codes.forEach(function(c){ map[c]=val; }); }
+
+/* Unidad oficial por código */
+var UM_ANEXO = {};
+asignar(UM_ANEXO, rango(1,16),  "m²");
+asignar(UM_ANEXO, rango(17,32), "m³");
+asignar(UM_ANEXO, rango(33,36), "m²");
+asignar(UM_ANEXO, [37,38,39,42,43,45], "m³");
+asignar(UM_ANEXO, [40,41,44,46,47,48,49], "und");
+asignar(UM_ANEXO, rango(50,53), "m²");
+asignar(UM_ANEXO, rango(54,63), "m³");
+asignar(UM_ANEXO, rango(64,69), "und");
+asignar(UM_ANEXO, rango(70,73), "ml");
+asignar(UM_ANEXO, rango(74,80), "pza");
+asignar(UM_ANEXO, rango(81,84), "m²");
+asignar(UM_ANEXO, rango(85,87), "ml");
+asignar(UM_ANEXO, rango(88,90), "m²");
+asignar(UM_ANEXO, [91,92], "pza");
+asignar(UM_ANEXO, [93,94], "ml");
+UM_ANEXO[95]="m²"; UM_ANEXO[96]="m³";
+
+/* Material (MEP) por código: 01 concreto · 02 ladrillo · 03 adobe/quincha/madera y otros */
+var MEP_ANEXO = {};
+asignar(MEP_ANEXO, [1,17,19,20,23,24,25,27,29,30,31,33,34,35,36,37,40,41,42,43,45,46,47,48,49]
+  .concat(rango(54,63),rango(70,80),[93,94,95,96]), ["01"]);
+asignar(MEP_ANEXO, [3,4,5,7,9,26,32,38,50,51,52,53,82,83], ["02"]);
+asignar(MEP_ANEXO, [6,8,18,21,22,28,39,81,84].concat(rango(10,16),rango(64,69),rango(85,92)), ["03"]);
+asignar(MEP_ANEXO, [2,44], ["01","03"]);
+var MEP_NOMBRE = {"01":"concreto","02":"ladrillo","03":"adobe, quincha, madera"};
+
+/* Conjuntos */
+var ESCALERAS   = [54,55,64,65,66];
+var EXC_R1      = [1,21,28,33,35,36,56,78].concat(ESCALERAS);
+var TQ_PLASTICO = [18,21,22,28];
+var TQ_ELEVADO  = [18,21];
+var PARAPETOS   = rango(50,53);
+var REP_R4      = rango(1,9).concat(rango(88,90),rango(50,53),rango(81,84),rango(58,63),rango(33,36),[95]);
+
+/* Rangos de capacidad (m³) por familia: (min, max] */
+var FAMILIAS = [
+  [{c:21,min:0,max:1},{c:18,min:1,max:Infinity}],
+  [{c:28,min:0,max:1},{c:22,min:1,max:Infinity}],
+  [{c:17,min:0,max:5},{c:19,min:5,max:Infinity},{c:20,min:15,max:Infinity}],
+  [{c:23,min:0,max:5},{c:24,min:5,max:10},{c:25,min:10,max:20},{c:27,min:20,max:Infinity}],
+  [{c:26,min:0,max:5}],
+  [{c:29,min:0,max:5},{c:30,min:5,max:10},{c:31,min:10,max:Infinity}]
+];
+
+/* ---- E · Normalizadores ----------------------------------- */
+function numero(v){ var s=String(v||"").trim().replace(",","."); return /^-?\d+(\.\d+)?$/.test(s)?parseFloat(s):NaN; }
+function normUM(v){
+  var s = key(v).replace(/\.$/,"");
+  if(s==="m2") return "m²"; if(s==="m3") return "m³";
+  if(s==="m"||s==="ml") return "ml";
+  if(s==="und"||s==="unid"||s==="unidad") return "und";
+  if(s==="pza"||s==="pieza") return "pza";
+  return s;
+}
+function mismaUM(a,b){
+  var cnt = {und:1,pza:1};
+  return a===b || (cnt[a] && cnt[b]);
+}
+function normCodigo2(v, textos){
+  var s = up(v); if(!s) return "";
+  var d = s.replace(/\D/g,"");
+  if(d) return d.padStart(2,"0").slice(-2);
+  for(var k in textos) if(s.indexOf(k)>=0) return textos[k];
+  return s;
+}
+function normMEP(v){ return normCodigo2(v,{"CONCRETO":"01","LADRILLO":"02","ADOBE":"03","QUINCHA":"03","MADERA":"03"}); }
+function normECC(v){ return normCodigo2(v,{"TERMINAD":"01","CONSTRUCC":"02","INCONCLUS":"03"}); }
+
+/* Fecha → "AAAA-MM" (SICUN registra mes y año) */
+function mes(v){
+  var s = norm(v), m;
+  if(!s) return "";
+  if((m=s.match(/^(\d{4})-(\d{1,2})/))) return m[1]+"-"+m[2].padStart(2,"0");
+  if((m=s.match(/^(\d{1,2})\/(\d{4})$/))) return m[2]+"-"+m[1].padStart(2,"0");
+  if((m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/))) return m[3]+"-"+m[2].padStart(2,"0");
+  if(/^\d{5}(\.\d+)?$/.test(s)){ var d=new Date(Math.round((parseFloat(s)-25569)*864e5)); return d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0"); }
+  return "";
+}
+function mesTxt(m){ return m ? m.substr(5,2)+"/"+m.substr(0,4) : ""; }
+function cap(n){ return n.toFixed(2); }
+
+/* ---- F · Contexto (datos de todo el universo y del cruce) ---- */
+function llaveR4(r){ return [r.crc,r.cod,r.desc,r.fecha,r.mep,r.ecs,r.ecc,r.pt,r.um,r.uca].join("\u0001"); }
+
+function prepararContexto(cruces, base){
+  var ctx = {rep:{}, top:{}, p1:{}};
+  base.forEach(function(r){
+    if(REP_R4.indexOf(parseInt(r.cod,10))>=0){ var k=llaveR4(r); ctx.rep[k]=(ctx.rep[k]||0)+1; }
+  });
+  /* Construcciones: piso más alto (01–70) y su fecha más antigua; fecha más antigua del piso 1 */
+  (cruces.cons||[]).forEach(function(r){
+    var p = parseInt(r.piso,10), m = mes(r.fecha), ed = norm(r.crc).substr(0,16);
+    if(!(p>=1 && p<=70) || !m) return;
+    var t = ctx.top[ed];
+    if(!t || p>t.piso) ctx.top[ed] = {piso:p, mes:m};
+    else if(p===t.piso && m<t.mes) t.mes = m;
+    if(p===1 && (!ctx.p1[ed] || m<ctx.p1[ed])) ctx.p1[ed] = m;
+  });
+  return ctx;
+}
+
+/* ---- G · Reglas ------------------------------------------- */
+function validar(r, ctx){
+  var hits = [];
+  var cod = parseInt(r.cod,10);
+  var pt  = numero(r.pt);
+  var um  = normUM(r.um);
+  var uca = !!norm(r.uca);
+  var ed  = norm(r.crc).substr(0,16);
+
+  /* R1 · Producto total = 1 (no aplica con UCA ni a los códigos exceptuados) */
+  if(!uca && pt===1 && (um==="m²"||um==="m³"||um==="ml") && EXC_R1.indexOf(cod)<0){
+    hits.push({c:"R1", txt:"[R1] Producto total = 1, verificar metrado.", marcas:["pt"]});
+  }
+
+  /* R2 · Unidad según Anexo III.1 (und y pza equivalen) */
+  var umOk = UM_ANEXO[cod];
+  if(umOk && !mismaUM(um,umOk)){
+    hits.push({c:"R2", txt:"[R2] Unidad de medida debe ser "+(umOk==="und"||umOk==="pza"?"und/pza":umOk)+".", marcas:["um"]});
+  }
+
+  /* R3 · Capacidad dentro del rango de su código */
+  if(um==="m³" && pt>0){
+    FAMILIAS.forEach(function(fam){
+      var mio = fam.filter(function(x){ return x.c===cod; })[0];
+      if(!mio || (pt>mio.min && pt<=mio.max)) return;
+      var otro = fam.filter(function(x){ return x.c!==cod && pt>x.min && pt<=x.max; })[0];
+      hits.push({c:"R3", marcas:["cod","pt"], txt: otro
+        ? "[R3] Capacidad "+cap(pt)+" m³ corresponde a código "+otro.c+"."
+        : "[R3] Capacidad "+cap(pt)+" m³ fuera del rango del código "+cod+"."});
+    });
+  }
+
+  /* R4 · Repetida idéntica en el predio (solo obras de área o volumen continuo) */
+  if(REP_R4.indexOf(cod)>=0 && ctx.rep[llaveR4(r)]>1){
+    hits.push({c:"R4", txt:"[R4] Obra repetida en el predio.", marcas:[]});
+  }
+
+  /* R5 · Material según el código */
+  var mepOk = MEP_ANEXO[cod];
+  if(mepOk && !r.__sin.mep){
+    var mep = normMEP(r.mep);
+    if(mepOk.indexOf(mep)<0){
+      hits.push({c:"R5", marcas:["mep"], txt: mepOk.length>1
+        ? "[R5] MEP debe ser "+mepOk.join(" o ")+"."
+        : "[R5] MEP debe ser "+mepOk[0]+" ("+MEP_NOMBRE[mepOk[0]]+")."});
+    }
+  }
+
+  /* R6 · Tanques de plástico: se compran terminados */
+  if(TQ_PLASTICO.indexOf(cod)>=0 && !r.__sin.ecc && normECC(r.ecc)!=="01"){
+    hits.push({c:"R6", txt:"[R6] ECC debe ser 01 (terminado).", marcas:["ecc"]});
+  }
+
+  /* R7 / R7P · Fechas contra construcciones (no aplica con UCA) */
+  var fm = mes(r.fecha);
+  if(!uca && fm){
+    var t = ctx.top[ed];
+    if(TQ_ELEVADO.indexOf(cod)>=0 && t && fm<t.mes){
+      hits.push({c:"R7", txt:"[R7] Fecha anterior al último piso ("+mesTxt(t.mes)+").", marcas:["fecha"]});
+    }
+    var p1 = ctx.p1[ed];
+    if(PARAPETOS.indexOf(cod)>=0 && p1 && fm<p1){
+      hits.push({c:"R7P", txt:"[R7P] Fecha anterior al piso 1 ("+mesTxt(p1)+").", marcas:["fecha"]});
+    }
+  }
+  return hits;
+}
+
+/* ============================================================
+   VALIDA CATASTRAL · Módulo de carga, reglas y filtros  (v2)
+   ValidaCatastral ©diegocampos — Todos los derechos reservados.
+   ------------------------------------------------------------
+   Copiar tal cual dentro del IIFE del validador, DESPUÉS del
+   bloque de configuración propio del validador, que define:
+     · SLOTS    — tarjetas de carga, una por tipo de reporte.
+                  La primera es la BASE (se valida fila por fila);
+                  las demás son de CRUCE (solo aportan datos).
+     · REGLAS   — catálogo de reglas {c, n, sev, requiere?}
+     · TABLA    — columnas del bloque variable en pantalla
+     · prepararContexto(cruces, base) -> ctx
+     · validar(r, ctx) -> [{c:"R1", txt:"[R1] ...", marcas:["pt"]}]
+   El módulo decide el estado, las reglas, el texto y el pintado
+   a partir de las reglas ENCENDIDAS. Nada más se ajusta aquí.
+   ============================================================ */
+
+/* ---- 1 · Utilidades --------------------------------------- */
+function norm(v){ return (v===null||v===undefined)?"":String(v).replace(/\s+/g," ").trim(); }
+function key(v){ return norm(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
+function up(v){ return norm(v).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
+function esc(s){ return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+function $(id){ return document.getElementById(id); }
+function fmt(n){ return Number(n).toLocaleString("en-US"); }
+
+/* Descomposición del CRC — 24 dígitos.
+   base = primeros 23: el dígito de referencia NO se compara.
+   Pisos 01–70 · mezanines 71–79 · sótanos 81–89 (81 el más alto). */
+function partirCRC(crc){
+  var s = norm(crc);
+  return {
+    raw:s, ubigeo:s.substr(0,6), sector:s.substr(6,2), manzana:s.substr(8,3),
+    lote:s.substr(11,3), edifica:s.substr(14,2), entrada:s.substr(16,2),
+    piso:s.substr(18,2), unidad:s.substr(20,3), ref:s.substr(23,1), base:s.substr(0,23),
+    edif:s.substr(0,16)
+  };
+}
+/* Registro a nivel de lote: entrada 99 · piso 99 · unidad 999 */
+function esNivelLote(p){ return p.entrada==="99" && p.piso==="99" && p.unidad==="999"; }
+
+/* Huella del contenido (FNV-1a 32 bits). Dos archivos con la misma
+   huella son el mismo reporte aunque se llamen distinto. */
+function huella(aoa){
+  var h = 0x811c9dc5;
+  for(var i=0;i<aoa.length;i++){
+    var s = aoa[i].join("\u0001")+"\u0002";
+    for(var j=0;j<s.length;j++){ h ^= s.charCodeAt(j); h = Math.imul(h,0x01000193)>>>0; }
+  }
+  return ("0000000"+h.toString(16)).slice(-8)+"-"+aoa.length;
+}
+
+/* ---- 2 · Estado ------------------------------------------- */
+var FILES = {};   // slotId -> [{name,size,ok,msg,rows,huella,sectores,backups,nombreSector}]
+var DATA  = [];   // registros validados (de la tarjeta BASE)
+var VISTA = [];   // recorte visible según filtros
+var OFF   = {};   // reglas apagadas a mano: {R5:true}
+SLOTS.forEach(function(s){ FILES[s.id]=[]; });
+var BASE = SLOTS[0];
+
+function slotPorId(id){ for(var i=0;i<SLOTS.length;i++) if(SLOTS[i].id===id) return SLOTS[i]; return null; }
+function hayCruce(id){ return (FILES[id]||[]).some(function(f){ return f.ok; }); }
+function reglaDisponible(R){ return !R.requiere || hayCruce(R.requiere); }
+function reglaPorCodigo(c){ for(var i=0;i<REGLAS.length;i++) if(REGLAS[i].c===c) return REGLAS[i]; return null; }
+
+/* ---- 3 · Lectura ------------------------------------------ */
+function leerArchivo(file, slot){
+  return new Promise(function(resolve){
+    var fr = new FileReader();
+    var base = {name:file.name,size:file.size,ok:false,rows:[],msg:""};
+    fr.onload = function(e){
+      try{
+        var wb = XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+        var sh = wb.Sheets["data"] || wb.Sheets[wb.SheetNames[0]];
+        var aoa = XLSX.utils.sheet_to_json(sh,{header:1,raw:false,defval:""});
+        if(!aoa.length){ base.msg="El archivo está vacío."; return resolve(base); }
+
+        var head = aoa[0].map(key);
+        var falta = function(s){ return s.REQ.filter(function(k){ return head.indexOf(s.HDR[k])<0; }); };
+        var faltan = falta(slot);
+        if(faltan.length){
+          /* ¿Es un reporte de otra tarjeta? Se dice cuál, no solo qué falta. */
+          var otro = SLOTS.filter(function(s){ return s.id!==slot.id && !falta(s).length; })[0];
+          base.msg = otro ? ("Es un reporte de "+otro.titulo+" — cárgalo en su tarjeta.")
+                          : ("No corresponde al reporte esperado — faltan columnas: "+faltan.map(function(k){return slot.HDR[k];}).join(", "));
+          return resolve(base);
+        }
+
+        var idx = {};
+        Object.keys(slot.HDR).forEach(function(k){ idx[k] = head.indexOf(slot.HDR[k]); });
+        var sin = {};
+        Object.keys(idx).forEach(function(k){ if(idx[k]<0) sin[k]=true; });
+
+        var rows=[], sectores={}, backups={};
+        for(var i=1;i<aoa.length;i++){
+          var r = aoa[i];
+          var crc = norm(r[idx.crc]);
+          if(!crc) continue;
+          var o = {archivo:file.name, fila:i+1, __sin:sin};
+          Object.keys(slot.HDR).forEach(function(k){ o[k] = idx[k]>=0 ? norm(r[idx[k]]) : ""; });
+          rows.push(o);
+          var sec = crc.substr(0,8); sectores[sec]=(sectores[sec]||0)+1;
+          if(o.backup) backups[o.backup]=true;
+        }
+        var m = file.name.match(/(\d{8})/);
+        base.ok=true; base.rows=rows; base.huella=huella(aoa.slice(1));
+        base.sectores=sectores; base.backups=Object.keys(backups).sort();
+        base.nombreSector = m ? m[1] : "";
+        base.msg = fmt(rows.length)+" registros · sector "+Object.keys(sectores).map(fmtSector).join(", ");
+        resolve(base);
+      }catch(err){ base.msg="No se pudo leer el archivo: "+err.message; resolve(base); }
+    };
+    fr.onerror=function(){ base.msg="Error de lectura."; resolve(base); };
+    fr.readAsArrayBuffer(file);
+  });
+}
+function fmtSector(s){ return s.substr(0,6)+"-"+s.substr(6,2); }
+
+function cargar(files, slot){
+  var lista = Array.prototype.slice.call(files).filter(function(f){ return /\.xlsx?$/i.test(f.name); });
+  if(!lista.length) return;
+  Promise.all(lista.map(function(f){ return leerArchivo(f,slot); })).then(function(res){
+    res.forEach(function(r){
+      /* Mismo contenido que otro archivo ya cargado (en cualquier tarjeta) → no entra */
+      if(r.ok){
+        var gemelo = null;
+        SLOTS.forEach(function(s){ FILES[s.id].forEach(function(f){ if(f.ok && f.huella===r.huella) gemelo=f; }); });
+        if(gemelo){ r.ok=false; r.rows=[]; r.msg="Idéntico a "+gemelo.name+" (mismo contenido) — no se carga dos veces."; }
+      }
+      /* Mismo nombre y mismo tamaño que un rechazo previo: no se repite el chip */
+      var ya = FILES[slot.id].some(function(f){ return f.name===r.name && f.size===r.size && f.msg===r.msg; });
+      if(!ya) FILES[slot.id].push(r);
+    });
+    DATA=[]; VISTA=[];
+    sincronizar();
+  });
+}
+
+/* ---- 4 · Avisos de carga (por contenido, nunca solo por nombre) ---- */
+function avisosCarga(){
+  var avisos = [];
+  SLOTS.forEach(function(s){
+    var ok = FILES[s.id].filter(function(f){ return f.ok; });
+    /* Mismo sector en dos archivos del MISMO tipo de reporte */
+    var porSector = {};
+    ok.forEach(function(f){ Object.keys(f.sectores).forEach(function(sec){ (porSector[sec]=porSector[sec]||[]).push(f); }); });
+    Object.keys(porSector).forEach(function(sec){
+      var fs = porSector[sec];
+      if(fs.length<2) return;
+      var ult = fs.map(function(f){ return f.backups[f.backups.length-1]||""; });
+      var max = ult.slice().sort().pop();
+      avisos.push("<b>Sector "+fmtSector(sec)+" repetido en "+s.titulo+":</b> viene en "+fs.length+" archivos — "+
+        fs.map(function(f,i){ return esc(f.name)+" (backup "+esc(ult[i]||"s/d")+(ult[i]===max&&max?", <b>más reciente</b>":"")+")"; }).join(" · ")+
+        ". Quita el que sobra para no duplicar registros.");
+    });
+    /* Nombre que no coincide con el contenido */
+    ok.forEach(function(f){
+      if(f.nombreSector && !f.sectores[f.nombreSector]){
+        avisos.push("<b>Nombre engañoso:</b> "+esc(f.name)+" indica el sector "+fmtSector(f.nombreSector)+
+          ", pero su contenido es del "+Object.keys(f.sectores).map(fmtSector).join(", ")+".");
+      }
+    });
+  });
+  /* Ubigeo mezclado en la base */
+  var ubis = {};
+  FILES[BASE.id].forEach(function(f){ if(f.ok) Object.keys(f.sectores).forEach(function(sec){ ubis[sec.substr(0,6)]=true; }); });
+  if(Object.keys(ubis).length>1){
+    avisos.push("<b>Ubigeo mezclado:</b> los archivos contienen "+Object.keys(ubis).length+" distritos ("+Object.keys(ubis).join(", ")+"). Verifica que pertenezcan al mismo polígono.");
+  }
+  /* Cobertura de cada tarjeta de cruce sobre los sectores de la base */
+  var secBase = {};
+  FILES[BASE.id].forEach(function(f){ if(f.ok) Object.keys(f.sectores).forEach(function(sec){ secBase[sec]=true; }); });
+  SLOTS.slice(1).forEach(function(s){
+    var dep = REGLAS.filter(function(R){ return R.requiere===s.id; }).map(function(R){ return R.c; });
+    if(!hayCruce(s.id)){
+      if(dep.length && Object.keys(secBase).length) avisos.push("<b>Sin "+s.titulo+":</b> las reglas "+dep.join(", ")+" no se evalúan. Carga el reporte en su tarjeta para activarlas.");
+      return;
+    }
+    var secC = {};
+    FILES[s.id].forEach(function(f){ if(f.ok) Object.keys(f.sectores).forEach(function(sec){ secC[sec]=true; }); });
+    var sinC = Object.keys(secBase).filter(function(sec){ return !secC[sec]; });
+    if(sinC.length) avisos.push("<b>"+s.titulo+" incompleto:</b> no cubre el sector "+sinC.map(fmtSector).join(", ")+"; ahí "+dep.join(", ")+" no se evalúan.");
+  });
+  return avisos;
+}
+
+/* ---- 5 · Validación y motor de estado --------------------- */
+function ejecutar(){
+  var base = [];
+  FILES[BASE.id].forEach(function(f){ if(f.ok) base = base.concat(f.rows); });
+  if(!base.length) return;
+  var cruces = {};
+  SLOTS.slice(1).forEach(function(s){
+    cruces[s.id] = [];
+    FILES[s.id].forEach(function(f){ if(f.ok) cruces[s.id] = cruces[s.id].concat(f.rows); });
+  });
+  var ctx = prepararContexto(cruces, base);
+
+  var largoMal = 0;
+  DATA = base.map(function(r){
+    var p = partirCRC(r.crc);
+    if(p.raw.length!==24) largoMal++;
+    var d = r; d.p = p; d.nivelLote = esNivelLote(p);
+    d.hits = validar(r, ctx).filter(function(h){ return reglaDisponible(reglaPorCodigo(h.c)); });
+    return d;
+  });
+  recalcular();
+
+  var avisos = avisosCarga();
+  if(largoMal) avisos.push("<b>CRC de longitud distinta de 24:</b> "+fmt(largoMal)+" registros. Código truncado o mal exportado.");
+  var nb = $("loadNotice");
+  if(avisos.length){ nb.innerHTML = avisos.join("<br>"); nb.classList.remove("hidden"); }
+  else { nb.innerHTML=""; nb.classList.add("hidden"); }
+
+  pintarUniverso();
+  poblarSelectores();
+  ["resultSection","filterSection","tableSection"].forEach(function(id){ $(id).classList.remove("hidden"); });
+  aplicarFiltros();
+  $("resultSection").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+/* Una regla apagada no cuenta en estado, observaciones, pintado ni exportación */
+function recalcular(){
+  DATA.forEach(function(d){
+    var act = d.hits.filter(function(h){ return !OFF[h.c]; });
+    var sevs = act.map(function(h){ return reglaPorCodigo(h.c).sev; });
+    d.estado = sevs.indexOf("ERROR")>=0 ? "ERROR" : (sevs.indexOf("ADVERTENCIA")>=0 ? "ADVERTENCIA" : "CONFORME");
+    d.reglas = []; act.forEach(function(h){ if(d.reglas.indexOf(h.c)<0) d.reglas.push(h.c); });
+    d.texto  = act.map(function(h){ return h.txt; }).join(" ");
+    d.marcados = {}; act.forEach(function(h){ (h.marcas||[]).forEach(function(k){ d.marcados[k]=true; }); });
+  });
+}
+
+/* ---- 6 · Universo: métricas y chips de regla -------------- */
+function pintarUniverso(){
+  var e=0,w=0,o=0,l=0,pred={};
+  DATA.forEach(function(d){
+    if(d.estado==="ERROR") e++; else if(d.estado==="ADVERTENCIA") w++; else o++;
+    if(d.nivelLote) l++; pred[d.p.base]=true;
+  });
+  $("stTotal").textContent=fmt(DATA.length); $("stOk").textContent=fmt(o);
+  $("stErr").textContent=fmt(e); $("stWarn").textContent=fmt(w);
+  $("stLote").textContent=fmt(l); $("stPred").textContent=fmt(Object.keys(pred).length);
+
+  var box = $("ruleChips"); box.innerHTML="";
+  REGLAS.forEach(function(R){
+    var n = DATA.filter(function(d){ return d.hits.some(function(h){ return h.c===R.c; }); }).length;
+    var disp = reglaDisponible(R);
+    var b = document.createElement("button");
+    b.type="button";
+    b.className = "rchip "+(R.sev==="ERROR"?"err":"adv")+(OFF[R.c]?" off":"")+(disp?"":" na");
+    b.title = R.n+(disp?(OFF[R.c]?" — apagada (clic para encender)":" — clic para apagar"):" — requiere "+slotPorId(R.requiere).titulo);
+    b.innerHTML = esc(R.c)+" <b>"+(disp?fmt(n):"s/c")+"</b>";
+    if(disp) b.addEventListener("click",function(){
+      if(OFF[R.c]) delete OFF[R.c]; else OFF[R.c]=true;
+      recalcular(); pintarUniverso(); poblarSelectores(); aplicarFiltros();
+    });
+    box.appendChild(b);
+  });
+  var h = document.createElement("div");
+  h.className="rhint";
+  h.textContent="Clic en una regla para apagarla o encenderla: una regla apagada no cuenta en el estado, las observaciones, el pintado ni la exportación. Pasa el cursor para ver su nombre.";
+  box.appendChild(h);
+}
+
+function poblarSelectores(){
+  var sr = $("fRegla"), cur = sr.value;
+  sr.innerHTML = "<option value=\"\">Todas</option>";
+  REGLAS.forEach(function(R){
+    var n = DATA.filter(function(d){ return d.reglas.indexOf(R.c)>=0; }).length;
+    var op = document.createElement("option");
+    op.value=R.c; op.textContent=R.c+" · "+R.n+" ("+fmt(n)+")"+(OFF[R.c]?" — apagada":"");
+    sr.appendChild(op);
+  });
+  sr.value = cur;
+  var sa = $("fArchivo"), ca = sa.value;
+  sa.innerHTML = "<option value=\"\">Todos</option>";
+  FILES[BASE.id].forEach(function(f){ if(f.ok){ var op=document.createElement("option"); op.value=f.name; op.textContent=f.name; sa.appendChild(op); } });
+  sa.value = ca;
+}
+
+/* ---- 7 · Filtro por lista pegada -------------------------- */
+function listaCRC(){
+  var raw = $("fCrc").value || "";
+  var parts = raw.split(/[\s,;]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+  var set = {}, n = 0;
+  parts.forEach(function(p){
+    var b = p.replace(/\D/g,"");
+    if(b.length>=23) b = b.substr(0,23);
+    if(b && !set[b]){ set[b]=true; n++; }
+  });
+  return {set:set, n:n, any:n>0};
+}
+
+/* ---- 8 · Filtro por ubicación ----------------------------- */
+function pad(v,n){ v=String(v||"").replace(/\D/g,""); return v?v.padStart(n,"0"):""; }
+function leerFiltros(){
+  return {
+    sector:pad($("fSector").value,2), mz:pad($("fMz").value,3), lote:pad($("fLote").value,3),
+    edif:pad($("fEdif").value,2), entr:pad($("fEntr").value,2), piso:pad($("fPiso").value,2),
+    unid:pad($("fUnid").value,3),
+    estado:$("fEstado").value, regla:$("fRegla").value, archivo:$("fArchivo").value
+  };
+}
+function coincide(d,f,crcL){
+  if(f.sector && d.p.sector!==f.sector) return false;
+  if(f.mz     && d.p.manzana!==f.mz)    return false;
+  if(f.lote   && d.p.lote!==f.lote)     return false;
+  if(f.edif   && d.p.edifica!==f.edif)  return false;
+  if(f.entr   && d.p.entrada!==f.entr)  return false;
+  if(f.piso   && d.p.piso!==f.piso)     return false;
+  if(f.unid   && d.p.unidad!==f.unid)   return false;
+  if(f.archivo && d.archivo!==f.archivo) return false;
+  if(f.regla  && d.reglas.indexOf(f.regla)<0) return false;
+  if(f.estado==="OBS" && d.estado==="CONFORME") return false;
+  if(f.estado && f.estado!=="OBS" && d.estado!==f.estado) return false;
+  if(crcL.any && !crcL.set[d.p.base]) return false;
+  return true;
+}
+
+/* ---- 9 · Aplicación: dos niveles de conteo ---------------- */
+function aplicarFiltros(){
+  var f = leerFiltros(), crcL = listaCRC();
+  VISTA = DATA.filter(function(d){ return coincide(d,f,crcL); });
+  if(crcL.any){
+    var existentes = {};
+    DATA.forEach(function(d){ existentes[d.p.base]=true; });
+    var falt = Object.keys(crcL.set).filter(function(b){ return !existentes[b]; });
+    $("crcMeta").innerHTML = crcL.n+" CRC en la lista · "+(crcL.n-falt.length)+" encontrados"+
+      (falt.length?" · <b>"+falt.length+" no están en los archivos cargados</b>":"");
+  }else{
+    $("crcMeta").textContent = "Sin lista. La comparación ignora el último dígito de referencia.";
+  }
+  var e=0,w=0,o=0;
+  VISTA.forEach(function(d){ if(d.estado==="ERROR") e++; else if(d.estado==="ADVERTENCIA") w++; else o++; });
+  var off = Object.keys(OFF);
+  $("selLine").innerHTML = "Selección: <b>"+fmt(VISTA.length)+"</b> de "+fmt(DATA.length)+" registros · "+
+    "<span class=\"r\">"+fmt(e)+" con error</span> · "+fmt(w)+" con advertencia · "+fmt(o)+" conformes"+
+    (off.length?" · <span class=\"r\">reglas apagadas: "+off.join(", ")+"</span>":"");
+  pintarTabla();
+}
+
+/* ---- 10 · Tabla en pantalla (límite 3,000 filas) ---------- */
+var LIMITE = 3000;
+function pintarTabla(){
+  var t = $("resTable");
+  var h = "<tr><th>#</th><th class=\"crc-h\">CRC</th><th class=\"crc-h\">Sec</th><th class=\"crc-h\">Mz</th><th class=\"crc-h\">Lt</th><th class=\"crc-h\">Ed</th><th class=\"crc-h\">En</th><th class=\"crc-h\">Pi</th><th class=\"crc-h\">Un</th>";
+  TABLA.forEach(function(c){ h+="<th>"+esc(c.t)+"</th>"; });
+  h += "<th>Estado</th><th>Reglas</th><th>Observaciones</th><th>Archivo</th></tr>";
+  t.tHead.innerHTML = h;
+  var rows = VISTA.slice(0,LIMITE), out = [];
+  rows.forEach(function(d,i){
+    var s = "<tr class=\"st-"+d.estado+"\"><td class=\"col-num\">"+(i+1)+"</td><td class=\"crc\">"+esc(d.crc)+"</td>";
+    ["sector","manzana","lote","edifica","entrada","piso","unidad"].forEach(function(k){ s+="<td class=\"crc\">"+esc(d.p[k])+"</td>"; });
+    TABLA.forEach(function(c){
+      var v = d[c.k]; var mk = d.marcados[c.k];
+      if(mk && !String(v||"").trim()) v = "(VACÍO)";
+      s += "<td class=\""+(c.cls||"")+(mk?" mk":"")+"\""+(c.cls==="desc"?" title=\""+esc(v)+"\"":"")+">"+esc(v)+"</td>";
+    });
+    s += "<td class=\"est\">"+d.estado+"</td><td class=\"mono\">"+esc(d.reglas.join(" "))+"</td><td class=\"obs-t\">"+esc(d.texto)+"</td><td class=\"col-num\">"+esc(d.archivo)+"</td></tr>";
+    out.push(s);
+  });
+  t.tBodies[0].innerHTML = out.join("");
+  $("emptyBox").classList.toggle("hidden", VISTA.length>0);
+  $("tableNote").textContent = VISTA.length>LIMITE
+    ? "Mostrando "+fmt(LIMITE)+" de "+fmt(VISTA.length)+" — la exportación incluye todo"
+    : fmt(VISTA.length)+" registros";
+}
+
+/* ---- 11 · Tarjetas de carga ------------------------------- */
+var ICONOS = {
+  tabla:"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"1\"/><line x1=\"8\" y1=\"9\" x2=\"16\" y2=\"9\"/><line x1=\"8\" y1=\"13\" x2=\"16\" y2=\"13\"/><line x1=\"8\" y1=\"17\" x2=\"13\" y2=\"17\"/></svg>",
+  grilla:"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"1\"/><line x1=\"4\" y1=\"10\" x2=\"20\" y2=\"10\"/><line x1=\"4\" y1=\"15\" x2=\"20\" y2=\"15\"/><line x1=\"10\" y1=\"4\" x2=\"10\" y2=\"20\"/><line x1=\"15\" y1=\"4\" x2=\"15\" y2=\"20\"/></svg>"
+};
+function construirTarjetas(){
+  var box = $("slots"); box.innerHTML="";
+  SLOTS.forEach(function(s){
+    var c = document.createElement("div");
+    c.className="intake card"; c.id="slot_"+s.id; c.tabIndex=0;
+    c.innerHTML =
+      "<div class=\"empty-v\"><div class=\"slot\">"+(ICONOS[s.icono]||ICONOS.tabla)+"</div>"+
+      "<h3>"+esc(s.titulo)+"</h3><p>"+esc(s.sub)+"</p>"+
+      "<span class=\"badge\">"+(s.obligatorio?"Obligatorio":"Para el cruce")+"</span></div>"+
+      "<div class=\"loaded-v hidden\"><div class=\"lhead\"><span class=\"lt\">"+esc(s.titulo)+"</span>"+
+      "<span class=\"badge\">"+(s.obligatorio?"Obligatorio":"Para el cruce")+"</span></div>"+
+      "<div class=\"filelist\"></div><div class=\"addmore\">"+
+      "<button class=\"reset add\" type=\"button\">Agregar archivo</button>"+
+      "<button class=\"reset clr\" type=\"button\">Quitar</button></div></div>"+
+      "<input type=\"file\" accept=\".xlsx,.xls\" multiple class=\"hidden\">";
+    var inp = c.querySelector("input");
+    c.addEventListener("click",function(){ if(!FILES[s.id].length) inp.click(); });
+    c.addEventListener("keydown",function(e){ if((e.key==="Enter"||e.key===" ")&&!FILES[s.id].length){ e.preventDefault(); inp.click(); } });
+    c.addEventListener("dragover",function(e){ e.preventDefault(); c.classList.add("drag"); });
+    c.addEventListener("dragleave",function(){ c.classList.remove("drag"); });
+    c.addEventListener("drop",function(e){ e.preventDefault(); c.classList.remove("drag"); cargar(e.dataTransfer.files,s); });
+    inp.addEventListener("change",function(e){ cargar(e.target.files,s); inp.value=""; });
+    c.querySelector(".add").addEventListener("click",function(e){ e.stopPropagation(); inp.click(); });
+    c.querySelector(".clr").addEventListener("click",function(e){ e.stopPropagation(); FILES[s.id]=[]; DATA=[]; VISTA=[]; sincronizar(); });
+    box.appendChild(c);
+  });
+}
+
+function pintarArchivos(s){
+  var c = $("slot_"+s.id), list = c.querySelector(".filelist"); list.innerHTML="";
+  FILES[s.id].forEach(function(f,i){
+    var d = document.createElement("div");
+    d.className = "filechip";
+    d.innerHTML = "<div class=\"ic"+(f.ok?"":" bad")+"\"></div>"+
+      "<div class=\"meta\"><div class=\"nm\">"+esc(f.name)+"</div>"+
+      "<div class=\"sub"+(f.ok?"":" bad")+"\">"+esc(f.msg)+"</div></div>"+
+      "<button class=\"reset\" type=\"button\">Quitar</button>";
+    d.querySelector("button").addEventListener("click",function(ev){
+      ev.stopPropagation(); FILES[s.id].splice(i,1); DATA=[]; VISTA=[]; sincronizar();
+    });
+    list.appendChild(d);
+  });
+}
+
+function sincronizar(){
+  SLOTS.forEach(function(s){
+    var c = $("slot_"+s.id), hay = FILES[s.id].length>0;
+    c.querySelector(".empty-v").classList.toggle("hidden",hay);
+    c.querySelector(".loaded-v").classList.toggle("hidden",!hay);
+    c.classList.toggle("loaded",hay);
+    pintarArchivos(s);
+  });
+  $("runBtn").disabled = !hayCruce(BASE.id);
+  ["resultSection","filterSection","tableSection"].forEach(function(id){ $(id).classList.add("hidden"); });
+  var avisos = avisosCarga(), nb = $("loadNotice");
+  if(avisos.length){ nb.innerHTML = avisos.join("<br>"); nb.classList.remove("hidden"); }
+  else { nb.innerHTML=""; nb.classList.add("hidden"); }
+}
+
+construirTarjetas();
+sincronizar();
+$("runBtn").addEventListener("click",ejecutar);
+$("resetBtn").addEventListener("click",function(){ SLOTS.forEach(function(s){ FILES[s.id]=[]; }); OFF={}; DATA=[]; VISTA=[]; sincronizar(); });
+
+["fSector","fMz","fLote","fEdif","fEntr","fPiso","fUnid","fCrc"].forEach(function(id){
+  $(id).addEventListener("input",function(){ if(DATA.length) aplicarFiltros(); });
+});
+["fEstado","fRegla","fArchivo"].forEach(function(id){
+  $(id).addEventListener("change",function(){ if(DATA.length) aplicarFiltros(); });
+});
+$("clearBtn").addEventListener("click",function(){
+  ["fSector","fMz","fLote","fEdif","fEntr","fPiso","fUnid","fCrc"].forEach(function(id){ $(id).value=""; });
+  $("fEstado").value=""; $("fRegla").value=""; $("fArchivo").value="";
+  if(DATA.length) aplicarFiltros();
+});
+
+/* ============================================================
+   VALIDA CATASTRAL · Módulo de exportación estándar
+   ValidaCatastral ©diegocampos — Todos los derechos reservados.
+   ------------------------------------------------------------
+   Copiar tal cual dentro del IIFE del validador.
+   Lo único que se ajusta por validador:
+     · NOMBRE_MODULO  — se usa en el nombre del archivo descargado
+     · CAMPOS         — el bloque variable de columnas
+   La hoja del Excel se llama igual que NOMBRE_MODULO.
+   El resto no se toca.
+   ============================================================ */
+
+/* ---- 1 · Configuración por validador ---------------------- */
+var NOMBRE_MODULO = "VAL_OBRAS_COMPLEN";
+
+/* Bloque variable: una entrada por campo evaluado.
+   k   = clave del objeto de resultado
+   t   = encabezado que sale en el Excel
+   w   = ancho de columna
+   txt = true si debe forzarse a texto (códigos, números con ceros)
+   num = true si debe salir como NÚMERO, igual que en el reporte SICUN
+         (Producto Total, Área, Código de obra). Se exporta el valor tal
+         cual viene, sin redondear; si no es numérico, sale como texto. */
+var CAMPOS = [
+  {k:"cod",   t:"Código",                w:8,  num:true},
+  {k:"desc",  t:"Descripción",           w:48},
+  {k:"fecha", t:"Fecha de Construcción", w:14, txt:true},
+  {k:"mep",   t:"MEP",                   w:7,  txt:true},
+  {k:"ecs",   t:"ECS",                   w:7,  txt:true},
+  {k:"ecc",   t:"ECC",                   w:7,  txt:true},
+  {k:"pt",    t:"Producto Total",        w:11, num:true},
+  {k:"um",    t:"Unidad de Medida",      w:10},
+  {k:"uca",   t:"UCA",                   w:24}
+];
+
+/* ---- 2 · Contrato de columnas (NO modificar) -------------- */
+var CRC_COLS = [
+  {k:"crc",     t:"CRC",      w:26},
+  {k:"sector",  t:"Sector",   w:8},
+  {k:"manzana", t:"Manzana",  w:9},
+  {k:"lote",    t:"Lote",     w:8},
+  {k:"edifica", t:"Edifica",  w:8},
+  {k:"entrada", t:"Entrada",  w:8},
+  {k:"piso",    t:"Piso",     w:8},
+  {k:"unidad",  t:"Unidad",   w:8}
+];
+var CIERRE_COLS = [
+  {k:"nivel",  t:"Nivel",         w:9},
+  {k:"estado", t:"Estado",        w:14},
+  {k:"reglas", t:"Reglas",        w:12},
+  {k:"texto",  t:"Observaciones", w:70}
+];
+
+var EXP_HEAD = CRC_COLS.concat(CAMPOS).concat(CIERRE_COLS).map(function(c){ return c.t; });
+
+/* Índice 1-based de cada campo marcable, para pintar la celda observada.
+   Se calcula solo: no hay que mantenerlo a mano al agregar campos. */
+var COL_IDX = (function(){
+  var m = {crc:1}, off = CRC_COLS.length;
+  CAMPOS.forEach(function(c,i){ m[c.k] = off + i + 1; });
+  return m;
+})();
+var COL_ESTADO = CRC_COLS.length + CAMPOS.length + 2;
+var COL_OBS    = CRC_COLS.length + CAMPOS.length + 4;
+
+/* Columnas que se fuerzan a texto: CRC, su desagregado y las marcadas txt */
+var COLS_TEXTO = (function(){
+  var a = [];
+  for(var i=1;i<=CRC_COLS.length;i++) a.push(i);
+  CAMPOS.forEach(function(c,i){ if(c.txt) a.push(CRC_COLS.length+i+1); });
+  return a;
+})();
+
+function aNumero(v){
+  var s = String(v===undefined||v===null?"":v).trim().replace(",",".");
+  if(s==="" || !/^-?\d+(\.\d+)?$/.test(s)) return v;
+  return Number(s);
+}
+function filaExport(d){
+  var out = [d.crc, d.p.sector, d.p.manzana, d.p.lote, d.p.edifica, d.p.entrada, d.p.piso, d.p.unidad];
+  CAMPOS.forEach(function(c){ out.push(c.num ? aNumero(d[c.k]) : d[c.k]); });
+  out.push(d.nivelLote?"LOTE":"UNIDAD", d.estado, d.reglas.join(" "), d.texto);
+  return out;
+}
+
+function nombreArchivo(pref){
+  var d=new Date(), p=function(n){return String(n).padStart(2,"0");};
+  return NOMBRE_MODULO+"_"+pref+"_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes())+".xlsx";
+}
+
+/* ---- 3 · Exportación con formato (ExcelJS) ---------------- */
+function exportar(set,pref){
+  if(!set.length){ mostrarExpError("No hay registros que exportar con la selección actual."); return; }
+  if(typeof ExcelJS!=="undefined"){
+    exportarExcelJS(set,pref).catch(function(err){
+      mostrarExpError("No se pudo generar el Excel con formato ("+err.message+"). Se descarga la versión sin color.");
+      exportarSheetJS(set,pref);
+    });
+  }else{
+    exportarSheetJS(set,pref);
+  }
+}
+
+function exportarExcelJS(set,pref){
+  var wb = new ExcelJS.Workbook();
+  wb.creator = "ValidaCatastral \u00A9diegocampos";
+  var ws = wb.addWorksheet(NOMBRE_MODULO,{views:[{state:"frozen",ySplit:1}]});
+  ws.addRow(EXP_HEAD);
+  var hr = ws.getRow(1);
+  hr.font = {bold:true,color:{argb:"FFFFFFFF"},size:10};
+  hr.fill = {type:"pattern",pattern:"solid",fgColor:{argb:"FF1F3A4D"}};
+  hr.alignment = {vertical:"middle",horizontal:"center",wrapText:true};
+  hr.height = 30;
+
+  set.forEach(function(d){
+    var row = ws.addRow(filaExport(d));
+    COLS_TEXTO.forEach(function(c){ row.getCell(c).numFmt="@"; row.getCell(c).alignment={horizontal:"left"}; });
+    if(d.estado==="ERROR")            row.getCell(COL_ESTADO).font={bold:true,color:{argb:"FFB00020"}};
+    else if(d.estado==="ADVERTENCIA") row.getCell(COL_ESTADO).font={bold:true,color:{argb:"FF8A6100"}};
+    else                              row.getCell(COL_ESTADO).font={color:{argb:"FF0F6E56"}};
+    Object.keys(d.marcados).forEach(function(k){
+      var ci = COL_IDX[k];
+      if(!ci) return;
+      var cell = row.getCell(ci);
+      cell.fill = {type:"pattern",pattern:"solid",fgColor:{argb:"FFFDE0E0"}};
+      cell.font = {bold:true,color:{argb:"FFB00020"}};
+      if(!String(d[k]||"").trim() && k!=="crc"){ cell.value = "(VAC\u00CDO)"; }
+    });
+    row.getCell(COL_OBS).alignment={wrapText:true,vertical:"top"};
+  });
+
+  CRC_COLS.concat(CAMPOS).concat(CIERRE_COLS).forEach(function(c,i){ ws.getColumn(i+1).width=c.w; });
+  ws.autoFilter = {from:{row:1,column:1},to:{row:1,column:EXP_HEAD.length}};
+
+  return wb.xlsx.writeBuffer().then(function(buf){
+    descargar(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), nombreArchivo(pref));
+  });
+}
+
+/* ---- 4 · Respaldo sin formato (SheetJS) ------------------- */
+function exportarSheetJS(set,pref){
+  var aoa = [EXP_HEAD].concat(set.map(function(d){ return filaExport(d); }));
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,NOMBRE_MODULO);
+  XLSX.writeFile(wb,nombreArchivo(pref));
+}
+
+function descargar(blob,name){
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1500);
+}
+
+function mostrarExpError(m){
+  var b=document.getElementById("expError");
+  if(!b){ alert(m); return; }
+  b.textContent=m; b.classList.remove("hidden");
+}
+
+/* ---- 5 · Enganche de botones ------------------------------ */
+/* Las reglas apagadas ya vienen descontadas en estado, reglas, texto
+   y marcados (ver modulo-carga-filtros.js · recalcular). */
+document.getElementById("expSelBtn").addEventListener("click",function(){ exportar(VISTA,"SELECCION"); });
+document.getElementById("expAllBtn").addEventListener("click",function(){ exportar(DATA,"TOTAL"); });
+
+})();
+</script>
+</body>
+</html>
