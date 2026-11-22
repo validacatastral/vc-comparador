@@ -30,7 +30,6 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 | VAL_USO_CIIU | R3A | El uso exige CIIU y ninguna línea de la unidad lo tiene | Parcial | Se decide por presencia, piso o exención general sin validar la línea contra el catálogo. | uso exige CIIU y ninguna línea lo tiene | declarar el CIIU que corresponde al uso |
 | VAL_USO_CIIU | R3B | Línea sin CIIU; otras líneas de la unidad sí lo tienen | No | Sin evaluación de esta regla. | línea sin CIIU, otras líneas sí tienen | declarar el CIIU o sustentar en Observaciones |
 | VAL_USO_CIIU | R3C | Línea sin CIIU en obra no terminada (ECC) | Parcial | Se decide por presencia, piso o exención general sin validar la línea contra el catálogo. | línea sin CIIU en obra no terminada | sin CIIU (sustentar ECC) o corregir el ECC |
-| VAL_USO_CIIU | R3D | Línea con CIIU en obra no terminada (ECC) | No | Sin evaluación de esta regla. | línea con CIIU en obra no terminada | sin CIIU (sustentar ECC) o corregir el ECC |
 | VAL_USO_CIIU | R4A | CIIU no corresponde al uso (unidad de una línea) | No | Sin evaluación de esta regla. | CIIU no corresponde al uso | corregir el CIIU o cambiar el uso |
 | VAL_USO_CIIU | R4B | CIIU no corresponde al uso (unidad de varias líneas) | No | Sin evaluación de esta regla. | CIIU no corresponde al uso | corregir el CIIU o cambiar el uso |
 | VAL_USO_CIIU | R5 | CRC no encontrado en Unidades | No | Sin evaluación de esta regla. | CRC no está en Unidades Administrativas | registrar el CRC en Unidades Administrativas |
@@ -43,6 +42,12 @@ Auditoría inicial sobre main (6ba3208). La columna de cobertura describe el com
 | VAL_USO_CIIU | R10 | CIIU inexistente en la Rev. 4 | No | Sin evaluación de esta regla. | CIIU no existe en Rev. 4 | usar un CIIU vigente del catálogo |
 
 En USO, R3A, R4A, R4B, R8B y R10 muestran «debería ser: <CIIU> <descripción>» (hasta 3 CIIU del catálogo uso → CIIU, el resto «(ver catálogo)») en vez de «Qué hacer» cuando el validador calcula el CIIU esperado; si no hay lista, va la acción de la tabla.
+
+### Excluidas por decisión de Diego
+
+| Regla | Qué revisa |
+|---|---|
+| R3D | Línea con CIIU en obra no terminada (ECC sin actividad). |
 
 ## VAL_COND_PREDIO_EN
 

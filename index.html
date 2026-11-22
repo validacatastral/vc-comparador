@@ -2432,7 +2432,7 @@ var TIT_REGLAS={R1:'forma de adquisición sin documento sustentatorio',R2:'bloqu
 var REGLAS_CORTAS={
   TIT:TIT_REGLAS,
   USO:{R1:'unidad sin Código de Uso',R2:'Código de Uso fuera del glosario',R3A:'uso exige CIIU y ninguna línea lo tiene',
-    R3B:'línea sin CIIU, otras líneas sí tienen',R3C:'línea sin CIIU en obra no terminada',R3D:'línea con CIIU en obra no terminada',
+    R3B:'línea sin CIIU, otras líneas sí tienen',R3C:'línea sin CIIU en obra no terminada',
     R4A:'CIIU no corresponde al uso',R4B:'CIIU no corresponde al uso',R5:'CRC no está en Unidades Administrativas',
     R6:'CRC con usos distintos en Unidades',R7:'comercial no identificado: local desocupado',R8A:'uso residual sin CIIU en ninguna línea',
     R8B:'uso residual con CIIU: revisar el uso',R8C:'uso residual: línea sin CIIU, otras sí',R9:'local desocupado pero la línea declara CIIU',
@@ -2464,7 +2464,7 @@ var REGLAS_ACCION={
     R13:'llenar la forma de adquisición'},
   USO:{R1:'registrar el Código de Uso',R2:'usar un Código de Uso del glosario',R3A:'declarar el CIIU que corresponde al uso',
     R3B:'declarar el CIIU o sustentar en Observaciones',R3C:'sin CIIU (sustentar ECC) o corregir el ECC',
-    R3D:'sin CIIU (sustentar ECC) o corregir el ECC',R4A:'corregir el CIIU o cambiar el uso',
+    R4A:'corregir el CIIU o cambiar el uso',
     R4B:'corregir el CIIU o cambiar el uso',R5:'registrar el CRC en Unidades Administrativas',
     R6:'dejar un solo uso por unidad',R7:'verificar y sustentar en Observaciones',
     R8A:'declarar el CIIU o cambiar el uso',R8B:'cambiar al uso específico del CIIU',
@@ -3471,7 +3471,9 @@ function c2usoCiiuEval(code,uso,lin,unidades,piso,msg){
   if(!filas.length||filas.some(function(r){return r.__sin.ciiu;}))return null;
   var faltaUso=filas.some(function(r){return r.__sin.uso;})&&unidades==null;
   var porFila=filas.map(function(r){return C2_USO.validar(r,ctx).map(function(h){return h.c;});});
-  var hits=[].concat.apply([],porFila);
+  // R3D está excluida por decisión de Diego, incluso si la cita una observación anterior.
+  msg=String(msg||'').replace(/\bR3D\b/gi,'');
+  var hits=[].concat.apply([],porFila).filter(function(c){return c!=='R3D';});
   // R10 se decide en Construcciones incluso cuando falta el reporte de Unidades.
   if(faltaUso){
     if(!hits.includes('R10')&&!/\bR10\b/.test(c2up(msg)))return null;
@@ -3481,7 +3483,7 @@ function c2usoCiiuEval(code,uso,lin,unidades,piso,msg){
   var pendientes=hits.filter(function(c){return c!=='R3C'&&c!=='R7';});
   var actual={codigodeactividadeconomicaciiu:filas[0].ciiu};
   if(filas[0].uso!==undefined)actual.codigodeuso=filas[0].uso;
-  var sinDatos=filas.every(function(r){return r.__sin.ecc;})?['R3C','R3D']:[];
+  var sinDatos=filas.every(function(r){return r.__sin.ecc;})?['R3C']:[];
   var res=c2resultado(pendientes,msg,null,actual,'uso y CIIU conformes',sinDatos);
   if(!res)return null;
   if(!pendientes.length&&hits.length)res.txt=Array.from(new Set(hits)).join(', ')+' (falso error)';
@@ -3619,7 +3621,7 @@ var C2_CAMPOS_REGLA=(function(){
   return {
     TIT:{R1:[FA,TD,TP,NP],R2:[TD,TP,NP],R2P:[CT,TD],R3A:[TP,NP],R3B:[TP,NP],R3C:[TP,NP],R3F:[TP,NP],R4:[CT,FA],R4H:[CT,TD],
       R6O:[CT,FA,TD,TP,NP],R5:[CT,FA],R5C:[CT,FA,TD],R13:[FA]},
-    USO:{R1:[US],R2:[US],R3A:[CI],R3B:[CI],R3C:[CI],R3D:[CI],R4A:[CI,US],R4B:[CI,US],R5:[US],R6:[US],R7:[US,CI],
+    USO:{R1:[US],R2:[US],R3A:[CI],R3B:[CI],R3C:[CI],R4A:[CI,US],R4B:[CI,US],R5:[US],R6:[US],R7:[US,CI],
       R8A:[US,CI],R8B:[US,CI],R8C:[US,CI],R9:[US,CI],R10:[CI]},
     COND:{R1:[CL,PC],R2:[CL,PC],R3:[CL,PC],R4:[PC],R5:[CL,PC],R6:[PC],R8:[CL],R9:[CL,TE],R10:[TE],R10C:[TE],R11:[CL,TE],R12:[CL,TE],R13:[TE]},
     OBR:{R1:['productototal','unidaddemedida'],R2:['unidaddemedida'],R3:['productototal'],R4:[],R5:['mep'],R6:[],R7P:[]},

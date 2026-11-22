@@ -35,7 +35,8 @@ const activos={
   CRC:codigos(cut('function c2crcFinal','var C2_FECHA=(function'),/push\('(R\d+[A-Z]?)'\)/g),
   FECHA:codigos(cut('function c2fechaPisoFinal','function c2estadoFinal'),/'(R\d+[A-Z]?)'/g)
 };
-const minimos={TIT:['R13','R4H','R6O','R5'],USO:['R3D','R4A','R4B','R10'],COND:['R13'],OBR:['R7P'],CRC:['R6A','R6B','R6C'],FECHA:['R1']};
+activos.USO.delete('R3D'); // excluida por decisión de Diego
+const minimos={TIT:['R13','R4H','R6O','R5'],USO:['R3C','R4A','R4B','R10'],COND:['R13'],OBR:['R7P'],CRC:['R6A','R6B','R6C'],FECHA:['R1']};
 for(const [g,set] of Object.entries(activos)){
   for(const c of minimos[g])assert(set.has(c),g+': no se detectó '+c+' en el código');
   for(const c of set)assert(RC[g]&&RC[g][c],g+' '+c+' sin texto corto');
