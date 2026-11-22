@@ -2408,10 +2408,11 @@ function c2filaDespues(board,code,rep){
 function c2up(v){return stripAccents(String(v||'')).toUpperCase().replace(/\s+/g,' ').trim();}
 var TIT_REGLAS={R1:'forma de adquisición sin documento sustentatorio',R2:'bloque registral incompleto',R2P:'POSEEDOR con escritura pública',
   R3A:'código de predio con formato inválido',R3B:'partida electrónica con formato inválido',R3C:'ficha con formato inválido',
-  R4:'sucesión intestada con forma distinta de OTROS',R4H:'sucesión intestada con declaratoria de herederos',R6O:'condición OTROS y forma OTROS no llevan documento ni partida',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
-  R13:'forma de adquisición vacía'};
+  R4:'sucesión intestada con forma distinta de OTROS',R5:'forma POSESIÓN sin condición POSEEDOR',R5C:'constancia de posesión fuera de contexto',
+  R3F:'ficha de ocho dígitos',E1:'longitud del CRC distinta de 24'};
 function c2titularReglas(f,code){
   var out=[];if(!f)return out;
+  if(String(code||'').length!==24)out.push('E1');
   if(c2up(f.clasificaciondelpredio).indexOf('PARQUE')>=0)return out;   /* PARQUE: exento */
   var k=String(code||''),lote=k.length===24&&k.substr(16,2)==='99'&&k.substr(18,2)==='99'&&k.substr(20,3)==='999';
   var ct=c2up(f.condiciondeltitular),fa=c2up(f.formadeadquisicion),td=c2up(f.tipodedocumento),tp=c2up(f.tipodepartidaregistral),np=String(f.numerodepartidaregistral||'').trim();
@@ -2423,31 +2424,32 @@ function c2titularReglas(f,code){
   if(hayNP){
     if(tp==='CODIGO DE PREDIO'&&!/^P\d{8}$/.test(np))out.push('R3A');
     if(tp==='PARTIDA ELECTRONICA'&&!/^\d{8}$/.test(np))out.push('R3B');
+    if(tp==='FICHA'&&/^\d{8}$/.test(np))out.push('R3F');
     if(tp==='FICHA'&&!/^\d{8}$/.test(np)&&!/^\d{5,7}(-\d{1,2})?$/.test(np))out.push('R3C');
   }
   if(!lote){
     if(ct==='SUCESION INTESTADA'&&fa!=='OTROS')out.push('R4');
-    if(ct==='SUCESION INTESTADA'&&td.indexOf('HEREDEROS')>=0)out.push('R4H');
-    if(ct==='OTROS'&&fa==='OTROS'&&(hayTD||hayTP||hayNP))out.push('R6O');
     if(fa==='POSESION'&&ct!=='POSEEDOR')out.push('R5');
     if(td.indexOf('CONSTANCIA')>=0&&(ct!=='POSEEDOR'||(fa!=='POSESION'&&fa!=='OTROS')))out.push('R5C');
-    if(!fa)out.push('R13');
   }
   return out;
 }
 /* Qué reglas corresponden a cada mensaje del validador de la UE. Mensaje no reconocido → todas. */
 function c2titularAplicables(msg){
   var m=c2up(msg),set=[];
-  if(/TIPO DE DOCUMENTO/.test(m))set=set.concat(['R2P','R5C','R1','R4H','R6O']);
-  if(/FORMA DE ADQUISICION/.test(m)&&/VACI/.test(m))set=set.concat(['R13']);
-  else if(/FORMA DE ADQUISICION/.test(m))set=set.concat(['R5','R4','R13']);
-  if(/PARTIDA/.test(m))set=set.concat(['R2','R3A','R3B','R3C']);
+  var codigos=m.match(/\b(?:R\d+[A-Z]?|E1)\b/g);if(codigos)return codigos;
+  if(/TIPO DE DOCUMENTO/.test(m))set=set.concat(['R2P','R5C','R1']);
+  if(/FORMA DE ADQUISICION/.test(m))set=set.concat(['R5','R4']);
+  if(/PARTIDA/.test(m))set=set.concat(['R2','R3A','R3B','R3C','R3F']);
   return set.length?set:Object.keys(TIT_REGLAS);
 }
 function c2titularFinal(board,code,msg){
-  var f=c2filaDespues(board,code,'UA');if(!f)return null;
-  var aplic=c2titularAplicables(msg),siguen=c2titularReglas(f,code).filter(function(r){return aplic.indexOf(r)>=0;});
-  var otras=c2titularReglas(f,code).filter(function(r){return aplic.indexOf(r)<0;});
+  var filas=c2filasDespues(board,'UA',code)||[];
+  if(!filas.length)return null;
+  var f=filas[0],aplic=c2titularAplicables(msg);
+  var todas=Array.from(new Set(filas.flatMap(function(r){return c2titularReglas(r,code);})));
+  var siguen=todas.filter(function(r){return aplic.includes(r);});
+  var otras=todas.filter(function(r){return !aplic.includes(r);});
   return {cumple:!siguen.length,reglas:siguen,txt:siguen.length?siguen.map(function(r){return r+' ('+TIT_REGLAS[r]+')';}).join(', '):'ya no aplica '+aplic.join('/'),
     extra:otras.map(function(r){return r+' ('+TIT_REGLAS[r]+')';}).join(', '),
     actual:{condiciondeltitular:f.condiciondeltitular,formadeadquisicion:f.formadeadquisicion,tipodedocumento:f.tipodedocumento,tipodepartidaregistral:f.tipodepartidaregistral,numerodepartidaregistral:f.numerodepartidaregistral}};
@@ -2460,84 +2462,1081 @@ function c2filasDespues(board,rep,pref){
     var o={__crc:normKey(r[c.preset.key])};c.B.headers.forEach(function(h){o[c2campo(h)]=txt(r[h]).replace(/\s+/g,' ').trim();});return o;});
 }
 function c2esComun(k){return k.length===24&&(k.substr(16,2)==='99'||k.substr(18,2)==='99'||k.substr(20,3)==='999');}
-var USO_EXIGE_CIIU='020199,'+'020101,020102,020103,020104,020105,020106,020201,020202,020203,020204,020205,020301,020303,030101,030102,030103,030104,030105,030106,030107,030108,030109,030110,030111,030112,030113,030114,030115,030116,030117,030118,030119,030120,030121,030122,030199,040102,040103,040104,040105,040199,040201,040202,040203,040204,040205,040206,040299,040301,040302,040303,040304,040305,040306,040307,040399,050101,050102,050103,050104,050105,050199,050201,050202,050203,050204,050299,050301,050302,050303,050304,050305,050401,050402,050403,050404,050499,050501,050502,050503,050504,060101,060199,060201,060202,060203,060204,060301,060302,060303,060399,060401,060501,060701,060799,060801,060802,060803,060899,060901';
-function c2usoCiiuFinal(board,code,piso){
-  var ua=c2filaDespues(board,code,'UA');if(!ua)return null;
-  var uso=String(ua.codigodeuso||'').replace(/\D/g,'');
-  var lin0=(c2filasDespues(board,'CON',code)||[]).filter(function(l){var p=String(piso||'').replace(/^0+/,'');return !p||String(l.npiso||'').replace(/^0+/,'')===p;});
-  var act={codigodeuso:uso,codigodeactividadeconomicaciiu:lin0.map(function(l){return String(l.codigodeactividadeconomicaciiu||'').trim();}).filter(Boolean)[0]||''};
-  var R=c2usoCiiuEval(code,uso,lin0);if(R)R.actual=act;return R;
+/* Motor de USO (©diegocampos). */
+var C2_USO=(function(){
+var USO_RESIDUAL = "020199";
+var SUGERIDOS_RESIDUAL = "4510 / 46xx (mayoristas) / 4791 / 4799 / 3830";
+
+/* Comercial no identificado: local desocupado. No hay actividad que
+   declarar, así que el CIIU no se exige; si lo trae, hay contradicción. */
+var USO_DESOCUPADO = "020304";
+
+/* Usos con lista de CIIU válidos pero sin obligación de declararlo
+   (el glosario no les pone línea CIIU; la lista sale del manual INEI). */
+var CIIU_OPCIONAL = {"060601":1,"060602":1,"060603":1,"060604":1,"060699":1};
+
+/* Códigos heredados de la CIIU Rev. 3 que aún circulan en documentos */
+var CIIU_REV3 = {
+  "9500":"Hogares privados con servicio doméstico (Rev. 3). En la Rev. 4 la reparación se clasifica en 9511, 9512, 9521, 9522, 9523, 9524 o 9529."
+};
+
+/* ---- E · Glosario de Usos -> CIIU válidos ------------------
+   []  = uso sin CIIU asociado (no aplica).
+   Solo códigos de CLASE (4 dígitos): el SICUN no admite divisiones. */
+var CIIU = {
+  "010101":[],"010102":[],"010103":[],
+  "010201":[],
+  "020101":["4711"],
+  "020102":["4781","4782","4789","6810","6820","4721","4722","4723","4741","4742","4751","4752","4753","4759","4761","4762","4763","4764","4771","4772","4773","4774","5610","5629","5630","9601","9602","9609","9511","9512","9523","9529","8219","7420","8690","8211","6910"],
+  "020103":["5210"],"020104":["4730"],
+  "020105":["4719","4721","4722","4723","4730","4741","4742","4751","4752","4753","4759","4761","4762","4763","4764","4771","4772","4773","4774","4530"],
+  "020106":["4781","4782","4789","4721","4722","4723","4741","4742","4751","4752","4753","4759","4761","4762","4763","4764","4771","4772","4773","4774","5610","5629","5630","9601","9602","9609","9511","9512","9523","9529","8219","7420","8690","8211","6910"],
+  "020199":[],
+  "020201":["9601","9602","9603","9609","6910","7911","9523","8219","6190","8220","9511","9529","4520","7420","7912","7990","7729","7810","7820","8211","8291","8299","7310","7410","1811","9512","8020","8230","7721","7722"],
+  "020202":["4520","4540","9511","9512","9521","9522","9523","9524","9529","3311","3312","3313","3314","3315","3319","3320"],
+  "020203":["5610","5629","5630","5621"],"020204":["5510","5590","5520"],"020205":["7500"],
+  "020301":["6910","6920","7020","7010","6201","6202","6209","6311","6312","6391","5811","5812","5819","5820","6820","7110","7310","7320","7410","7490","7740","7830","8010","8030","8211","8291","5229"],
+  "020302":[],"020303":["6810","6820"],"020304":[],
+  "030101":["1010","1020","1030","1040","1050","1061","1062","1071","1072","1073","1074","1075","1079","1080"],
+  "030102":["1101","1102","1103","1104"],"030103":["1200"],
+  "030104":["1311","1312","1313","1391","1392","1393","1394","1399"],"030105":["1410","1420","1430"],
+  "030106":["1511","1512","1520"],"030107":["1610","1621","1622","1623","1629"],"030108":["1701","1702","1709"],
+  "030109":["1811","1812","1820"],"030110":["1910","1920"],
+  "030111":["2011","2012","2013","2021","2022","2023","2029","2030"],"030112":["2100"],
+  "030113":["2211","2219","2220"],"030114":["2310","2391","2392","2393","2394","2395","2396","2399"],
+  "030115":["2410","2420","2431","2432"],"030116":["2511","2512","2513","2520","2591","2592","2593","2599"],
+  "030117":["2610","2620","2630","2640","2651","2652","2660","2670","2680"],
+  "030118":["2710","2720","2731","2732","2733","2740","2750","2790"],
+  "030119":["2811","2812","2813","2814","2815","2816","2817","2818","2819","2821","2822","2823","2824","2825","2826","2829"],
+  "030120":["2910","2920","2930"],"030121":["3011","3012","3020","3040","3091","3092","3099","3030"],
+  "030122":["3100"],"030199":["3211","3212","3220","3230","3240","3250","3290"],
+  "040101":[],"040102":["9311"],"040103":["9312"],"040104":["9311"],"040105":["8541"],
+  "040199":["9329","9311","9319"],
+  "040201":["9102"],"040202":["9000"],"040203":["9000"],"040204":["9101"],"040205":["9000"],"040206":["9103"],
+  "040299":["9000","8542"],
+  "040301":["9499"],"040302":["5914"],"040303":["9200","9321"],"040304":["9329"],"040305":["9329","5630"],
+  "040306":["9329"],"040307":["9329"],"040399":["9329"],
+  "050101":["8510","8521"],"050102":["8549"],"050103":["8530"],"050104":["8530","8522"],"050105":["8510"],
+  "050199":["8549","8550"],
+  "050201":["8610"],"050202":["8620"],"050203":["9603"],"050204":["9603"],"050299":["8690"],
+  "050301":["4921","4922","4923","5221"],"050302":["4911","4912"],"050303":["5011","5012","5222","5021","5022"],
+  "050304":["5110","5120","5223"],"050305":["5221"],
+  "050401":["5310","5320"],"050402":["6010","6020"],"050403":["5813"],"050404":["6110","6120","6130"],
+  "050499":["6399","6190"],
+  "050501":["3510"],"050502":["3600","3700"],"050503":["3520","4930"],"050504":["3510","6190"],
+  "060101":["8411","8421"],"060199":["8412","8413","8430"],
+  "060201":["8422"],"060202":["8423"],"060203":["8423"],"060204":["8423"],
+  "060301":["6411","6419","6420","6430","6491","6492","6499","6511","6512","6520","6530","6611","6612","6619","6621","6622","6629","6630"],
+  "060302":["6530","6511","6512","6520","6622"],"060303":["6612"],"060399":["6499"],
+  "060401":["9900"],
+  "060501":["7010"],
+  "060601":["9491"],"060602":["9491"],"060603":["9491"],"060604":["9491"],"060699":["9491"],
+  "060701":["8730","8710","8720","8790"],"060799":["8890","8810"],
+  "060801":["9420"],"060802":["9492"],"060803":["9412","9411"],"060899":["9499"],
+  "060901":["9499","7210","7220"],
+  "070101":[],
+  "070201":[]
+};
+
+/* ---- F · Descripciones oficiales CIIU Rev. 4 (INEI) -------- */
+var CIIU_DESC = {
+"01":"Agricultura, ganadería, caza y actividades de servicios conexas","0111":"Cultivo de cereales (excepto arroz), legumbres y semillas oleaginosas",
+"0112":"Cultivo de arroz","0113":"Cultivo de hortalizas y melones, raíces y tubérculos","0114":"Cultivo de caña de azúcar","0115":"Cultivo de tabaco",
+"0116":"Cultivo de plantas de fibras","0119":"Cultivo de otras plantas no perennes","0121":"Cultivo de uvas",
+"0122":"Cultivo de frutas tropicales y subtropicales","0123":"Cultivo de cítricos","0124":"Cultivo de frutas con hueso y con pepa",
+"0125":"Cultivo de otros frutos y nueces de árboles y arbustos","0126":"Cultivo de frutos oleaginosos",
+"0127":"Cultivo de plantas con las que se preparan bebidas","0128":"Cultivo de especias y de plantas aromáticas, medicinales y farmacéuticas",
+"0129":"Cultivo de otras plantas perennes","0130":"Propagación de plantas","0141":"Cría de ganado bovino y búfalos","0142":"Cría de caballos y otros equinos",
+"0143":"Cría de camellos y otros camélidos","0144":"Cría de ovejas y cabras","0145":"Cría de cerdos","0146":"Cría de aves de corral",
+"0149":"Cría de otros animales","0150":"Cultivo de productos agrícolas en combinación con la cría de animales (explotación mixta)",
+"0161":"Actividades de apoyo a la agricultura","0162":"Actividades de apoyo a la ganadería","0163":"Actividades poscosecha",
+"0164":"Tratamiento de semillas para propagación","0170":"Caza ordinaria, mediante trampas y actividades de servicios conexas",
+"02":"Silvicultura y extracción de madera","0210":"Silvicultura y otras actividades forestales","0220":"Extracción de madera",
+"0230":"Recolección de productos forestales distintos de la madera","0240":"Servicios de apoyo a la silvicultura","03":"Pesca y acuicultura",
+"0311":"Pesca marina","0312":"Pesca de agua dulce","0321":"Acuicultura marina","0322":"Acuicultura de agua dulce",
+"05":"Extracción de carbón de piedra y lignito","0510":"Extracción de carbón de piedra","0520":"Extracción de lignito",
+"06":"Extracción de petróleo crudo y gas natural","0610":"Extracción de petróleo crudo","0620":"Extracción de gas natural",
+"07":"Extracción de minerales metalíferos","0710":"Extracción de minerales de hierro","0721":"Extracción de minerales de uranio y torio",
+"0729":"Extracción de otros minerales metalíferos no ferrosos","08":"Explotación de otras minas y canteras","0810":"Extracción de piedra, arena y arcilla",
+"0891":"Extracción de minerales para la fabricación de abonos y productos químicos","0892":"Extracción de turba","0893":"Extracción de sal",
+"0899":"Explotación de otras minas y canteras n.c.p.","09":"Actividades de servicios de apoyo para la explotación de minas y canteras",
+"0910":"Actividades de apoyo para la extracción de petróleo y gas natural","0990":"Actividades de apoyo para la explotación de otras minas y canteras",
+"10":"Elaboración de productos alimenticios","1010":"Elaboración y conservación de carne",
+"1020":"Elaboración y conservación de pescados, crustáceos y moluscos","1030":"Elaboración y conservación de frutas, legumbres y hortalizas",
+"1040":"Elaboración de aceites y grasas de origen vegetal y animal","1050":"Elaboración de productos lácteos","1061":"Elaboración de productos de molinería",
+"1062":"Elaboración de almidones y productos derivados del almidón","1071":"Elaboración de productos de panadería","1072":"Elaboración de azúcar",
+"1073":"Elaboración de cacao, chocolate y productos de confitería","1074":"Elaboración de macarrones, fideos, alcuzcuz y productos farináceos similares",
+"1075":"Elaboración de comidas y platos preparados","1079":"Elaboración de otros productos alimenticios n.c.p.",
+"1080":"Elaboración de alimentos preparados para animales","11":"Elaboración de bebidas","1101":"Destilación, rectificación y mezcla de bebidas alcohólicas",
+"1102":"Elaboración de vinos","1103":"Elaboración de bebidas malteadas y de malta",
+"1104":"Elaboración de bebidas no alcohólicas; producción de aguas minerales y otras aguas embotelladas","12":"Elaboración de productos de tabaco",
+"1200":"Elaboración de productos de tabaco","13":"Fabricación de productos textiles","1311":"Preparación e hilatura de fibras textiles",
+"1312":"Tejedura de productos textiles","1313":"Servicio de acabado de productos textiles","1391":"Fabricación de tejidos de punto y ganchillo",
+"1392":"Fabricación de artículos confeccionados de materiales textiles, excepto prendas de vestir","1393":"Fabricación de tapices y alfombras",
+"1394":"Fabricación de cuerdas, cordeles, bramantes y redes","1399":"Fabricación de otros productos textiles n.c.p.","14":"Fabricación de prendas de vestir",
+"1410":"Fabricación de prendas de vestir, excepto prendas de piel","1420":"Fabricación de artículos de piel",
+"1430":"Fabricación de artículos de punto y ganchillo","15":"Fabricación de cueros y productos conexos",
+"1511":"Curtido y adobo de cueros; adobo y teñido de pieles",
+"1512":"Fabricación de maletas, bolsos de mano y artículos similares, artículos de talabartería y guarnicionería","1520":"Fabricación de calzado",
+"16":"Producción de madera y fabricación de productos de madera y corcho, excepto muebles; fabricación de artículos de paja y de materiales trenzables",
+"1610":"Aserrado y acepilladura de madera","1621":"Fabricación de hojas de madera para enchapado y tableros a base de madera",
+"1622":"Fabricación de partes y piezas de carpintería para edificios y construcciones","1623":"Fabricación de recipientes de madera",
+"1629":"Fabricación de otros productos de madera; fabricación de artículos de corcho, paja y materiales trenzables",
+"17":"Fabricación de papel y de productos de papel","1701":"Fabricación de pasta de madera, papel y cartón",
+"1702":"Fabricación de papel y cartón ondulado y de envases de papel y cartón","1709":"Fabricación de otros artículos del papel y cartón",
+"18":"Impresión y reproducción de grabaciones","1811":"Actividades de impresión","1812":"Actividades de servicios relacionados con la impresión",
+"1820":"Reproducción de grabaciones","19":"Fabricación de coque y de productos de la refinación del petróleo",
+"1910":"Fabricación de productos de horno de coque","1920":"Fabricación de productos de la refinación del petróleo",
+"20":"Fabricación de substancias y productos químicos","2011":"Fabricación de substancias químicas básicas",
+"2012":"Fabricación de abonos y compuestos de nitrógeno","2013":"Fabricación de plásticos y cauchos sintéticos en formas primarias",
+"2021":"Fabricación de plaguicidas y otros productos químicos de uso agropecuario",
+"2022":"Fabricación de pinturas, barnices y productos de revestimiento similares, tintas de imprenta y masillas",
+"2023":"Fabricación de jabones y detergentes, preparados para limpiar y pulir, perfumes y preparados de tocador",
+"2029":"Fabricación de otros productos químicos n.c.p.","2030":"Fabricación de fibras artificiales",
+"21":"Fabricación de productos farmacéuticos, sustancias químicas medicinales y productos botánicos de uso farmacéutico",
+"2100":"Fabricación de productos farmacéuticos, sustancias químicas medicinales y productos botánicos de uso farmacéutico",
+"22":"Fabricación de productos de caucho y plástico","2211":"Fabricación de cubiertas y cámaras de caucho; recauchutado y renovación de cubiertas de caucho",
+"2219":"Fabricación de otros productos de caucho","2220":"Fabricación de productos de plástico","23":"Fabricación de otros productos minerales no metálicos",
+"2310":"Fabricación de vidrio y productos de vidrio","2391":"Fabricación de productos refractarios",
+"2392":"Fabricación de materiales de construcción de arcilla","2393":"Fabricación de otros productos de porcelana y de cerámica",
+"2394":"Fabricación de cemento, cal y yeso","2395":"Fabricación de artículos de hormigón, de cemento y yeso","2396":"Corte, tallado y acabado de la piedra",
+"2399":"Fabricación de otros productos minerales no metálicos n.c.p.","24":"Fabricación de metales comunes","2410":"Industrias básicas de hierro y acero",
+"2420":"Fabricación de productos primarios de metales preciosos y metales no ferrosos","2431":"Fundición de hierro y acero",
+"2432":"Fundición de metales no ferrosos","25":"Fabricación de productos elaborados de metal, excepto maquinaria y equipo",
+"2511":"Fabricación de productos metálicos para uso estructural","2512":"Fabricación de tanques, depósitos y recipientes de metal",
+"2513":"Fabricación de generadores de vapor, excepto calderas de agua caliente para calefacción central","2520":"Fabricación de armas y municiones",
+"2591":"Forja, prensado, estampado y laminado de metales; pulvimetalurgia","2592":"Tratamiento y revestimiento de metales; maquinado",
+"2593":"Fabricación de artículos de cuchillería, herramientas de mano y artículos de ferretería",
+"2599":"Fabricación de otros productos elaborados de metal n.c.p.","26":"Fabricación de productos de informática, electrónica y óptica",
+"2610":"Fabricación de componentes y tableros electrónicos","2620":"Fabricación de computadoras y equipo periférico",
+"2630":"Fabricación de equipo de comunicaciones","2640":"Fabricación de aparatos electrónicos de consumo",
+"2651":"Fabricación de equipos de medición, prueba, navegación, control y de relojes","2652":"Fabricación de relojes",
+"2660":"Fabricación de equipo de irradiación, y equipo electrónico de uso medico y terapéutico",
+"2670":"Fabricación de instrumentos ópticos y equipo fotográficos","2680":"Fabricación de soportes magnéticos y ópticos","27":"Fabricación de equipo eléctrico",
+"2710":"Fabricación de motores, generadores, transformadores eléctricos y aparatos de distribución y control de la energía eléctrica",
+"2720":"Fabricación de pilas, baterías y acumuladores","2731":"Fabricación de cables de fibra óptica","2732":"Fabricación de otros hilos y cables eléctricos",
+"2733":"Fabricación de dispositivos de cableado","2740":"Fabricación de equipo eléctrico de iluminación","2750":"Fabricación de aparatos de uso doméstico",
+"2790":"Fabricación de otros tipos de equipo eléctrico","28":"Fabricación de maquinaria y equipo n.c.p.",
+"2811":"Fabricación de motores y turbinas, excepto motores para aeronaves, vehículos automotores y motocicletas",
+"2812":"Fabricación de equipo de propulsión de fluidos","2813":"Fabricación de otras bombas, compresores, grifos y válvulas",
+"2814":"Fabricación de cojinetes, engranajes, trenes de engranajes y piezas de transmisión","2815":"Fabricación de hornos y quemadores",
+"2816":"Fabricación de equipo de elevación y manipulación","2817":"Fabricación de maquinaria y equipo de oficina (excepto computadoras y equipo periférico)",
+"2818":"Fabricación de herramientas de mano motorizadas","2819":"Fabricación de otros tipos de maquinaria de uso general",
+"2821":"Fabricación de maquinaria agropecuaria y forestal","2822":"Fabricación de maquinaria para la conformación de metales y de máquinas herramienta",
+"2823":"Fabricación de maquinaria metalúrgica","2824":"Fabricación de maquinaria para la explotación de minas y canteras y para obras de construcción",
+"2825":"Fabricación de maquinaria para la elaboración de alimentos, bebidas y tabaco",
+"2826":"Fabricación de maquinaria para la elaboración de productos textiles, prendas de vestir y cueros",
+"2829":"Fabricación de otros tipos de maquinaria de uso especial","29":"Fabricación de vehículos automotores, remolques y semirremolques",
+"2910":"Fabricación de vehículos automotores","2920":"Fabricación de carrocerías para vehículos automotores; fabricación de remolques y semirremolques",
+"2930":"Fabricación de partes, piezas y accesorios para vehículos automotores","30":"Fabricación de otros tipos de equipos de transporte",
+"3011":"Construcción de buques y estructuras flotantes","3012":"Construcción de embarcaciones de recreo y deporte",
+"3020":"Fabricación de locomotoras y material rodante","3030":"Fabricación de aeronaves y naves especiales y maquinaria conexa",
+"3040":"Fabricación de vehículos militares de combate","3091":"Fabricación de motocicletas",
+"3092":"Fabricación de bicicletas y de sillas de ruedas para inválidos","3099":"Fabricación de otros tipos de equipo de transporte n.c.p.",
+"31":"Fabricación de muebles","3100":"Fabricación de muebles","32":"Otras industrias manufactureras","3211":"Fabricación de joyas y artículos conexos",
+"3212":"Fabricación de bisutería y artículos conexos","3220":"Fabricación de instrumentos musicales","3230":"Fabricación de artículos de deporte",
+"3240":"Fabricación de juegos y juguetes","3250":"Fabricación de instrumentos y materiales médicos y odontológicos",
+"3290":"Otras industrias manufactureras n.c.p.","33":"Reparación e instalación de maquinaria y equipo","3311":"Reparación de productos elaborados de metal",
+"3312":"Reparación de maquinaria","3313":"Reparación de equipo electrónico y óptico","3314":"Reparación de equipo eléctrico",
+"3315":"Reparación de equipo de transporte, excepto vehículos automotores","3319":"Reparación de otros tipos de equipo",
+"3320":"Instalación de maquinaria y equipo industriales","35":"Suministro de electricidad, gas, vapor y aire acondicionado",
+"3510":"Generación, transmisión y distribución de energía eléctrica","3520":"Fabricación de gas; distribución de combustibles gaseosos por tuberías",
+"3530":"Suministro de vapor y de aire acondicionado","36":"Captación, tratamiento y distribución de agua",
+"3600":"Captación, tratamiento y distribución de agua","37":"Evacuación de aguas residuales","3700":"Evacuación de aguas residuales",
+"38":"Recolección, tratamiento y eliminación de desechos, recuperación de materiales","3811":"Recolección de desechos no peligrosos",
+"3812":"Recolección de desechos peligrosos","3821":"Tratamiento y eliminación de desechos no peligrosos",
+"3822":"Tratamiento y eliminación de desechos peligrosos","3830":"Recuperación de materiales",
+"39":"Actividades de descontaminación y otros servicios de gestión de desechos",
+"3900":"Actividades de descontaminación y otros servicios de gestión de desechos","41":"Construcción de edificios","4100":"Construcción de edificios",
+"42":"Obras de ingeniería civil","4210":"Construcción de carreteras y líneas de ferrocarril","4220":"Construcción de proyectos de servicios públicos",
+"4290":"Construcción de otras obras de ingeniería civil","43":"Actividades especializadas de la construcción","4311":"Demolición",
+"4312":"Preparación del terreno","4321":"Instalaciones eléctricas","4322":"Fontanería (plomería, gasfitería) e instalación de calefacción y aire acondicionado",
+"4329":"Otras instalaciones para obras de construcción","4330":"Terminación y acabado de edificios","4390":"Otras actividades especializadas de construcción",
+"45":"Comercio y reparación de vehículos automotores y motocicletas","4510":"Venta de vehículos automotores",
+"4520":"Mantenimiento y reparación de vehículos automotores","4530":"Venta de partes, piezas y accesorios para vehículos automotores",
+"4540":"Venta, mantenimiento y reparación de motocicletas y de sus partes, piezas y accesorios",
+"46":"Comercio al por mayor, excepto el de vehículos automotores y motocicletas","4610":"Venta al por mayor a cambio de una comisión o por contrato",
+"4620":"Venta al por mayor de materias primas agropecuarias y animales vivos","4630":"Venta al por mayor de alimentos, bebidas y tabaco",
+"4641":"Venta al por mayor de textiles, prendas de vestir y calzado","4649":"Venta al por mayor de otros enseres domésticos",
+"4651":"Venta al por mayor de computadoras, equipo y programas informáticos",
+"4652":"Venta al por mayor de equipo, partes y piezas electrónicos y de telecomunicaciones",
+"4653":"Venta al por mayor de maquinaria, equipo y materiales agropecuarios","4659":"Venta al por mayor de otros tipos de maquinaria y equipo",
+"4661":"Venta al por mayor de combustibles sólidos, líquidos y gaseosos y productos conexos","4662":"Venta al por mayor de metales y minerales metalíferos",
+"4663":"Venta al por mayor de materiales para la construcción, artículos de ferretería, equipo, materiales de fontanería (plomería o gasfitería) y calefacción",
+"4669":"Venta al por mayor de desperdicios, desechos, chatarra y otros productos n.c.p.","4690":"Venta al por mayor de otros productos no especializado",
+"47":"Comercio al por menor, excepto el de vehículos automotores y motocicletas",
+"4711":"Venta al por menor en comercios no especializados con predominio de la venta de alimentos, bebidas o tabaco",
+"4719":"Otras actividades de venta al por menor en comercios no especializados","4721":"Venta al por menor de alimentos en comercios especializados",
+"4722":"Venta al por menor de bebidas en comercios especializados","4723":"Venta al por menor de tabaco en comercios especializados",
+"4730":"Venta al por menor de combustibles para vehículos automotores en comercios especializados",
+"4741":"Venta al por menor de computadores, equipo periférico, programas informáticos y equipo de telecomunicaciones en comercios especializados",
+"4742":"Venta al por menor de equipo de sonido y vídeo en comercios especializados",
+"4751":"Venta al por menor de productos textiles en comercios especializados",
+"4752":"Venta al por menor de artículos de ferretería, pinturas y productos de vidrio en comercios especializados",
+"4753":"Venta al por menor de tapices, alfombras y cubrimientos para paredes y pisos en comercios especializados",
+"4759":"Venta al por menor de aparatos eléctricos de uso doméstico, muebles, equipo de iluminación y otros enseres domésticos en comercios especializados",
+"4761":"Venta al por menor de libros, periódicos y artículos de papelería en comercios especializados",
+"4762":"Venta al por menor de grabaciones de música y de vídeo en comercios especializados",
+"4763":"Venta al por menor de equipo de deporte en comercios especializados","4764":"Venta al por menor de juegos y juguetes en comercios especializados",
+"4771":"Venta al por menor de prendas de vestir, calzado y artículos de cuero en comercios especializados",
+"4772":"Venta al por menor de productos farmacéuticos y medicinales, cosméticos y artículos de tocador en comercios especializados",
+"4773":"Venta al por menor de otros productos nuevos en comercios especializados",
+"4774":"Venta al por menor de artículos de segunda mano en comercios especializados",
+"4781":"Venta al por menor de alimentos, bebidas y tabaco en puestos de venta y mercados",
+"4782":"Venta al por menor de productos textiles, prendas de vestir y calzado en puestos de venta y mercados",
+"4789":"Venta al por menor de otros productos en puestos de venta y mercados","4791":"Venta al por menor por correo y por internet",
+"4799":"Otras actividades de venta al por menor no realizadas en comercios, puestos de venta o mercados","49":"Transporte por vía terrestre y por tuberías",
+"4911":"Transporte interurbano de pasajeros por ferrocarril","4912":"Transporte de carga por ferrocarril",
+"4921":"Transporte urbano y suburbano de pasajeros por vía terrestre","4922":"Otras actividades de transporte de pasajeros por vía terrestre",
+"4923":"Transporte de carga por carretera","4930":"Transporte por tuberías","50":"Transporte por vía acuática",
+"5011":"Transporte de pasajeros marítimo y de cabotaje","5012":"Transporte de carga marítimo y de cabotaje",
+"5021":"Transporte de pasajeros por vías de navegación interiores","5022":"Transporte de carga, por vías de navegación interiores",
+"51":"Transporte por vía aérea","5110":"Transporte de pasajeros por vía aérea","5120":"Transporte de carga por vía aérea",
+"52":"Almacenamiento y actividades de apoyo al transporte","5210":"Almacenamiento y depósito",
+"5221":"Actividades de servicios vinculadas al transporte terrestre","5222":"Actividades de servicios vinculadas al transporte acuático",
+"5223":"Actividades de servicios vinculadas al transporte aéreo","5224":"Manipulación de carga","5229":"Otras actividades de apoyo al transporte",
+"53":"Actividades postales y de mensajería","5310":"Actividades postales","5320":"Actividades de mensajería","55":"Actividades de alojamiento",
+"5510":"Actividades de alojamiento para estancias cortas","5520":"Actividades de campamentos, parques de vehículos de recreo y parques de caravanas",
+"5590":"Otras actividades de alojamiento","56":"Servicio de alimento y bebida","5610":"Actividades de restaurantes y de servicio móvil de comidas",
+"5621":"Suministro de comidas por encargo","5629":"Otras actividades de servicio de comidas","5630":"Actividades de servicio de bebidas",
+"58":"Actividades de publicación","5811":"Publicación de libros, periódicos y otras actividades de publicación",
+"5812":"Publicación de directorios y de listas de correo","5813":"Publicación de periódicos, diarios y revistas","5819":"Otras publicaciones",
+"5820":"Publicación de programas informáticos",
+"59":"Actividades de producción de películas cinematográficas, vídeos y programas de televisión, grabación de sonido y edición de música",
+"5911":"Actividades de producción de películas cinematográficas, vídeos y programas de televisión",
+"5912":"Actividades de postproducción de películas cinematográficas, vídeos y programas de televisión",
+"5913":"Actividades de distribución de películas cinematográficas, vídeos y programas de televisión",
+"5914":"Actividades de exhibición de películas cinematográficas y cintas de vídeo","5920":"Actividades de grabación de sonido y edición de música",
+"60":"Actividades de programación y transmisión","6010":"Transmisiones de radio","6020":"Programación y transmisiones de televisión","61":"Telecomunicaciones",
+"6110":"Actividades de telecomunicaciones alámbrica","6120":"Actividades de telecomunicaciones inalámbricas",
+"6130":"Actividades de telecomunicaciones por satélite","6190":"Otras actividades de telecomunicaciones",
+"62":"Programación informática, consultoría de informática y actividades conexas","6201":"Actividades de programación informática",
+"6202":"Actividades de consultoría de informática y de gestión de instalaciones informáticas",
+"6209":"Otras actividades de tecnología de la información y de servicios informáticos","63":"Actividades de servicios de información",
+"6311":"Procesamiento de datos, hospedaje y actividades conexas","6312":"Portales web","6391":"Actividades de agencias de noticias",
+"6399":"Otras actividades de servicios de información n.c.p.","64":"Actividades de servicios financieros, excepto las de seguros y fondos de pensiones",
+"6411":"Banca central","6419":"Otros tipos de intermediación monetaria","6420":"Actividades de sociedades de cartera",
+"6430":"Fondos y sociedades de inversión y entidades financieras similares","6491":"Arrendamiento financiero",
+"6492":"Otras actividades de concesión de crédito","6499":"Otras actividades de servicios financieros, excepto las de seguros y fondos de pensiones, n.c.p.",
+"65":"Seguros, reaseguros y fondos de pensiones, excepto los planes de seguridad social de afiliación obligatoria","6511":"Seguros de vida",
+"6512":"Seguros generales","6520":"Reaseguros","6530":"Fondos de pensión","66":"Actividades auxiliares de las actividades de servicios financieros",
+"6611":"Administración de mercados financieros","6612":"Corretaje de valores y de contratos de productos básicos",
+"6619":"Otras actividades auxiliares a las actividades de servicios financieros","6621":"Evaluación de riesgos y daños",
+"6622":"Actividades de los agentes y corredores de seguro","6629":"Otras actividades auxiliares de seguros y fondos de pensiones",
+"6630":"Actividades de gestión de fondos","68":"Actividades inmobiliarias","6810":"Actividades inmobiliarias realizadas con bienes propios o arrendados",
+"6820":"Actividades inmobiliarias realizadas a cambio de una retribución o por contrato","69":"Actividades jurídicas y de contabilidad",
+"6910":"Actividades jurídicas","6920":"Actividades de contabilidad, teneduría de libros y auditorias; consultoría fiscal",
+"70":"Actividades de oficinas principales; actividades de consultoría de gestión","7010":"Actividades de oficinas principales",
+"7020":"Actividades de consultoría de gestión","71":"Actividades de arquitectura e ingeniería; ensayos y análisis técnicos",
+"7110":"Actividades de arquitectura e ingeniería y actividades conexas de consultoría técnica","7120":"Ensayos y análisis técnicos",
+"72":"Investigación científica y desarrollo","7210":"Investigaciones y desarrollo experimental en el campo de las ciencias naturales y la ingeniería",
+"7220":"Investigaciones y desarrollo experimental en el campo de las ciencias sociales y las humanidades","73":"Publicidad y estudios de mercado",
+"7310":"Publicidad","7320":"Estudios de mercado y encuestas de opinión pública","74":"Otras actividades profesionales, científicas y técnicas",
+"7410":"Actividades especializadas de diseño","7420":"Actividades de fotografía","7490":"Otras actividades profesionales, científicas y técnicas n.c.p.",
+"75":"Actividades veterinarias","7500":"Actividades veterinarias","77":"Actividades de alquiler y arrendamiento","7710":"Alquiler de vehículos automotores",
+"7721":"Alquiler de equipo recreativo y deportivo","7722":"Alquiler de cintas de video y discos",
+"7729":"Alquiler otros efectos personales y artículos de uso domésticos","7730":"Alquiler de otros tipos de maquinaria, equipo y bienes tangibles",
+"7740":"Arrendamiento de propiedad intelectual y productos similares, excepto obras protegidas por derechos de autor","78":"Actividades de empleo",
+"7810":"Actividades de agencias de empleo","7820":"Actividades de agencias de empleo temporal","7830":"Otras actividades de dotación de recursos humanos",
+"79":"Actividades de agencias de viajes, operadores turísticos, servicios de reservas y actividades conexas","7911":"Actividades de agencias de viajes",
+"7912":"Actividades de operadores turísticos","7990":"Otros servicios de reservas y actividades conexas","80":"Actividades de seguridad e investigación",
+"8010":"Actividades de seguridad privada","8020":"Actividades de servicios de sistemas de seguridad","8030":"Actividades de investigación",
+"81":"Actividades de servicios a edificios y paisajismo","8110":"Actividades combinadas de apoyo a instalaciones","8121":"Limpieza general de edificios",
+"8129":"Otras actividades de limpieza de edificios e instalaciones industriales","8130":"Actividades de paisajismo y servicios de mantenimiento conexos",
+"82":"Actividades administrativas y de apoyo de oficina y otras actividades de apoyo a las empresas",
+"8211":"Actividades combinadas de servicios administrativos de oficina",
+"8219":"Fotocopiado, preparación de documentos y otras actividades especializadas de apoyo de oficina","8220":"Actividades de centros de llamadas",
+"8230":"Organización de convenciones y exposiciones comerciales","8291":"Actividades de agencias de cobro y agencias de calificación crediticia",
+"8292":"Actividades de envasado y empaquetado","8299":"Otras actividades de servicios de apoyo a empresas n.c.p.",
+"84":"Administración pública y defensa; planes de seguridad social de afiliación obligatoria","8411":"Actividades de la administración pública en general",
+"8412":"Regulación de las actividades de organismos que prestan servicios sanitarios, educativos, culturales y otros servicios sociales, excepto servicios de seguridad social",
+"8413":"Regulación y facilitación de la actividad económica","8421":"Relaciones exteriores","8422":"Actividades de defensa",
+"8423":"Actividades de mantenimiento del orden público y de seguridad","8430":"Actividades de planes de seguridad social de afiliación obligatoria",
+"85":"Enseñanza","8510":"Enseñanza preprimaria y primaria","8521":"Enseñanza secundaria de formación general",
+"8522":"Enseñanza de formación técnica y profesional","8530":"Enseñanza superior","8541":"Enseñanza deportiva y recreativa","8542":"Enseñanza cultural",
+"8549":"Otros tipos de enseñanza n.c.p.","8550":"Actividades de apoyo a la enseñanza","86":"Actividades de atención de la salud humana",
+"8610":"Actividades de hospitales y clínicas","8620":"Actividades de médicos y odontólogos","8690":"Otras actividades de atención de la salud humana",
+"87":"Actividades de atención en instituciones","8710":"Actividades de atención de enfermería en instituciones",
+"8720":"Actividades de atención en instituciones para personas con retraso mental, enfermos mentales y toxicómanos",
+"8730":"Actividades de atención en instituciones para personas de edad y personas con discapacidad","8790":"Otras actividades de atención en instituciones",
+"88":"Actividades de asistencia social sin alojamiento",
+"8810":"Actividades de asistencia social sin alojamiento para personas de edad y personas con discapacidad",
+"8890":"Otras actividades de asistencia social sin alojamiento","90":"Actividades creativas, artísticas y de entretenimiento",
+"9000":"Actividades creativas, artísticas y de entretenimiento","91":"Actividades de bibliotecas, archivos, museos y otras actividades culturales",
+"9101":"Actividades de bibliotecas y archivos","9102":"Actividades de museos y gestión de lugares y edificios históricos",
+"9103":"Actividades de jardines botánicos y zoológicos y reservas naturales","92":"Actividades de juegos de azar y apuestas",
+"9200":"Actividades de juegos de azar y apuestas","93":"Actividades deportivas, de esparcimiento y recreativas",
+"9311":"Explotación de instalaciones deportivas","9312":"Actividades de clubes deportivos","9319":"Otras actividades deportivas",
+"9321":"Actividades de parques de atracciones y parques temáticos","9329":"Otras actividades de esparcimiento y recreativas n.c.p.",
+"94":"Actividades de asociaciones","9411":"Actividades de asociaciones empresariales y de empleadores","9412":"Actividades de asociaciones profesionales",
+"9420":"Actividades de sindicatos","9491":"Actividades de organizaciones religiosas","9492":"Actividades de organizaciones políticas",
+"9499":"Actividades de otras asociaciones n.c.p.","95":"Reparación de computadores y de efectos personales y enseres domésticos",
+"9511":"Reparación de computadoras y equipo periférico",
+"9512":"Reparación de equipo de comunicaciones","9521":"Reparación de aparatos electrónicos de consumo",
+"9522":"Reparación de aparatos de uso doméstico y equipo doméstico y de jardinería","9523":"Reparación de calzado y artículos de cuero",
+"9524":"Reparación de muebles y accesorios domésticos","9529":"Reparación de otros bienes personales y enseres domésticos",
+"96":"Otras actividades de servicios personales","9601":"Lavado y limpieza, incluida la limpieza en seco, de productos textiles y de piel",
+"9602":"Actividades de peluquería y otros tratamientos de belleza","9603":"Pompas fúnebres y actividades conexas",
+"9609":"Otras actividades de servicios personales n.c.p.","97":"Actividades de los hogares como empleadores de personal doméstico",
+"9700":"Actividades de los hogares como empleadores de personal doméstico",
+"98":"Actividades no diferenciadas de los hogares como productores de bienes y servicios para uso propio",
+"9810":"Actividades no diferenciadas de los hogares como productores de bienes y servicios para uso propio",
+"9820":"Actividades no diferenciadas de los hogares como productores de servicios para uso propio",
+"99":"Actividades de organizaciones y órganos extraterritoriales","9900":"Actividades de organizaciones y órganos extraterritoriales",
+};
+
+/* Clases válidas: solo las de 4 dígitos del catálogo oficial */
+var CIIU_VALIDO = (function(){
+  var s = {};
+  Object.keys(CIIU_DESC).forEach(function(c){ if(c.length===4 && !CIIU_REV3[c]) s[c]=true; });
+  return s;
+})();
+
+function norm(v){ return (v===null||v===undefined)?"":String(v).replace(/\s+/g," ").trim(); }
+function key(v){ return norm(v).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[º°]/g,"").replace(/\s+/g," ").trim(); }
+function partirCRC(crc){
+  var s = norm(crc);
+  return {
+    raw:s, ubigeo:s.substr(0,6), sector:s.substr(6,2), manzana:s.substr(8,3),
+    lote:s.substr(11,3), edifica:s.substr(14,2), entrada:s.substr(16,2),
+    piso:s.substr(18,2), unidad:s.substr(20,3), ref:s.substr(23,1), base:s.substr(0,23)
+  };
 }
-function c2usoCiiuEval(code,uso,lin){
-  if(c2esComun(code))return {cumple:true,txt:'uso común: el CIIU no aplica'};
-  if(uso===USO_SIN_CIIU)return {cumple:true,txt:'comercial no identificado no lleva CIIU',nota:'Falso error del validador: la marca debería ser NO APLICA'};
-  if(USO_EXIGE_CIIU.split(',').indexOf(uso)<0)return {cumple:true,txt:'el uso '+(uso||'(vacío)')+' no exige CIIU'};
-  if(!lin.length)return null;
-  var conCiiu=lin.filter(function(l){return String(l.codigodeactividadeconomicaciiu||'').trim();});
-  if(conCiiu.length)return {cumple:true,txt:'la unidad tiene CIIU'};
-  var obra=lin.every(function(l){return /CONSTRUCCION|INCONCLUS|RUINA/.test(c2up(l.ecc));});
-  if(obra)return {cumple:true,txt:'obra no terminada (ECC): sin actividad que declarar'};
-  return {cumple:false,txt:'R3A (el uso '+uso+' exige CIIU y la unidad no lo tiene)'};
+function esNivelLote(p){ return p.entrada==="99" && p.piso==="99" && p.unidad==="999"; }
+function esComun(p){ return p.entrada==="99" || p.piso==="99" || p.unidad==="999"; }
+function descOf(code){
+  var c = norm(code); if(!c) return "";
+  if(CIIU_DESC[c]) return CIIU_DESC[c];
+  if(c.length>2 && CIIU_DESC[c.slice(0,2)]) return CIIU_DESC[c.slice(0,2)]+" (división "+c.slice(0,2)+")";
+  return "";
 }
-function c2condPredioFinal(board,code){
-  var f=c2filaDespues(board,code,'UA');if(!f)return null;
-  function canon(v){return c2up(v).replace(/^\d+\s*-\s*/,'').replace(/[^A-Z0-9]/g,'');}
-  var c=canon(f.clasificaciondelpredio),q=canon(f.prediocatastralen),out=[];
-  if(!c||!q)out.push('R3 (clasificación o predio catastral en vacíos)');
-  else{
-    if((c==='PREDIOENEDIFICIO')!==(q==='PREDIOENEDIFICIO')&&!(c==='PREDIOENEDIFICIO'&&q==='AIRES'))out.push('R1 (PREDIO EN EDIFICIO debe ir en ambos campos)');
-    if((c==='TERRENOSINCONSTRUIR'||c==='PARQUE')&&q!=='PREDIOINDEPENDIENTE')out.push('R2 (terreno o parque solo admite PREDIO INDEPENDIENTE)');
-  }
-  return {cumple:!out.length,txt:out.length?out.join(', '):'clasificación y predio catastral en coherentes',actual:{clasificaciondelpredio:f.clasificaciondelpredio,prediocatastralen:f.prediocatastralen}};
-}
-/* Obras complementarias (Anexo III.1 Lima-Callao 2025) */
-var OBR_UM=(function(){var m={};function a(cs,v){cs.forEach(function(c){m[c]=v;});}function r(x,y){var o=[];for(var i=x;i<=y;i++)o.push(i);return o;}
-  a(r(1,16),'m2');a(r(17,32),'m3');a(r(33,36),'m2');a([37,38,39,42,43,45],'m3');a([40,41,44,46,47,48,49],'und');a(r(50,53),'m2');a(r(54,63),'m3');a(r(64,69),'und');
-  a(r(70,73),'ml');a(r(74,80),'pza');a(r(81,84),'m2');a(r(85,87),'ml');a(r(88,90),'m2');a([91,92],'pza');a([93,94],'ml');m[95]='m2';m[96]='m3';return m;})();
-var OBR_MEP=(function(){var m={};function a(cs,v){cs.forEach(function(c){m[c]=v;});}function r(x,y){var o=[];for(var i=x;i<=y;i++)o.push(i);return o;}
-  a([1,17,19,20,23,24,25,27,29,30,31,33,34,35,36,37,40,41,42,43,45,46,47,48,49].concat(r(54,63),r(70,80),[93,94,95,96]),['01']);
-  a([3,4,5,7,9,26,32,38,50,51,52,53,82,83],['02']);a([6,8,18,21,22,28,39,81,84].concat(r(10,16),r(64,69),r(85,92)),['03']);a([2,44],['01','03']);return m;})();
-var OBR_EXC_R1=[1,21,28,33,35,36,56,78,54,55,64,65,66];
-function c2obrUM(v){var s=c2up(v).toLowerCase().replace(/\.$/,'').replace('²','2').replace('³','3');if(s==='m'||s==='ml')return 'ml';if(/^(und|unid|unidad|pza|pieza)$/.test(s))return 'und';return s;}
-function c2obrMEP(v){var s=c2up(v),d=s.replace(/\D/g,'');if(d)return d.padStart(2,'0').slice(-2);if(/CONCRETO/.test(s))return '01';if(/LADRILLO/.test(s))return '02';if(/ADOBE|QUINCHA|MADERA/.test(s))return '03';return s;}
-function c2obrasFinal(board,code,soloProducto,ini){
-  var obras=c2filasDespues(board,'OBR',code);if(!obras||!obras.length)return null;
-  var cod0=ini&&ini.codigo?parseInt(ini.codigo,10):NaN;if(!isNaN(cod0)){var mis=obras.filter(function(o){return parseInt(o.codigo,10)===cod0;});if(mis.length)obras=mis;}
-  var out=[],extra=[];
-  obras.forEach(function(o){
-    var cod=parseInt(o.codigo,10),pt=parseFloat(String(o.productototal||'').replace(',','.')),um=c2obrUM(o.unidaddemedida),uca=!!String(o.uca||'').trim();
-    if(!uca&&pt===1&&/^(m2|m3|ml)$/.test(um)&&OBR_EXC_R1.indexOf(cod)<0)out.push('R1 obra '+cod+' (producto total = 1)');
-    var dest=soloProducto?extra:out;
-    var umOk=OBR_UM[cod];if(umOk&&um!==umOk&&!(umOk==='und'&&um==='und'))dest.push('R2 obra '+cod+' (unidad debe ser '+umOk+')');
-    var mepOk=OBR_MEP[cod];if(mepOk&&o.mep!==undefined&&mepOk.indexOf(c2obrMEP(o.mep))<0)dest.push('R5 obra '+cod+' (MEP debe ser '+mepOk.join(' o ')+')');
+function stripLetters(v){ return norm(v).replace(/^[A-Za-z]+/,"").trim(); }
+
+/* Nombres de los usos según el Glosario de la Tabla de Usos (respaldo si el reporte no trae la descripción) */
+var USO_NOMBRE = {"010101": "Vivienda", "010102": "Depósito de vivienda", "010103": "Tendal", "010201": "Cochera", "020101": "Tienda por departamentos, supermercado, galería comercial, hiperbodega y similares", "020102": "Mercado o campo ferial", "020103": "Almacén o depósito", "020104": "Grifo venta de combustibles para vehículos", "020105": "Tienda de venta de artículos al por menor", "020106": "Puesto (o stand) en galería comercial, mercado o campo ferial", "020199": "Otros usos comerciales no especificados", "020201": "Local de servicios diversos", "020202": "Taller", "020203": "Restaurantes, bares y cantinas", "020204": "Alojamiento", "020205": "Centro Veterinario", "020301": "Oficina", "020302": "Estacionamiento o deposito en edificio de oficinas", "020303": "Centro Comercial", "020304": "Comercial no identificado", "030101": "Elaboración de productos alimenticios", "030102": "Elaboración de bebidas", "030103": "Elaboración de productos de tabaco", "030104": "Elaboración de productos textiles", "030105": "Elaboración de prendas de vestir", "030106": "Elaboración de cueros y productos conexos", "030107": "Producción de madera y fabricación de productos de madera y corcho, excepto muebles", "030108": "Fabricación de papel y de productos de papel", "030109": "Impresión y reproducción de grabaciones", "030110": "Fabricación de coque y productos de la refinación del petróleo", "030111": "Fabricación de sustancias y productos químicos", "030112": "Fabricación de productos farmacéuticos, sustancias químicas medicinales y productos botánicos de uso farmacéutico", "030113": "Fabricación de productos de caucho y de plástico", "030114": "Fabricación de otros productos minerales no metálicos", "030115": "Fabricación de metales comunes", "030116": "Fabricación de productos elaborados de metal, excepto maquinaria y equipo", "030117": "Fabricación de productos de informática, de electrónica, relojes y de óptica", "030118": "Fabricación de equipo eléctrico", "030119": "Fabricación de maquinaria y equipo n.c.p.", "030120": "Fabricación de vehículos automotores, remolques y semirremolques", "030121": "Fabricación de otros tipos de equipo de transporte", "030122": "Fabricación de muebles", "030199": "Otras industrias manufactureras", "040101": "Parques (local, zonal y metropolitano)", "040102": "Estadio, hipódromo o coliseo", "040103": "Club, círculo o centro deportivo", "040104": "Gimnasio y similares", "040105": "Educación deportiva", "040199": "Otros usos deportivos NEP", "040201": "Museo", "040202": "Sala de exposición, galería de arte", "040203": "Teatro", "040204": "Biblioteca", "040205": "Centro cultural", "040206": "Jardín botánico y zoológico", "040299": "Otros usos culturales NEP", "040301": "Club social", "040302": "Cine", "040303": "Bingo, casino de juego, tragamonedas, casas de apuestas o similar", "040304": "Pinball y juegos recreativos", "040305": "Peña, discoteca, salón de bailes o similares", "040306": "Café teatro, cabaré, centro nocturno, boite", "040307": "Casa de cita, prostíbulo", "040399": "Otros servicios de recreación o esparcimiento NEP", "050101": "Educación inicial, primaria y/o secundaria", "050102": "Educación preuniversitaria (Academia)", "050103": "Educación superior (Universitaria o instituto)", "050104": "Educación técnica y CENECAPE", "050105": "Cuna, guardería", "050199": "Otros usos educativos NEP", "050201": "Establecimiento de Salud", "050202": "Consultorio médico", "050203": "Cementerio", "050204": "Velatorio", "050299": "Otros usos de salud NEP", "050301": "Terminal terrestre y servicios relacionados", "050302": "Terminal ferroviario y servicios relacionados", "050303": "Terminal marítimo y servicios relacionados", "050304": "Terminal aéreo y servicios relacionados", "050305": "Playa o edificio de estacionamiento", "050401": "Correo o mensajería", "050402": "Radio o televisión", "050403": "Periodismo", "050404": "Telefonía o internet", "050499": "Otros usos de información y/o comunicación NEP", "050501": "Generación, distribución o transmisión de energía eléctrica", "050502": "Centro de captación, purificación y distribución de agua", "050503": "Producción y distribución de gas", "050504": "Subestación eléctrica o telefónica", "060101": "Sede de entidad pública", "060199": "Otros usos de administración pública en general NEP", "060201": "Cuartel policial o militar", "060202": "Comisaría o delegación policial", "060203": "Centro de rehabilitación y asistencia social (C.R.A.S.-Cárceles)", "060204": "Sede de compañía de bomberos", "060301": "Sede o agencia de entidad financiera", "060302": "Sede o agencia de seguros o AFP", "060303": "Casa de cambio", "060399": "Otros establecimientos NEP", "060401": "Embajada, consulado o legación", "060501": "Sede de organismo internacional", "060601": "Templo", "060602": "Convento o monasterio", "060603": "Parroquia", "060604": "Sede de entidad religiosa", "060699": "Otros usos de entidades religiosas NEP", "060701": "Hospicio, albergue, puericultorio o asilo", "060799": "Otros usos de entidad social-comunal sin alojamiento NEP", "060801": "Actividad sindical", "060802": "Actividad política", "060803": "Asociaciones empresariales o colegios profesionales", "060899": "Otros usos de asociación y/o fundación NEP", "060901": "Instituto de investigación y científico", "070101": "Terreno sin construir", "070201": "Aires"};
+
+/* Esperado principal: en usos con lista larga, se muestra lo que corresponde a la unidad típica
+   y el resto se resume en la descripción. No cambia qué CIIU son válidos. */
+var ESPERADO_PRINCIPAL = {
+  "020102":{lista:["6810","6820"], resto:"o el giro de un puesto: 478x, venta especializada, comidas o servicios de puesto"},
+  "020106":{lista:["4781","4782","4789"], resto:"o el giro o servicio del puesto: venta especializada, comidas o servicios"}
+};
+
+/* Índice inverso del glosario: CIIU -> usos que lo admiten.
+   Sirve para decirle al técnico qué uso específico reemplaza al 020199. */
+var USOS_POR_CIIU = (function(){
+  var m = {};
+  Object.keys(CIIU).forEach(function(uso){
+    if(uso===USO_RESIDUAL || uso===USO_DESOCUPADO) return;
+    CIIU[uso].forEach(function(c){ (m[c]=m[c]||[]).push(uso); });
   });
-  return {cumple:!out.length,txt:out.length?out.slice(0,3).join(', ')+(out.length>3?' +'+(out.length-3):''):'obras conformes',extra:extra.slice(0,3).join(', '),
-    actual:{productototal:obras[0].productototal,unidaddemedida:obras[0].unidaddemedida,mep:obras[0].mep}};
+  return m;
+})();
+function nombreUso(uso, ctx){ var n = (ctx && ctx.nombres[uso]) || USO_NOMBRE[uso]; return n ? uso+" · "+n : uso; }
+
+/* Resumen de CIIU de una unidad de varias líneas: "5210 ×2 / 4711 / sin CIIU ×1" */
+function resumenCIIU(lista){
+  var cnt = {}, orden = [];
+  lista.forEach(function(c){ var k = c || "sin CIIU"; if(!cnt[k]){ cnt[k]=0; orden.push(k); } cnt[k]++; });
+  return orden.map(function(k){ return k+(cnt[k]>1?" ×"+cnt[k]:""); }).join(" / ");
 }
-/* VAL_CRC: misma lógica que VAL_CRC.html. Grupo = edificación (lote+edificación, 16 díg.); unidades por entrada+piso.
-   Se excluyen por campo los 99/999 (como el validador), no el CRC entero. */
+
+/* ECC (estado de construcción): solo TERMINADO admite actividad.
+   Se lee sin tildes ni mayúsculas y tolera "02 - EN CONSTRUCCIÓN". */
+var ECC_SIN_ACTIVIDAD = {"en construccion":1,"inconclusa":1,"en ruinas":1};
+function eccClave(v){ return key(v).replace(/^[\d\s.\-]+/,"").trim(); }
+function eccTexto(v){ return norm(v).replace(/^[\d\s.\-]+/,"").toUpperCase(); }
+function eccSinActividad(r){ return !(r.__sin && r.__sin.ecc) && !!ECC_SIN_ACTIVIDAD[eccClave(r.ecc)]; }
+
+/* Usos que exigen CIIU: los que tienen lista en el glosario (salvo los
+   opcionales) y el residual 020199. El ECC solo se evalúa en estos. */
+function exigeCIIU(uso){
+  return uso===USO_RESIDUAL || (uso in CIIU && CIIU[uso].length>0 && !CIIU_OPCIONAL[uso]);
+}
+/* ¿El CIIU de una línea sostiene a la unidad? Uso normal: está en la lista
+   del glosario. 020199: existe en la Rev. 4. Un CIIU observado por R3D
+   (línea en obra) no sostiene a nadie. */
+function ciiuSostiene(l, uso){
+  if(!l.ciiu || l.sinAct) return false;
+  if(uso===USO_RESIDUAL) return !!CIIU_VALIDO[l.ciiu];
+  return (CIIU[uso]||[]).indexOf(l.ciiu)>=0;
+}
+function textoOtrasLineas(r, lst){
+  return "Línea sin CIIU en una unidad de "+r.lineas+" líneas que declara "+lst.join(" / ")+" en otras líneas. "+
+         "Verificar en campo: si el piso no tiene actividad económica (desocupado o de vivienda), sustentarlo en "+
+         "Observaciones de la ficha; si la tiene, declarar el CIIU.";
+}
+
+function prepararContexto(cruces, base){
+  var U = {}, usos = {}, repetidos = 0;
+  (cruces.unid||[]).forEach(function(u){
+    if(!U[u.crc]){ U[u.crc]=u; usos[u.crc]={}; } else repetidos++;
+    usos[u.crc][norm(u.uso)] = true;
+  });
+  var lineas = {}, ciius = {}, det = {}, nombres = {};
+  base.forEach(function(r){
+    lineas[r.crc]=(lineas[r.crc]||0)+1;
+    (ciius[r.crc]=ciius[r.crc]||[]).push(stripLetters(r.ciiu));
+    (det[r.crc]=det[r.crc]||[]).push({ciiu:stripLetters(r.ciiu), sinAct:eccSinActividad(r)});
+    if(norm(r.uso) && norm(r.desc) && !nombres[norm(r.uso)]) nombres[norm(r.uso)] = norm(r.desc);
+  });
+  (cruces.unid||[]).forEach(function(u){
+    if(norm(u.uso) && norm(u.desc) && !nombres[norm(u.uso)]) nombres[norm(u.uso)] = norm(u.desc);
+  });
+  return {U:U, usos:usos, lineas:lineas, ciius:ciius, det:det, nombres:nombres, repetidos:repetidos, hayUnid:Object.keys(U).length>0};
+}
+
+function validar(r, ctx){
+  var hits = [];
+  function H(c,txt,marcas){ hits.push({c:c, txt:"["+c+"] "+txt, marcas:marcas||[]}); }
+
+  var p = partirCRC(r.crc), comun = esComun(p);
+  var propio = !(r.__sin && r.__sin.uso);          // el reporte base ya trae el uso
+  var u = ctx.U[r.crc];
+  if(!propio && u){ r.uso = u.uso; r.desc = u.desc; }
+  var uso = norm(r.uso), ciiu = stripLetters(r.ciiu);
+  r.lineas = ctx.lineas[r.crc] || 1;
+  r.ciiuDesc = ciiu ? (descOf(ciiu) || "No existe en la CIIU Rev. 4") : "";
+  r.esperado = ""; r.esperadoDesc = "";
+
+  function fijarEsperado(lista){
+    var pr = ESPERADO_PRINCIPAL[uso];
+    if(pr){
+      r.esperado = pr.lista.join(" / ");
+      r.esperadoDesc = pr.lista.map(function(c){ return c+": "+descOf(c); }).join("  |  ")+"  |  "+pr.resto;
+      return;
+    }
+    r.esperado = lista.join(" / ");
+    r.esperadoDesc = lista.map(function(c){ return c+": "+descOf(c); }).join("  |  ");
+  }
+
+  /* R10 · el código existe en la Rev. 4 (independiente del uso) */
+  if(ciiu && !CIIU_VALIDO[ciiu]){
+    if(CIIU_REV3[ciiu]) H("R10","El CIIU "+ciiu+" no existe en la Rev. 4: corresponde a "+CIIU_REV3[ciiu],["ciiu"]);
+    else if(ciiu.length<4) H("R10","El CIIU "+ciiu+" es una división, no una clase. Registrar la clase de 4 dígitos.",["ciiu"]);
+    else H("R10","El CIIU "+ciiu+" no existe en la CIIU Rev. 4.",["ciiu"]);
+  }
+
+  /* R5 / R6 · control del cruce */
+  if(!propio){
+    if(!u){ H("R5","El CRC no está en Unidades Administrativas; sin Código de Uso no se puede validar.",["crc"]); return hits; }
+    var lst = Object.keys(ctx.usos[r.crc]||{});
+    if(lst.length>1){ H("R6","El CRC figura en Unidades con usos distintos ("+lst.join(" / ")+"). Una unidad tiene un solo uso.",["uso"]); return hits; }
+  }
+
+  /* R1 · sin uso */
+  if(!uso || uso==="0"){ H("R1","La unidad no tiene Código de Uso registrado.",["uso"]); return hits; }
+
+  /* CIIU de la unidad que sostienen el uso (para R3A/R3B y R8A/R8C) */
+  var sosten = [];
+  (ctx.det[r.crc]||[]).forEach(function(l){ if(ciiuSostiene(l,uso) && sosten.indexOf(l.ciiu)<0) sosten.push(l.ciiu); });
+
+  /* R3C / R3D · ECC: solo en usos que exigen CIIU y fuera del uso común */
+  if(!comun && exigeCIIU(uso) && eccSinActividad(r)){
+    var et = eccTexto(r.ecc);
+    if(!ciiu){
+      H("R3C","Línea sin CIIU con ECC "+et+": sin actividad que declarar. Sustentar el estado en Observaciones de la ficha.");
+      return hits;
+    }
+    H("R3D","Línea con CIIU "+ciiu+" y ECC "+et+": no debería haber actividad. Revisar en campo: si el ECC está bien, "+
+      "retirar el CIIU y sustentar en Observaciones; si el negocio funciona, corregir el ECC.",["ciiu","ecc"]);
+  }
+
+  /* Uso comercial residual — siempre a revisar */
+  if(uso===USO_RESIDUAL){
+    if(comun){ r.esperado="N/A (uso común)"; return hits; }
+    r.esperado = "Libre — verificar uso";
+    r.esperadoDesc = "Sugeridos: "+SUGERIDOS_RESIDUAL;
+
+    /* Unidad de varias líneas: se listan los CIIU de todas sus líneas */
+    var varias = r.lineas>1
+      ? " Unidad de "+r.lineas+" líneas con CIIU "+resumenCIIU(ctx.ciius[r.crc]||[])+": verificar la actividad de cada línea."
+      : "";
+
+    if(!ciiu){
+      if(sosten.length) H("R8C",textoOtrasLineas(r,sosten),["uso","ciiu"]);
+      else H("R8A","Uso residual sin CIIU y ninguna línea de la unidad lo declara. Declarar la actividad o, si es un comercio con uso propio en el glosario, cambiar el uso. Sugeridos para 020199: "+SUGERIDOS_RESIDUAL+"."+varias,["uso","ciiu"]);
+      return hits;
+    }
+
+    /* ¿Ese CIIU tiene un uso específico en el glosario? */
+    var alt = USOS_POR_CIIU[ciiu] || [];
+    if(alt.length){
+      var txtAlt = alt.map(function(x){ return nombreUso(x,ctx); }).join(" o ");
+      r.esperadoDesc = "Uso sugerido: "+txtAlt+"  |  "+r.esperadoDesc;
+      H("R8B","Uso residual con CIIU "+ciiu+", que en el glosario corresponde al uso "+txtAlt+
+        ". Verificar si el uso debió ser "+(alt.length>1?"uno de esos":alt[0])+" en lugar de 020199."+varias,["uso","ciiu"]);
+    }else{
+      r.esperadoDesc = "Sin uso específico en el glosario para "+ciiu+"  |  "+r.esperadoDesc;
+      H("R8B","Uso residual con CIIU "+ciiu+", que no tiene un uso específico en el glosario: el 020199 es coherente, solo confirmar la actividad."+varias,["uso","ciiu"]);
+    }
+    return hits;
+  }
+
+  /* Comercial no identificado — local desocupado */
+  if(uso===USO_DESOCUPADO){
+    if(ciiu && !comun){
+      r.esperado = "Sin CIIU (local desocupado)";
+      H("R9","El uso indica local desocupado, pero la línea declara el CIIU "+ciiu+". Revisar si el uso debió ser el específico de esa actividad o si el CIIU sobra.",["uso","ciiu"]);
+    }else{
+      r.esperado = "N/A (sin actividad)";
+      H("R7","Uso comercial no identificado: local desocupado, sin actividad que declarar. Se reporta para sustento del informe.");
+    }
+    return hits;
+  }
+
+  /* R2 · fuera del glosario */
+  if(!(uso in CIIU)){ H("R2","El Código de Uso "+uso+" no existe en el Glosario de la Tabla de Usos.",["uso"]); return hits; }
+
+  /* Uso común: el SICUN no permite CIIU */
+  if(comun){ r.esperado = "N/A (uso común)"; return hits; }
+
+  var esp = CIIU[uso];
+  if(!esp.length){ r.esperado = "N/A"; return hits; }
+  fijarEsperado(esp);
+
+  if(!ciiu){
+    if(CIIU_OPCIONAL[uso]) return hits;
+    if(sosten.length) H("R3B",textoOtrasLineas(r,sosten),["ciiu"]);
+    else H("R3A","El uso "+uso+" exige CIIU y ninguna línea de la unidad declara un CIIU válido para el uso.",["ciiu"]);
+    return hits;
+  }
+  if(esp.indexOf(ciiu)<0){
+    /* ¿Ese CIIU tiene un uso propio en el glosario? Se avisa para que el técnico vea las dos salidas */
+    var otros = (USOS_POR_CIIU[ciiu]||[]).filter(function(x){ return x!==uso; }), aviso = "";
+    if(otros.length){
+      var txtU = otros.length<=2 ? otros.map(function(x){ return nombreUso(x,ctx); }).join(" o ") : otros.join(", ");
+      aviso = " El "+ciiu+" corresponde en el glosario al uso "+txtU+": si esa es la actividad, revisar el uso.";
+      r.esperadoDesc += "  |  Uso del "+ciiu+" en el glosario: "+txtU;
+    }
+    if(r.lineas<=1) H("R4A","El CIIU "+ciiu+" no corresponde al uso "+uso+". Unidad de una sola línea: debe ser exacto."+aviso,["ciiu"]);
+    else            H("R4B","El CIIU "+ciiu+" no corresponde al uso "+uso+". Unidad de "+r.lineas+" líneas: revisar la actividad de esta línea."+aviso,["ciiu"]);
+  }
+  return hits;
+}
+
+return {validar,prepararContexto};
+})();
+/* Motor de COND (©diegocampos). */
+var C2_COND=(function(){
+function norm(v){ return (v===null||v===undefined)?"":String(v).replace(/\s+/g," ").trim(); }
+function key(v){ return norm(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
+function up(v){ return norm(v).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
+function partirCRC(crc){
+  var s = norm(crc);
+  return {
+    raw:s, ubigeo:s.substr(0,6), sector:s.substr(6,2), manzana:s.substr(8,3),
+    lote:s.substr(11,3), edifica:s.substr(14,2), entrada:s.substr(16,2),
+    piso:s.substr(18,2), unidad:s.substr(20,3), ref:s.substr(23,1), base:s.substr(0,23),
+    edif:s.substr(0,16)
+  };
+}
+/* Registro a nivel de lote: entrada 99 · piso 99 · unidad 999 */
+function canon(v){ return up(v).replace(/^\d+\s*-\s*/,"").replace(/[^A-Z0-9]/g,""); }
+function codUso(v){ var d=String(v||"").replace(/\D/g,""); return d ? d.padStart(6,"0") : ""; }
+
+/* Clasificación del predio */
+var C_CASA="CASAHABITACION", C_TIENDA="TIENDADEPOSITOALMACEN", C_PE="PREDIOENEDIFICIO",
+    C_TSC="TERRENOSINCONSTRUIR", C_COMIDA="SERVICIODECOMIDA", C_PARQUE="PARQUE",
+    C_CEM="CEMENTERIO", C_SUB="SUBESTACION", C_BANCO="BANCOFINANCIERA", C_MERC="MERCADO",
+    C_PLAYA="PLAYADEESTACIONAMIENTO", C_OTROS="OTROS";
+/* Predio catastral en (tabla oficial SNCP 01–13) */
+var P_PI="PREDIOINDEPENDIENTE", P_PE="PREDIOENEDIFICIO", P_AIRES="AIRES", P_OTROS="OTROS";
+var P_TABLA=["GALERIA","MERCADO","CAMPOFERIAL","CENTROCOMERCIAL","QUINTA","CALLEJON",
+             P_PI,"SOLAR","CORRALON","AZOTEA",P_AIRES,P_PE,P_OTROS];
+var P_COMERCIAL=["GALERIA","MERCADO","CAMPOFERIAL","CENTROCOMERCIAL"];
+var C_COMERCIAL=[C_TIENDA,C_COMIDA,C_BANCO,C_MERC,C_OTROS];
+/* Tipo de edificación */
+var T_EDIF="EDIFICIO", T_BLOCK="BLOCK", T_PAB="PABELLON";
+
+/* Clasificaciones sin construcción: no llevan tipo de edificación */
+var SIN_CONS=[C_TSC,C_PARQUE,C_PLAYA,C_SUB];
+
+/* Uso esperado para terreno sin construir y parque (R14) */
+var USO_PROPIO={}; USO_PROPIO[C_TSC]="070101"; USO_PROPIO[C_PARQUE]="040101";
+
+/* R8 · usos que tienen clasificación propia (código de uso -> sugerencia) */
+var TDA="TIENDA-DEPÓSITO-ALMACÉN";
+var USO_CLASIF = {
+  "010101":"CASA HABITACIÓN",
+  "010102":"CASA HABITACIÓN o PREDIO EN EDIFICIO",
+  "010103":"CASA HABITACIÓN o PREDIO EN EDIFICIO",
+  "020101":TDA+" o MERCADO",
+  "020102":"MERCADO",
+  "020103":TDA,
+  "020105":TDA,
+  "020106":"MERCADO o "+TDA,
+  "020202":"TALLER",
+  "020203":"SERVICIO DE COMIDA",
+  "040101":"PARQUE",
+  "040103":"CLUB DE ESPARCIMIENTO",
+  "040301":"CLUB SOCIAL",
+  "050203":"CEMENTERIO",
+  "050301":"TERMINAL DE TRANSPORTE",
+  "050302":"TERMINAL DE TRANSPORTE",
+  "050303":"TERMINAL DE TRANSPORTE",
+  "050304":"TERMINAL DE TRANSPORTE",
+  "050305":"PLAYA DE ESTACIONAMIENTO",
+  "050504":"SUB ESTACIÓN",
+  "060301":"BANCO FINANCIERA",
+  "060601":"IGLESIA / TEMPLO",
+  "060603":"IGLESIA / TEMPLO",
+  "070101":"TERRENO SIN CONSTRUIR"
+};
+function sugerenciaUso(cod){
+  if(USO_CLASIF[cod]) return USO_CLASIF[cod];
+  if(cod.substr(0,3)==="030") return "INDUSTRIA";            /* 0301xx y 030203 */
+  if(cod.substr(0,4)==="0501") return "CENTRO DE ENSEÑANZA"; /* 050101–050199 */
+  return "";
+}
+
+/* ---- E · Contexto: conteo de unidades del universo -------- */
+/* Se cuentan unidades distintas (23 dígitos), sin la 999 ni el
+   registro de nivel lote. Lote = 14 dígitos · edificación = 16. */
+function esUnidad(p){ return p.unidad!=="999"; }
+function prepararContexto(cruces, base){
+  var ctx = {lote:{}, edif:{}}, visto = {};
+  base.forEach(function(r){
+    var p = partirCRC(r.crc);
+    if(!esUnidad(p) || visto[p.base]) return;
+    visto[p.base] = true;
+    var kl = p.raw.substr(0,14), ke = p.edif;
+    ctx.lote[kl] = (ctx.lote[kl]||0)+1;
+    ctx.edif[ke] = (ctx.edif[ke]||0)+1;
+  });
+  return ctx;
+}
+
+/* ---- F · Reglas ------------------------------------------- */
+var BASE_TXT = "Inconsistencia, la clasificación del predio no coincide con predio catastral en (FI.24.03)";
+
+function validar(r, ctx){
+  var hits = [];
+  function add(c,txt,marcas){ hits.push({c:c, txt:"["+c+"] "+txt, marcas:marcas||[]}); }
+  var p  = partirCRC(r.crc);
+  var c  = canon(r.clasif), q = canon(r.pce), t = canon(r.tedif);
+  var cu = codUso(r.cuso);
+  var vc = norm(r.clasif), vq = norm(r.pce), vt = norm(r.tedif);
+  var unidad = esUnidad(p);
+  var hayTipo = !r.__sin.tedif;
+
+  /* R3 · vacíos: sin ambos campos no se evalúa la coherencia */
+  if(!c || !q){
+    add("R3","Campo vacío, no se ha registrado la clasificación del predio y/o predio catastral en (FI.24.03).",
+      (!c?["clasif"]:[]).concat(!q?["pce"]:[]));
+  }else{
+    var r2 = false;
+    /* R1 · predio en edificio en ambos campos (excepción: clasificación PE + AIRES) */
+    if((c===C_PE)!==(q===P_PE) && !(c===C_PE && q===P_AIRES)){
+      add("R1", BASE_TXT+": PREDIO EN EDIFICIO debe registrarse en ambos campos (se registra "+vc+" / "+vq+").",["clasif","pce"]);
+    }
+    /* R2 · terreno sin construir y parque solo admiten predio independiente */
+    if((c===C_TSC || c===C_PARQUE) && q!==P_PI){
+      r2 = true;
+      add("R2", BASE_TXT+": "+vc+" solo admite PREDIO INDEPENDIENTE (se registra "+vq+").",["clasif","pce"]);
+    }
+    /* R4 · OTROS o valor fuera de la tabla oficial */
+    if(!r2){
+      if(q===P_OTROS){
+        add("R4","Advertencia, predio catastral en OTROS; verificar si corresponde a un código específico de la tabla oficial (FI.24.03).",["pce"]);
+      }else if(P_TABLA.indexOf(q)<0){
+        add("R4","Advertencia, predio catastral en \""+vq+"\" no corresponde a la tabla oficial; verificar (FI.24.03).",["pce"]);
+      }
+    }
+    /* R5 · galería, mercado, campo ferial, centro comercial con clasificación no comercial */
+    if(P_COMERCIAL.indexOf(q)>=0 && C_COMERCIAL.indexOf(c)<0 && [C_PE,C_TSC,C_PARQUE].indexOf(c)<0){
+      add("R5","Advertencia, predio catastral en "+vq+" es de uso comercial y la clasificación es "+vc+"; verificar (FI.24.03).",["clasif","pce"]);
+    }
+  }
+
+  if(unidad){
+    /* R6 · predio en edificio con una sola unidad en el lote */
+    if((c===C_PE || q===P_PE) && ctx.lote[p.raw.substr(0,14)]===1){
+      add("R6","Advertencia, predio en edificio con una sola unidad en el lote; verificar si corresponde predio independiente (FI.24.03).",["pce"]);
+    }
+    /* R7 · predio independiente en edificación con más de 10 unidades */
+    var nEd = ctx.edif[p.edif]||0;
+    if(q===P_PI && nEd>10){
+      add("R7","Advertencia, la edificación registra "+nEd+" unidades y la unidad figura como PREDIO INDEPENDIENTE; verificar si corresponde predio en edificio (FI.24.03).",["pce"]);
+    }
+  }
+
+  /* R8 · clasificación OTROS con un uso que tiene clasificación propia */
+  if(c===C_OTROS && cu){
+    var sug = sugerenciaUso(cu);
+    if(sug) add("R8","Advertencia, clasificación OTROS con uso "+cu+" "+norm(r.duso)+"; verificar si corresponde "+sug+" (FI.24.03).",["clasif","cuso"]);
+  }
+
+  /* R9–R13 · tipo de edificación (solo unidades, y solo si el reporte trae la columna) */
+  if(hayTipo && unidad && c){
+    var sinCons = SIN_CONS.indexOf(c)>=0;
+    if(sinCons && t){
+      add("R9","Inconsistencia, la clasificación "+vc+" no tiene construcción y registra tipo de edificación "+vt+" (FI.24.03).",["clasif","tedif"]);
+    }
+    if(!sinCons && !t){
+      if(c===C_CEM) add("R10C","Advertencia, cementerio sin tipo de edificación; verificar si cuenta con construcciones (FI.24.03).",["tedif"]);
+      else add("R10","Campo vacío, no se ha registrado el tipo de edificación para la clasificación "+vc+" (FI.24.03).",["tedif"]);
+    }
+    if(c===C_PE && t && t!==T_EDIF && t!==T_BLOCK){
+      add("R11","Inconsistencia, predio en edificio con tipo de edificación "+vt+"; corresponde EDIFICIO o BLOCK (FI.24.03).",["clasif","tedif"]);
+    }
+    if(c===C_CASA && (t===T_EDIF || t===T_BLOCK)){
+      add("R12","Advertencia, casa habitación con tipo de edificación "+vt+"; verificar si corresponde predio en edificio (FI.24.03).",["clasif","tedif"]);
+    }
+    if(t===T_PAB){
+      add("R13","Advertencia, tipo de edificación PABELLÓN; verificar si corresponde (FI.24.03).",["tedif"]);
+    }
+  }
+
+  /* R14 · terreno sin construir y parque con uso distinto al suyo */
+  if(USO_PROPIO[c] && cu && cu!==USO_PROPIO[c]){
+    add("R14","Advertencia, clasificación "+vc+" con uso "+cu+" "+norm(r.duso)+"; el uso debe ser "+USO_PROPIO[c]+" (FI.24.03).",["clasif","cuso"]);
+  }
+  return hits;
+}
+
+
+return {validar,prepararContexto};
+})();
+/* Motor de OBRA (©diegocampos). */
+var C2_OBRA=(function(){
+function norm(v){ return (v===null||v===undefined)?"":String(v).replace(/\s+/g," ").trim(); }
+function key(v){ return norm(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
+function up(v){ return norm(v).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g,""); }
+function rango(a,b){ var o=[]; for(var i=a;i<=b;i++) o.push(i); return o; }
+function asignar(map,codes,val){ codes.forEach(function(c){ map[c]=val; }); }
+
+/* Unidad oficial por código */
+var UM_ANEXO = {};
+asignar(UM_ANEXO, rango(1,16),  "m²");
+asignar(UM_ANEXO, rango(17,32), "m³");
+asignar(UM_ANEXO, rango(33,36), "m²");
+asignar(UM_ANEXO, [37,38,39,42,43,45], "m³");
+asignar(UM_ANEXO, [40,41,44,46,47,48,49], "und");
+asignar(UM_ANEXO, rango(50,53), "m²");
+asignar(UM_ANEXO, rango(54,63), "m³");
+asignar(UM_ANEXO, rango(64,69), "und");
+asignar(UM_ANEXO, rango(70,73), "ml");
+asignar(UM_ANEXO, rango(74,80), "pza");
+asignar(UM_ANEXO, rango(81,84), "m²");
+asignar(UM_ANEXO, rango(85,87), "ml");
+asignar(UM_ANEXO, rango(88,90), "m²");
+asignar(UM_ANEXO, [91,92], "pza");
+asignar(UM_ANEXO, [93,94], "ml");
+UM_ANEXO[95]="m²"; UM_ANEXO[96]="m³";
+
+/* Material (MEP) por código: 01 concreto · 02 ladrillo · 03 adobe/quincha/madera y otros */
+var MEP_ANEXO = {};
+asignar(MEP_ANEXO, [1,17,19,20,23,24,25,27,29,30,31,33,34,35,36,37,40,41,42,43,45,46,47,48,49]
+  .concat(rango(54,63),rango(70,80),[93,94,95,96]), ["01"]);
+asignar(MEP_ANEXO, [3,4,5,7,9,26,32,38,50,51,52,53,82,83], ["02"]);
+asignar(MEP_ANEXO, [6,8,18,21,22,28,39,81,84].concat(rango(10,16),rango(64,69),rango(85,92)), ["03"]);
+asignar(MEP_ANEXO, [2,44], ["01","03"]);
+var MEP_NOMBRE = {"01":"concreto","02":"ladrillo","03":"adobe, quincha, madera"};
+
+/* Conjuntos */
+var ESCALERAS   = [54,55,64,65,66];
+var EXC_R1      = [1,21,28,33,35,36,56,78].concat(ESCALERAS);
+var TQ_PLASTICO = [18,21,22,28];
+var TQ_ELEVADO  = [18,21];
+var PARAPETOS   = rango(50,53);
+var REP_R4      = rango(1,9).concat(rango(88,90),rango(50,53),rango(81,84),rango(58,63),rango(33,36),[95]);
+
+/* Rangos de capacidad (m³) por familia: (min, max] */
+var FAMILIAS = [
+  [{c:21,min:0,max:1},{c:18,min:1,max:Infinity}],
+  [{c:28,min:0,max:1},{c:22,min:1,max:Infinity}],
+  [{c:17,min:0,max:5},{c:19,min:5,max:Infinity},{c:20,min:15,max:Infinity}],
+  [{c:23,min:0,max:5},{c:24,min:5,max:10},{c:25,min:10,max:20},{c:27,min:20,max:Infinity}],
+  [{c:26,min:0,max:5}],
+  [{c:29,min:0,max:5},{c:30,min:5,max:10},{c:31,min:10,max:Infinity}]
+];
+
+/* ---- E · Normalizadores ----------------------------------- */
+function numero(v){ var s=String(v||"").trim().replace(",","."); return /^-?\d+(\.\d+)?$/.test(s)?parseFloat(s):NaN; }
+function normUM(v){
+  var s = key(v).replace(/\.$/,"");
+  if(s==="m2") return "m²"; if(s==="m3") return "m³";
+  if(s==="m"||s==="ml") return "ml";
+  if(s==="und"||s==="unid"||s==="unidad") return "und";
+  if(s==="pza"||s==="pieza") return "pza";
+  return s;
+}
+function mismaUM(a,b){
+  var cnt = {und:1,pza:1};
+  return a===b || (cnt[a] && cnt[b]);
+}
+function normCodigo2(v, textos){
+  var s = up(v); if(!s) return "";
+  var d = s.replace(/\D/g,"");
+  if(d) return d.padStart(2,"0").slice(-2);
+  for(var k in textos) if(s.indexOf(k)>=0) return textos[k];
+  return s;
+}
+function normMEP(v){ return normCodigo2(v,{"CONCRETO":"01","LADRILLO":"02","ADOBE":"03","QUINCHA":"03","MADERA":"03"}); }
+function normECC(v){ return normCodigo2(v,{"TERMINAD":"01","CONSTRUCC":"02","INCONCLUS":"03"}); }
+
+/* Fecha → "AAAA-MM" (SICUN registra mes y año) */
+function mes(v){
+  var s = norm(v), m;
+  if(!s) return "";
+  if((m=s.match(/^(\d{4})-(\d{1,2})/))) return m[1]+"-"+m[2].padStart(2,"0");
+  if((m=s.match(/^(\d{1,2})\/(\d{4})$/))) return m[2]+"-"+m[1].padStart(2,"0");
+  if((m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/))) return m[3]+"-"+m[2].padStart(2,"0");
+  if(/^\d{5}(\.\d+)?$/.test(s)){ var d=new Date(Math.round((parseFloat(s)-25569)*864e5)); return d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0"); }
+  return "";
+}
+function mesTxt(m){ return m ? m.substr(5,2)+"/"+m.substr(0,4) : ""; }
+function cap(n){ return n.toFixed(2); }
+
+/* ---- F · Contexto (datos de todo el universo y del cruce) ---- */
+function llaveR4(r){ return [r.crc,r.cod,r.desc,r.fecha,r.mep,r.ecs,r.ecc,r.pt,r.um,r.uca].join("\u0001"); }
+
+function prepararContexto(cruces, base){
+  var ctx = {rep:{}, top:{}, p1:{}};
+  base.forEach(function(r){
+    if(REP_R4.indexOf(parseInt(r.cod,10))>=0){ var k=llaveR4(r); ctx.rep[k]=(ctx.rep[k]||0)+1; }
+  });
+  /* Construcciones: piso más alto (01–70) y su fecha más antigua; fecha más antigua del piso 1 */
+  (cruces.cons||[]).forEach(function(r){
+    var p = parseInt(r.piso,10), m = mes(r.fecha), ed = norm(r.crc).substr(0,16);
+    if(!(p>=1 && p<=70) || !m) return;
+    var t = ctx.top[ed];
+    if(!t || p>t.piso) ctx.top[ed] = {piso:p, mes:m};
+    else if(p===t.piso && m<t.mes) t.mes = m;
+    if(p===1 && (!ctx.p1[ed] || m<ctx.p1[ed])) ctx.p1[ed] = m;
+  });
+  return ctx;
+}
+
+/* ---- G · Reglas ------------------------------------------- */
+function validar(r, ctx){
+  var hits = [];
+  var cod = parseInt(r.cod,10);
+  var pt  = numero(r.pt);
+  var um  = normUM(r.um);
+  var uca = !!norm(r.uca);
+  var ed  = norm(r.crc).substr(0,16);
+
+  /* R1 · Producto total = 1 (no aplica con UCA ni a los códigos exceptuados) */
+  if(!uca && pt===1 && (um==="m²"||um==="m³"||um==="ml") && EXC_R1.indexOf(cod)<0){
+    hits.push({c:"R1", txt:"[R1] Producto total = 1, verificar metrado.", marcas:["pt"]});
+  }
+
+  /* R2 · Unidad según Anexo III.1 (und y pza equivalen) */
+  var umOk = UM_ANEXO[cod];
+  if(umOk && !mismaUM(um,umOk)){
+    hits.push({c:"R2", txt:"[R2] Unidad de medida debe ser "+(umOk==="und"||umOk==="pza"?"und/pza":umOk)+".", marcas:["um"]});
+  }
+
+  /* R3 · Capacidad dentro del rango de su código */
+  if(um==="m³" && pt>0){
+    FAMILIAS.forEach(function(fam){
+      var mio = fam.filter(function(x){ return x.c===cod; })[0];
+      if(!mio || (pt>mio.min && pt<=mio.max)) return;
+      var otro = fam.filter(function(x){ return x.c!==cod && pt>x.min && pt<=x.max; })[0];
+      hits.push({c:"R3", marcas:["cod","pt"], txt: otro
+        ? "[R3] Capacidad "+cap(pt)+" m³ corresponde a código "+otro.c+"."
+        : "[R3] Capacidad "+cap(pt)+" m³ fuera del rango del código "+cod+"."});
+    });
+  }
+
+  /* R4 · Repetida idéntica en el predio (solo obras de área o volumen continuo) */
+  if(REP_R4.indexOf(cod)>=0 && ctx.rep[llaveR4(r)]>1){
+    hits.push({c:"R4", txt:"[R4] Obra repetida en el predio.", marcas:[]});
+  }
+
+  /* R5 · Material según el código */
+  var mepOk = MEP_ANEXO[cod];
+  if(mepOk && !r.__sin.mep){
+    var mep = normMEP(r.mep);
+    if(mepOk.indexOf(mep)<0){
+      hits.push({c:"R5", marcas:["mep"], txt: mepOk.length>1
+        ? "[R5] MEP debe ser "+mepOk.join(" o ")+"."
+        : "[R5] MEP debe ser "+mepOk[0]+" ("+MEP_NOMBRE[mepOk[0]]+")."});
+    }
+  }
+
+  /* R6 · Tanques de plástico: se compran terminados */
+  if(TQ_PLASTICO.indexOf(cod)>=0 && !r.__sin.ecc && normECC(r.ecc)!=="01"){
+    hits.push({c:"R6", txt:"[R6] ECC debe ser 01 (terminado).", marcas:["ecc"]});
+  }
+
+  /* R7 / R7P · Fechas contra construcciones (no aplica con UCA) */
+  var fm = mes(r.fecha);
+  if(!uca && fm){
+    var t = ctx.top[ed];
+    if(TQ_ELEVADO.indexOf(cod)>=0 && t && fm<t.mes){
+      hits.push({c:"R7", txt:"[R7] Fecha anterior al último piso ("+mesTxt(t.mes)+").", marcas:["fecha"]});
+    }
+    var p1 = ctx.p1[ed];
+    if(PARAPETOS.indexOf(cod)>=0 && p1 && fm<p1){
+      hits.push({c:"R7P", txt:"[R7P] Fecha anterior al piso 1 ("+mesTxt(p1)+").", marcas:["fecha"]});
+    }
+  }
+  return hits;
+}
+
+return {validar,prepararContexto,normUM,normMEP};
+})();
+/* Adaptación de las columnas DESPUÉS a los nombres de los cinco HTML. */
+function c2registro(f,campos){
+  var r={crc:f.__crc,__sin:{}};
+  Object.entries(campos).forEach(function(par){
+    var nombre=par[0], campo=par[1];
+    r[nombre]=f[campo];
+    r.__sin[nombre]=f[campo]===undefined;
+  });
+  return r;
+}
+function c2resultado(hits,msg,aplic,actual,conforme,sinDatos){
+  var codigos=Array.from(new Set(hits));
+  var explicitos=c2up(msg).match(/\b(?:R\d+[A-Z]?|E1|LON)\b/g);
+  var seleccion=explicitos||aplic;
+  if(seleccion&&sinDatos&&seleccion.every(function(c){return sinDatos.includes(c);}))return null;
+  var reglas=codigos.filter(function(c){return !seleccion||seleccion.includes(c);});
+  return {cumple:!reglas.length,reglas:reglas,txt:reglas.join(', ')||conforme,
+    actual:actual,extra:codigos.filter(function(c){return !reglas.includes(c);}).join(', ')};
+}
+function c2usoCiiuFinal(board,code,piso,msg){
+  var lineas=c2filasDespues(board,'CON',code)||[];
+  var ua=board.find(function(c){return c.preset&&c.preset.id==='UA'&&c.B&&c.B.headers;});
+  var unidades=ua&&ua.B.headers.some(function(h){return c2campo(h)==='codigodeuso';})?c2filasDespues(board,'UA',code):null;
+  return c2usoCiiuEval(code,undefined,lineas,unidades,piso,msg);
+}
+function c2usoCiiuEval(code,uso,lin,unidades,piso,msg){
+  var campos={ciiu:'codigodeactividadeconomicaciiu',uso:'codigodeuso',desc:'descripciondeluso',ecc:'ecc',npiso:'npiso'};
+  var base=lin.map(function(f){return c2registro(Object.assign({__crc:code},f),campos);});
+  if(uso!==undefined)unidades=[{__crc:code,codigodeuso:uso}];
+  var ua=(unidades||[]).map(function(f){return c2registro(f,campos);});
+  var ctx=C2_USO.prepararContexto({unid:ua},base);
+  var filas=base.filter(function(r){return !piso||String(r.npiso||'').replace(/^0+/,'')===String(piso).replace(/^0+/,'');});
+  if(!filas.length||filas.some(function(r){return r.__sin.ciiu;}))return null;
+  var faltaUso=filas.some(function(r){return r.__sin.uso;})&&unidades==null;
+  var hits=filas.flatMap(function(r){return C2_USO.validar(r,ctx).map(function(h){return h.c;});});
+  // R10 se decide en Construcciones incluso cuando falta el reporte de Unidades.
+  if(faltaUso){
+    if(!hits.includes('R10')&&!/\bR10\b/.test(c2up(msg)))return null;
+    if(/\bR(?!10\b)\d/.test(c2up(msg))&&!/\bR10\b/.test(c2up(msg)))return null;
+    hits=hits.filter(function(c){return c==='R10';});
+  }
+  var pendientes=hits.filter(function(c){return c!=='R3C'&&c!=='R7';});
+  var actual={codigodeactividadeconomicaciiu:filas[0].ciiu};
+  if(filas[0].uso!==undefined)actual.codigodeuso=filas[0].uso;
+  var sinDatos=filas.every(function(r){return r.__sin.ecc;})?['R3C','R3D']:[];
+  var res=c2resultado(pendientes,msg,null,actual,'uso y CIIU conformes',sinDatos);
+  if(!res)return null;
+  if(!pendientes.length&&hits.length)res.txt=Array.from(new Set(hits)).join(', ')+' (falso error)';
+  return res;
+}
+function c2condPredioFinal(board,code,msg){
+  var campos={clasif:'clasificaciondelpredio',pce:'prediocatastralen',tedif:'tipodeedificacion',cuso:'codigodeuso',duso:'descripciondeluso'};
+  var base=(c2filasDespues(board,'UA',code.slice(0,14))||[]).map(function(f){return c2registro(f,campos);});
+  var filas=base.filter(function(r){return r.crc===code;});
+  if(!filas.length||filas.some(function(r){return r.__sin.clasif||r.__sin.pce;}))return null;
+  var ctx=C2_COND.prepararContexto({},base);
+  var hits=filas.flatMap(function(r){return C2_COND.validar(r,ctx).map(function(h){return h.c;});});
+  var aplic=/clasificaci[oó]n del predio no coincide con predio catastral en/i.test(msg)?['R1','R2','R3']:null;
+  var actual={clasificaciondelpredio:filas[0].clasif,prediocatastralen:filas[0].pce},sinDatos=[];
+  if(filas[0].__sin.tedif)sinDatos.push('R9','R10','R10C','R11','R12','R13');
+  else actual.tipodeedificacion=filas[0].tedif;
+  if(filas[0].__sin.cuso)sinDatos.push('R8','R14');
+  return c2resultado(hits,msg,aplic,actual,'clasificación y predio catastral en coherentes',sinDatos);
+}
+function c2obrUM(v){return C2_OBRA.normUM(v);}
+function c2obrMEP(v){return C2_OBRA.normMEP(v);}
+function c2obrasFinal(board,code,soloProducto,ini,msg){
+  var campos={cod:'codigo',desc:'descripcion',fecha:'fechadeconstruccion',mep:'mep',ecs:'ecs',ecc:'ecc',pt:'productototal',um:'unidaddemedida',uca:'uca'};
+  var base=(c2filasDespues(board,'OBR',code)||[]).map(function(f){return c2registro(f,campos);});
+  var cons=(c2filasDespues(board,'CON',code.slice(0,16))||[]).map(function(f){return c2registro(f,{piso:'npiso',fecha:'fechaconstruccion'});});
+  var ctx=C2_OBRA.prepararContexto({cons:cons},base);
+  var filas=base.filter(function(r){return !ini||!ini.codigo||parseInt(r.cod,10)===parseInt(ini.codigo,10);});
+  if(!filas.length)filas=base;
+  if(!filas.length||filas.some(function(r){return ['cod','desc','pt','um','uca'].some(function(k){return r.__sin[k];});}))return null;
+  var hits=filas.flatMap(function(r){return C2_OBRA.validar(r,ctx).filter(function(h){
+    return h.c!=='R4'||Object.values(r.__sin).every(function(ausente){return !ausente;});
+  }).map(function(h){return h.c;});});
+  var aplic=soloProducto?['R1','R3']:null;
+  if(!soloProducto&&/verificar MEP\s*\(/i.test(msg))aplic=['R5'];
+  var actual={productototal:filas[0].pt,unidaddemedida:filas[0].um,mep:filas[0].mep};
+  var sinDatos=[];
+  if(filas[0].__sin.mep)sinDatos.push('R5');
+  if(filas[0].__sin.ecc)sinDatos.push('R6');
+  if(Object.values(filas[0].__sin).some(Boolean))sinDatos.push('R4');
+  if(filas[0].__sin.fecha||!cons.some(function(r){return !r.__sin.piso&&!r.__sin.fecha;}))sinDatos.push('R7','R7P');
+  return c2resultado(hits,msg,aplic,actual,'obras conformes',sinDatos);
+}
+/* CRC: e2 y $kCruce del HTML. La secuencia se agrupa desde sector;
+   el cruce constructivo sí conserva ubigeo y excluye el DV. */
+var c2crcIndices=new WeakMap();
+function c2crcIndice(ua,con){
+  var previo=c2crcIndices.get(ua.B);
+  if(previo&&previo.con===(con&&con.B))return previo;
+  var codigos=new Set(ua.B.rows.map(function(r){return normKey(r[ua.preset.key]);}));
+  var grupos=new Map(),areas=new Map(),con81=new Set();
+  var bases=new Set();
+  codigos.forEach(function(k){
+    if(k.length!==24)return;
+    bases.add(k.slice(0,23));
+    var grupo=k.slice(6,16);
+    if(!grupos.has(grupo))grupos.set(grupo,[]);
+    grupos.get(grupo).push(k);
+  });
+  if(con){
+    var columnas={};
+    con.B.headers.forEach(function(h){columnas[c2campo(h)]=h;});
+    var piso=columnas.npiso||columnas.nopiso||columnas.nropiso||columnas.numpiso||columnas.numeropiso||columnas.piso;
+    if(piso&&columnas.areaverificada)con.B.rows.forEach(function(r){
+      var base=normKey(r[con.preset.key]).replace(/\s/g,'').slice(0,23);
+      var n=parseInt(r[piso],10);
+      if(!bases.has(base)||isNaN(n))return;
+      var p=String(n).padStart(2,'0'),valor=String(r[columnas.areaverificada]??'').replace(/\s/g,'');
+      var area=typeof r[columnas.areaverificada]==='number'?r[columnas.areaverificada]:
+        Number(/,\d{1,2}$/.test(valor)?valor.replace(/\./g,'').replace(',','.'):valor.replace(/,/g,''));
+      if(!areas.has(base))areas.set(base,{});
+      var pisos=areas.get(base);
+      pisos[p]=(pisos[p]||0)+(isFinite(area)?area:0);
+      if(p==='81')con81.add(base.slice(0,16));
+    });
+  }
+  var indice={codigos:codigos,grupos:grupos,areas:areas,con81:con81,con:con&&con.B};
+  c2crcIndices.set(ua.B,indice);
+  return indice;
+}
 function c2crcFinal(board,code,msg){
-  if(!code||code.length!==24)return null;
-  var filas=c2filasDespues(board,'UA',code.substr(0,16));if(!filas||!filas.length)return null;
-  var ks=filas.map(function(f){return f.__crc;}).filter(function(k){return k.length===24;});if(!ks.length)return null;
-  function nueve(v){return /^9+$/.test(v);} function sotano(v){return /^8[1-9]$/.test(v);}
-  var soloSalto=/SALTO/.test(c2up(msg)),out=[],ent=code.substr(16,2),pis=code.substr(18,2),uni=code.substr(20,3);
-  var o=Array.from(new Set(ks.map(function(k){return k.substr(16,2);}).filter(function(e){return !nueve(e);}))).sort();
-  if(!nueve(ent))for(var w=0;w<o.length;w++){var esp=String(w+1).padStart(2,'0');if(o[w]!==esp){out.push(w===0?'R1 (entrada no inicia en 01)':'R2 (entradas no correlativas: falta '+esp+')');break;}}
-  var c=ks.filter(function(k){return !nueve(k.substr(16,2));});
-  if(!soloSalto&&!nueve(pis)&&!sotano(pis)&&c.length===1&&pis!=='01')out.push('R3 (edificación de una fila con piso distinto de 01)');
-  if(!nueve(uni)){
-    var u=Array.from(new Set(ks.filter(function(k){return k.substr(16,4)===ent+pis;}).map(function(k){return k.substr(20,3);}).filter(function(x){return !nueve(x);}))).sort();
-    if(!soloSalto&&u[0]!=='001')out.push('R4 (unidad no inicia en 001)');
-    var x=u.indexOf(uni);
-    if(x>0&&parseInt(uni,10)-parseInt(u[x-1],10)!==1)out.push('R5 (unidades no correlativas: '+u[x-1]+' → '+uni+')');
-    else if(x===0&&parseInt(uni,10)>1&&soloSalto)out.push('R5 (unidades inician en '+uni+')');
+  function reporte(id){return board.find(function(x){return x.preset&&x.preset.id===id&&x.B&&x.B.headers;});}
+  var ua=reporte('UA');if(!ua)return null;
+  var idx=c2crcIndice(ua,reporte('CON'));
+  if(!idx.codigos.has(code))return null;
+  var hits=[];
+  if(code.length!==24)return c2resultado(['LON'],msg,null,null,'estructura del CRC conforme');
+  var ks=idx.grupos.get(code.slice(6,16)),ent=code.slice(16,18),piso=code.slice(18,20),unidad=code.slice(20,23);
+  var entradas=ks.map(function(k){return k.slice(16,18);}).filter(function(e){return e!=='99';});
+  var orden=Array.from(new Set(entradas)).sort();
+  function sotano(p){return /^8[1-9]$/.test(p);}
+  if(entradas.length===1&&ent!=='99'&&ent!=='01')hits.push('R1');
+  if(ent!=='99'&&orden.some(function(e,i){return +e!==i+1;}))hits.push('R2');
+  if(entradas.length===1&&piso!=='99'&&!sotano(piso)&&piso!=='01')hits.push('R3');
+  if(unidad!=='999'){
+    var unidades=ks.filter(function(k){return k.slice(16,20)===ent+piso;}).map(function(k){return k.slice(20,23);}).filter(function(u){return u!=='999';}).sort();
+    if(unidades[0]!=='001')hits.push('R4');
+    var i=unidades.indexOf(unidad);
+    if(i===0?+unidad>1:+unidad-unidades[i-1]!==1)hits.push('R5');
   }
-  if(!soloSalto&&sotano(pis)){
-    var sots=Array.from(new Set(ks.map(function(k){return k.substr(18,2);}).filter(sotano))).sort();
-    if(!(sots[0]==='81'&&sots.every(function(v,n){return parseInt(v,10)===81+n;})))out.push('R6 (sótano no inicia en 81 o no es correlativo)');
+  var areas=idx.areas.get(code.slice(0,23));
+  if(sotano(piso)){
+    var sotanos=Array.from(new Set(ks.map(function(k){return k.slice(18,20);}).filter(sotano))).sort();
+    if(sotanos.some(function(p,i){return +p!==81+i;})){
+      if(!idx.con81.has(code.slice(0,16)))hits.push('R6');
+    }else if((!areas||unidad==='999')&&piso==='81'&&ks.filter(function(k){return k.slice(20,23)!=='999';}).length===1)hits.push('R6A');
   }
-  return {cumple:!out.length,txt:out.length?out.join(', '):'estructura del CRC conforme'};
+  if(areas&&unidad!=='999'&&piso!=='99'){
+    var normales=Object.keys(areas).filter(function(p){return p!=='99'&&!sotano(p)&&+p>=1;});
+    if(areas[piso]===undefined)hits.push('R6C');
+    else if(sotano(piso)&&normales.length)hits.push('R6A');
+    else if(+piso>=2&&normales.some(function(p){return +p<+piso&&areas[p]>=areas[piso]*0.5;}))hits.push('R6B');
+  }
+  return c2resultado(hits,msg,/SALTO/.test(c2up(msg))?['R1','R2','R5']:null,null,'estructura del CRC conforme');
 }
 /* ¿Cambió la ficha respecto a lo que vio el validador (valores del Excel del revisor)? true / false / null (sin datos para comparar). */
 function c2valIni(v){var t=c2up(v).replace(/^\d+\s*-\s*/,'').replace(/\s+/g,' ').trim(),n=t.replace(',','.');return /^-?\d+(\.\d+)?$/.test(n)&&!/^0\d/.test(n)?String(parseFloat(n)):t;}
@@ -2549,11 +3548,11 @@ function c2cambioDesdeInicial(ini,act){
 function c2estadoFinal(board,row,code){
   var v=c2mapKey(row.validator);if(!code)return null;
   if(v==='VAL_TITULAR_INSCRIPCION')return code.length===24?c2titularFinal(board,code,row.message):null;
-  if(v==='VAL_USO_CIIU')return code.length===24?c2usoCiiuFinal(board,code,row.piso):null;
-  if(v==='VAL_COND_PREDIO_EN'||/FI\.24\.03/.test(row.message||''))return code.length===24?c2condPredioFinal(board,code):null;
-  if(v==='VAL_PRODUCTO')return code.length===24?c2obrasFinal(board,code,true,row.inicial):null;
-  if(v==='VAL_MEP_MEDIDA_PRODUCTO')return code.length===24?c2obrasFinal(board,code,false,row.inicial):null;
-  if(v==='VAL_CRC')return c2crcFinal(board,code,row.message);
+  if(v==='VAL_USO_CIIU')return code.length===24?c2usoCiiuFinal(board,code,row.piso,row.message):null;
+  if(v==='VAL_COND_PREDIO_EN'||/FI\.24\.03/.test(row.message||''))return code.length===24?c2condPredioFinal(board,code,row.message):null;
+  if(v==='VAL_PRODUCTO')return code.length===24?c2obrasFinal(board,code,true,row.inicial,row.message):null;
+  if(v==='VAL_MEP_MEDIDA_PRODUCTO')return code.length===24?c2obrasFinal(board,code,false,row.inicial,row.message):null;
+  if(v==='VAL_CRC')return code.length===24?c2crcFinal(board,code,row.message):null;
   return null;
 }
 function c2state(s){s=c2clean(s).toUpperCase().replace(/\s+/g,' ');return s==='OTROS CAMBIOS'?'OTRO CAMBIO':s;}
@@ -2891,7 +3890,7 @@ function c2rows(){
     if(soloDV)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
     if(status==='⚠ SIN CAMBIO EN SICUN'){
       var tfin=c2estadoFinal(BOARD_(),row,code);
-      if(tfin){
+      if(tfin&&c2tieneCampos(tfin)){
         if(!tfin.cumple)addNote('Sigue en SICUN: '+tfin.txt);
         else if(c2cambioDesdeInicial(row.inicial,tfin.actual)===true){status=C2_CUMPLE;addNote('Cumple en SICUN: '+tfin.txt+' · corregido antes de la descarga ANTES');}
         else addNote('Sin cambio desde la validación: '+tfin.txt+' según las reglas; posible falso error, si es así marcar NO APLICA');
@@ -2903,7 +3902,7 @@ function c2rows(){
     var otra=null;if((status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
       if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&!c2ruidoSicun(e);}:function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
       if(otra)status=row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}
-    if(status==='⚠ SIN CAMBIO EN SICUN'&&c2mapKey(row.validator)==='VAL_USO_CIIU'&&c2usoDespues(BOARD_(),code)===USO_SIN_CIIU)addNote('Sugerencia: debería ser NO APLICA (comercial no identificado no lleva CIIU)');
+    if(status==='⚠ SIN CAMBIO EN SICUN'&&c2mapKey(row.validator)==='VAL_USO_CIIU'&&tfin&&tfin.cumple&&/\bR7\b/.test(tfin.txt))addNote('Sugerencia: debería ser NO APLICA (comercial no identificado no lleva CIIU)');
     if(split.otroPiso.length&&!(otra&&otra.otroPiso))addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));
     var used=hits.concat(otros).filter(function(e){return e.type!=='crcmatch'||c2esDV(e);}), campos=c2bucket(status)===2?'':Array.from(new Set(used.map(function(e){return e.report+' · '+e.field;}))).join(' | ');
     if(otra)campos=otra.campos.join(' | ');   /* campos de las OTRAS unidades (solo nombres) */

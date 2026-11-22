@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  VALIDA CATASTRAL — VAL_TITULAR_INSCRIPCION
+  Validador de titularidad e inscripción registral
+  ValidaCatastral ©diegocampos — Todos los derechos reservados.
+  Herramienta de uso interno para control de calidad catastral.
+  Prohibida su reproducción, distribución o modificación
+  sin autorización expresa del autor.
+  ============================================================
+-->
+<html lang="es" data-vctheme="neon">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="ValidaCatastral ©diegocampos">
+<title>VAL_TITULAR_INSCRIPCION · VALIDA CATASTRAL</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@500;600&display=swap');
+
+/* ===== TEMA 1 · NEON (por defecto) ===== */
+:root{
+  --bg-void:#07090d;--bg-deep:#0c1015;--bg-panel:#10151c;--bg-card:#151b23;--bg-hover:#1b232d;
+  --border:#23303f;--border-soft:#1a2430;
+  --accent:#3fc6ee;--accent-2:#2f9fd0;--purple:#a78bfa;--green:#3fd99a;--amber:#e8b14a;--red:#e87070;
+  --text-prime:#dce4ec;--text-mute:#9fb3c4;--text-dim:#5c7186;
+  --font-mono:'Share Tech Mono',ui-monospace,monospace;--font-head:'Rajdhani',sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(63,198,238,.10);--red-wash:rgba(232,112,112,.10);--purple-wash:rgba(167,139,250,.08);
+  --glow:0 0 18px rgba(63,198,238,.15);--radius:10px;
+}
+/* ===== TEMA 2 · OSCURO VC (sobrio) ===== */
+html[data-vctheme="vcdark"]{
+  --bg-void:#0b0b0c;--bg-deep:#111113;--bg-panel:#151517;--bg-card:#1b1b1e;--bg-hover:#222226;
+  --border:#2a2a2e;--border-soft:#232327;
+  --accent:#5dcaa5;--accent-2:#3fae89;--purple:#a79bef;--green:#5dcaa5;--amber:#e2b35c;--red:#e07b7b;
+  --text-prime:#ededee;--text-mute:#a6a6ac;--text-dim:#6e6e74;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Inter',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(93,202,165,.10);--red-wash:rgba(224,123,123,.10);--purple-wash:rgba(167,155,239,.08);
+  --glow:none;
+}
+/* ===== TEMA 3 · CLARO ===== */
+html[data-vctheme="vclight"]{
+  --bg-void:#fafafa;--bg-deep:#f1f1f2;--bg-panel:#ffffff;--bg-card:#f5f5f6;--bg-hover:#ececee;
+  --border:#e3e3e6;--border-soft:#ebebee;
+  --accent:#0f6e56;--accent-2:#128a68;--purple:#5f51c9;--green:#0f6e56;--amber:#925f0e;--red:#b54a4a;
+  --text-prime:#19191b;--text-mute:#56565d;--text-dim:#9a9aa0;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Inter',system-ui,sans-serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(15,110,86,.08);--red-wash:rgba(181,74,74,.08);--purple-wash:rgba(95,81,201,.07);
+  --glow:none;
+}
+/* ===== TEMA 4 · CÁLIDO (editorial oscuro, serif) ===== */
+html[data-vctheme="vcwarm"]{
+  --bg-void:#1a1918;--bg-deep:#21201e;--bg-panel:#262624;--bg-card:#2c2b28;--bg-hover:#34322e;
+  --border:#3a3833;--border-soft:#31302b;
+  --accent:#d97757;--accent-2:#c15f3c;--purple:#a996e0;--green:#6fbf8f;--amber:#d9a441;--red:#e05d5d;
+  --text-prime:#f0eee6;--text-mute:#b8b3a7;--text-dim:#7d786d;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;--font-head:'Lora',Georgia,serif;--font-body:'Inter',system-ui,sans-serif;
+  --accent-wash:rgba(217,119,87,.10);--red-wash:rgba(224,93,93,.10);--purple-wash:rgba(169,150,224,.08);
+  --glow:none;--radius:16px;
+}
+html[data-vctheme="vcwarm"] .btn{text-transform:none;letter-spacing:.2px;font-weight:600;}
+html[data-vctheme="vcwarm"] .brand .nm{letter-spacing:1px;}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg-void);color:var(--text-prime);font-family:var(--font-body);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
+
+/* ===== Topbar ===== */
+.topbar{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;gap:14px;
+  padding:12px 22px;background:var(--bg-deep);border-bottom:1px solid var(--border);}
+.brand{display:flex;align-items:center;gap:11px;min-width:0;}
+.brand .mark{width:30px;height:30px;flex:none;color:var(--accent);filter:drop-shadow(0 0 6px var(--accent-wash));}
+.brand .nm{font-family:var(--font-head);font-weight:700;font-size:16px;letter-spacing:2.5px;color:var(--accent);white-space:nowrap;}
+.brand .mod{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);letter-spacing:1px;white-space:nowrap;}
+.topbar-right{display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:11px;color:var(--text-mute);}
+.pill{border:1px solid var(--border);background:var(--bg-panel);color:var(--text-mute);border-radius:20px;
+  padding:5px 13px;font-family:var(--font-mono);font-size:10.5px;letter-spacing:1px;cursor:pointer;transition:border-color .15s,color .15s;white-space:nowrap;}
+.pill:hover{border-color:var(--accent);color:var(--accent);}
+.pill .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--accent);margin-right:6px;vertical-align:1px;}
+
+.wrap{max-width:1480px;margin:0 auto;padding:28px 24px 70px;}
+
+/* ===== Masthead ===== */
+header.masthead{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:24px 28px;box-shadow:var(--glow);}
+.eyebrow{font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin:0 0 8px;display:flex;align-items:center;gap:8px;}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+h1{font-family:var(--font-head);font-size:27px;line-height:1.12;margin:0 0 8px;font-weight:700;letter-spacing:.5px;}
+.lede{margin:0;color:var(--text-mute);max-width:76ch;font-size:14px;}
+.keyline{margin-top:16px;padding-top:14px;border-top:1px dashed var(--border);font-size:12.5px;color:var(--text-mute);}
+.keyline code{font-family:var(--font-mono);background:var(--accent-wash);color:var(--accent);padding:2px 8px;border-radius:5px;font-size:12px;letter-spacing:.5px;border:1px solid var(--border-soft);}
+.keyline b{color:var(--purple);font-weight:600;}
+
+section{margin-top:24px;}
+.sec-label{font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--text-dim);margin:0 0 12px;display:flex;align-items:center;gap:12px;}
+.sec-label::after{content:"";height:1px;flex:1;background:var(--border);}
+
+/* ===== Zona de carga ===== */
+.intake{background:var(--bg-panel);border:1.5px dashed var(--border);border-radius:var(--radius);padding:36px 26px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s;}
+.intake:hover{border-color:var(--accent);background:var(--bg-card);}
+.intake.drag{border-color:var(--accent);background:var(--accent-wash);border-style:solid;}
+.intake.loaded{border-style:solid;border-color:var(--border);text-align:left;cursor:default;padding:18px 20px;}
+.intake .slot{width:46px;height:46px;border-radius:9px;margin:0 auto 14px;display:grid;place-items:center;background:var(--accent-wash);color:var(--accent);border:1px solid var(--border-soft);}
+.intake .slot svg{width:24px;height:24px;}
+.intake h3{margin:0 0 5px;font-size:15.5px;font-weight:600;font-family:var(--font-head);letter-spacing:.4px;}
+.intake p{margin:0;color:var(--text-mute);font-size:13px;}
+.intake .browse{color:var(--accent);font-weight:600;text-decoration:underline;text-underline-offset:3px;}
+.filelist{display:flex;flex-direction:column;gap:10px;}
+.filechip{display:flex;align-items:center;gap:14px;}
+.filechip .ic{width:36px;height:36px;border-radius:8px;background:var(--green);color:var(--bg-void);display:grid;place-items:center;flex:none;}
+.filechip .ic.bad{background:var(--red);}
+.filechip .ic svg{width:18px;height:18px;}
+.filechip .meta{min-width:0;flex:1;}
+.filechip .nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.filechip .sub{font-size:11.5px;color:var(--text-mute);font-family:var(--font-mono);}
+.filechip .sub.bad{color:var(--red);}
+.reset{border:1px solid var(--border);background:var(--bg-card);color:var(--text-mute);border-radius:7px;padding:7px 13px;font-size:12px;cursor:pointer;font-family:var(--font-mono);letter-spacing:.5px;white-space:nowrap;}
+.reset:hover{border-color:var(--red);color:var(--red);}
+.addmore{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+
+/* ===== Botones ===== */
+.btn{font-family:var(--font-head);font-size:14px;font-weight:600;letter-spacing:.8px;border-radius:8px;cursor:pointer;padding:11px 22px;border:1px solid transparent;display:inline-flex;align-items:center;gap:9px;transition:background .15s,border-color .15s,opacity .15s,box-shadow .15s;text-transform:uppercase;}
+.btn svg{width:17px;height:17px;}
+.btn-primary{background:var(--accent);color:var(--bg-void);}
+.btn-primary:hover{background:var(--accent-2);box-shadow:0 0 16px var(--accent-wash);}
+.btn-ghost{background:var(--bg-panel);color:var(--text-prime);border-color:var(--border);}
+.btn-ghost:hover{border-color:var(--green);color:var(--green);}
+.btn:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
+.actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:18px;}
+
+/* ===== Métricas ===== */
+.panel{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.panel-head{border-top:2px solid var(--accent);}
+.stats{display:grid;grid-template-columns:repeat(6,1fr);}
+.stat{padding:18px 22px;border-right:1px solid var(--border);}
+.stat:last-child{border-right:none;}
+.stat .k{font-family:var(--font-mono);font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);}
+.stat .v{font-family:var(--font-mono);font-size:33px;line-height:1.05;margin-top:9px;font-variant-numeric:tabular-nums;color:var(--accent);}
+.stat.ok .v{color:var(--green);}
+.stat.dup .v{color:var(--red);}
+.stat.grp .v{color:var(--amber);}
+.stat.pur .v{color:var(--purple);}
+.substats{display:flex;flex-wrap:wrap;gap:10px;padding:14px 20px;border-top:1px solid var(--border);background:var(--bg-card);}
+.rulechip{font-family:var(--font-mono);font-size:11px;letter-spacing:.5px;border:1px solid var(--border);background:var(--bg-panel);
+  color:var(--text-mute);border-radius:20px;padding:5px 12px;cursor:pointer;transition:border-color .15s,color .15s;}
+.rulechip:hover{border-color:var(--accent);color:var(--accent);}
+.rulechip.on{border-color:var(--accent);color:var(--accent);background:var(--accent-wash);}
+.rulechip b{color:var(--red);font-weight:500;}
+.rulechip.warn b{color:var(--amber);}
+
+/* ===== Filtros ===== */
+.filters{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;}
+.fgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;}
+.fld label{display:block;font-family:var(--font-mono);font-size:9.5px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;}
+.fld input,.fld select,textarea{width:100%;background:var(--bg-card);border:1px solid var(--border);color:var(--text-prime);
+  border-radius:8px;padding:9px 11px;font-family:var(--font-mono);font-size:12.5px;letter-spacing:1px;}
+.fld input:focus,.fld select:focus,textarea:focus{outline:none;border-color:var(--accent);}
+textarea{min-height:84px;resize:vertical;line-height:1.6;letter-spacing:.5px;}
+.frow{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-top:16px;}
+.fmeta{font-family:var(--font-mono);font-size:11px;color:var(--text-dim);margin-top:7px;letter-spacing:.5px;}
+.fmeta b{color:var(--amber);font-weight:500;}
+.fbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px;padding-top:14px;border-top:1px dashed var(--border);}
+.selline{font-family:var(--font-mono);font-size:12px;color:var(--text-mute);letter-spacing:.5px;}
+.selline b{color:var(--accent);font-weight:500;}
+.selline .r{color:var(--red);}
+
+/* ===== Tablas ===== */
+.tablecard{background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.tablecard .cap{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;}
+.tablecard .cap h3{margin:0;font-size:13.5px;font-weight:600;font-family:var(--font-head);letter-spacing:.8px;text-transform:uppercase;}
+.tablecard .cap .note{font-size:11.5px;color:var(--text-mute);font-family:var(--font-mono);letter-spacing:.4px;}
+.scroll{overflow:auto;max-height:640px;}
+table{border-collapse:collapse;width:100%;font-size:12.5px;}
+th,td{padding:8px 11px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border-soft);}
+thead th{position:sticky;top:0;background:var(--bg-card);z-index:2;font-family:var(--font-mono);font-size:9.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-mute);font-weight:500;border-bottom:1px solid var(--border);}
+tbody tr:hover{background:var(--bg-hover);}
+td.mono,th.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+.col-num{color:var(--text-dim);font-family:var(--font-mono);font-size:11.5px;}
+th.crc-h{background:var(--purple-wash);color:var(--purple);}
+td.crc{background:var(--purple-wash);font-family:var(--font-mono);color:var(--purple);font-variant-numeric:tabular-nums;}
+tr.bad td{background:var(--red-wash);}
+tr.bad td:first-child{box-shadow:inset 3px 0 0 var(--red);}
+tr.warn td{background:rgba(232,177,74,.07);}
+tr.warn td:first-child{box-shadow:inset 3px 0 0 var(--amber);}
+td.hit{color:var(--red);font-weight:600;box-shadow:inset 0 0 0 1px var(--red);}
+td.vacio{color:var(--red);font-family:var(--font-mono);font-size:11px;letter-spacing:1px;}
+.badge{display:inline-block;font-family:var(--font-mono);font-size:10px;letter-spacing:1px;padding:2px 8px;border-radius:20px;text-transform:uppercase;}
+.badge.ok{background:var(--green);color:var(--bg-void);}
+.badge.err{background:var(--red);color:var(--bg-void);}
+.badge.adv{background:var(--amber);color:var(--bg-void);}
+.badge.exe{background:var(--purple);color:var(--bg-void);}
+tr.exe td{color:var(--text-mute);}
+tr.exe td:first-child{box-shadow:inset 3px 0 0 var(--purple);}
+.rcode{font-family:var(--font-mono);font-size:10.5px;color:var(--amber);letter-spacing:.5px;}
+.obs{font-family:var(--font-mono);color:var(--text-mute);font-size:11px;white-space:normal;min-width:340px;}
+.empty{padding:46px 24px;text-align:center;color:var(--text-mute);}
+.empty .big{font-size:15px;font-weight:600;color:var(--text-prime);margin-bottom:6px;font-family:var(--font-head);letter-spacing:.5px;}
+.empty.clean .big{color:var(--green);}
+.hidden{display:none;}
+.err{background:var(--red-wash);border:1px solid var(--red);color:var(--red);padding:12px 16px;border-radius:8px;font-size:13px;margin-top:14px;font-family:var(--font-mono);}
+.notice{background:var(--purple-wash);border:1px solid var(--purple);color:var(--purple);padding:11px 15px;border-radius:8px;font-size:12px;margin-top:14px;font-family:var(--font-mono);letter-spacing:.4px;line-height:1.7;}
+.notice b{color:var(--text-prime);font-weight:600;}
+
+footer{margin-top:44px;padding-top:16px;border-top:1px solid var(--border);text-align:center;color:var(--text-dim);font-family:var(--font-mono);font-size:11px;letter-spacing:1px;line-height:2;}
+footer .cr{color:var(--text-mute);}
+footer .cr b{color:var(--accent);font-weight:500;}
+
+@media (max-width:1100px){ .fgrid{grid-template-columns:repeat(4,1fr);} .frow{grid-template-columns:1fr;} .stats{grid-template-columns:repeat(3,1fr);} }
+@media (max-width:760px){
+  .wrap{padding:20px 14px 60px;}
+  .stats{grid-template-columns:repeat(2,1fr);}
+  .fgrid{grid-template-columns:repeat(2,1fr);}
+  h1{font-size:22px;}.stat .v{font-size:27px;}
+  .brand .mod{display:none;}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;}}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 8 L14 26 L28 4"/><path d="M4 8 L9 8" opacity=".45"/>
+    </svg>
+    <span class="nm">VALIDA CATASTRAL</span>
+    <span class="mod">// VAL_TITULAR_INSCRIPCION</span>
+  </div>
+  <div class="topbar-right">
+    <span id="clock">--:--:--</span>
+    <button class="pill" id="themeBtn" type="button" title="Cambiar tema"><span class="dot"></span><span id="themeName">Neon</span></button>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Control de calidad catastral</p>
+    <h1>Validador de titularidad e inscripción registral</h1>
+    <p class="lede">Carga uno o varios Reportes de Unidades Administrativas (SICUN) del mismo polígono. El sistema valida la coherencia entre condición del titular, forma de adquisición, tipo de documento, tipo de partida registral y número de partida, marca cada campo observado y descompone el Código de Referencia Catastral.</p>
+    <div class="keyline">
+      Estructura del CRC: <code>Ubigeo(6) · Sector(2) · Manzana(3) · Lote(3) · Edifica(2) · Entrada(2) · Piso(2) · Unidad(3) · Ref(1)</code> = 24 dígitos. Los registros a nivel de lote (<b>Entrada 99 · Piso 99 · Unidad 999</b>) quedan exentos de las reglas de titularidad, pero sí se validan en el bloque de partida registral. Los predios con Clasificación <b>PARQUE</b> quedan <b>EXENTOS</b> de todas las reglas de titularidad y partida, porque SICUN bloquea esos campos; solo se revisa el CRC.
+    </div>
+  </header>
+
+  <section>
+    <p class="sec-label">1 · Cargar reportes</p>
+    <div class="intake" id="intake" tabindex="0" role="button" aria-label="Cargar archivos Excel">
+      <div id="intakeEmpty">
+        <div class="slot" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <h3>Arrastra tus archivos aquí o <span class="browse">selecciónalos</span></h3>
+        <p>Formato .xlsx — puedes soltar varios sectores del mismo polígono a la vez. Procesamiento 100% en tu navegador.</p>
+      </div>
+      <div id="intakeLoaded" class="hidden">
+        <div class="filelist" id="fileList"></div>
+        <div class="addmore">
+          <button class="reset" id="addBtn" type="button">Agregar otro archivo</button>
+          <button class="reset" id="resetBtn" type="button">Quitar todo</button>
+        </div>
+      </div>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" multiple class="hidden">
+    <div id="loadError" class="err hidden"></div>
+    <div id="loadNotice" class="notice hidden"></div>
+    <div class="actions">
+      <button class="btn btn-primary" id="runBtn" type="button" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Validar
+      </button>
+    </div>
+  </section>
+
+  <section id="resultSection" class="hidden">
+    <p class="sec-label">2 · Resultado del universo cargado</p>
+    <div class="panel panel-head">
+      <div class="stats">
+        <div class="stat"><div class="k">Registros</div><div class="v" id="stTotal">0</div></div>
+        <div class="stat ok"><div class="k">Conformes</div><div class="v" id="stOk">0</div></div>
+        <div class="stat dup"><div class="k">Con error</div><div class="v" id="stErr">0</div></div>
+        <div class="stat grp"><div class="k">Con advertencia</div><div class="v" id="stWarn">0</div></div>
+        <div class="stat pur"><div class="k">Nivel lote</div><div class="v" id="stLote">0</div></div>
+        <div class="stat pur"><div class="k">Parques · exentos</div><div class="v" id="stParque">0</div></div>
+      </div>
+      <div class="substats" id="ruleChips"></div>
+    </div>
+  </section>
+
+  <section id="filterSection" class="hidden">
+    <p class="sec-label">3 · Filtrar</p>
+    <div class="filters">
+      <div class="fgrid">
+        <div class="fld"><label>Sector</label><input id="fSector" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+        <div class="fld"><label>Manzana</label><input id="fMz" placeholder="· · ·" maxlength="3" autocomplete="off"></div>
+        <div class="fld"><label>Lote</label><input id="fLote" placeholder="· · ·" maxlength="3" autocomplete="off"></div>
+        <div class="fld"><label>Edificación</label><input id="fEdif" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+        <div class="fld"><label>Entrada</label><input id="fEntr" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+        <div class="fld"><label>Piso</label><input id="fPiso" placeholder="· ·" maxlength="2" autocomplete="off"></div>
+        <div class="fld"><label>Unidad</label><input id="fUnid" placeholder="· · ·" maxlength="3" autocomplete="off"></div>
+      </div>
+      <div class="frow">
+        <div class="fld">
+          <label>Lista de CRC pegada</label>
+          <textarea id="fCrc" placeholder="Pega aquí los CRC — uno por línea, o separados por comas, espacios o tabulaciones."></textarea>
+          <div class="fmeta" id="crcMeta">Sin lista. La comparación ignora el último dígito de referencia.</div>
+        </div>
+        <div>
+          <div class="fld"><label>Estado</label>
+            <select id="fEstado">
+              <option value="">Todos</option>
+              <option value="ERROR">Solo errores</option>
+              <option value="ADVERTENCIA">Solo advertencias</option>
+              <option value="OBS">Errores + advertencias</option>
+              <option value="CONFORME">Solo conformes</option>
+              <option value="EXENTO">Solo exentos (parque)</option>
+            </select>
+          </div>
+          <div class="fld" style="margin-top:12px;"><label>Regla</label>
+            <select id="fRegla"><option value="">Todas</option></select>
+          </div>
+          <div class="fld" style="margin-top:12px;"><label>Archivo de origen</label>
+            <select id="fArchivo"><option value="">Todos</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="fbar">
+        <button class="reset" id="clearBtn" type="button">Limpiar filtros</button>
+        <span class="selline" id="selLine">—</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="tableSection" class="hidden">
+    <p class="sec-label">4 · Detalle</p>
+    <div class="actions" style="margin-top:0;margin-bottom:14px;">
+      <button class="btn btn-primary" id="expSelBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar selección
+      </button>
+      <button class="btn btn-ghost" id="expAllBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Exportar todo
+      </button>
+      <button class="btn btn-ghost hidden" id="expRepBtn" type="button" title="Excel aparte con las unidades que figuran más de una vez en el mismo reporte">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M4 16V5a1 1 0 0 1 1-1h11"/></svg>
+        <span>Exportar unidades repetidas</span>
+      </button>
+    </div>
+    <div class="tablecard">
+      <div class="cap"><h3>Registros validados</h3><span class="note" id="tableNote">—</span></div>
+      <div class="scroll"><table id="resTable"><thead></thead><tbody></tbody></table></div>
+      <div id="emptyBox" class="empty hidden"><div class="big">Sin resultados</div><div>Ningún registro coincide con los filtros aplicados.</div></div>
+    </div>
+    <div id="expError" class="err hidden"></div>
+  </section>
+
+  <footer>
+    Procesamiento 100% local · SheetJS + ExcelJS<br>
+    <span class="cr"><b>ValidaCatastral ©diegocampos</b> — Uso interno. Prohibida su reproducción o distribución no autorizada.</span>
+  </footer>
+</div>
+
+<script>
+/* ValidaCatastral ©diegocampos — Todos los derechos reservados. */
+(function(){
+  "use strict";
+  var THEMES=[["neon","Neon"],["vcdark","Oscuro VC"],["vclight","Claro"],["vcwarm","C\u00e1lido"]], tIdx=0;
+  var themeBtn=document.getElementById("themeBtn"), themeName=document.getElementById("themeName");
+  themeBtn.addEventListener("click",function(){
+    tIdx=(tIdx+1)%THEMES.length;
+    document.documentElement.setAttribute("data-vctheme",THEMES[tIdx][0]);
+    themeName.textContent=THEMES[tIdx][1];
+  });
+  var clock=document.getElementById("clock");
+  function tick(){ var d=new Date(),p=function(n){return String(n).padStart(2,"0");}; clock.textContent=p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds()); }
+  tick(); setInterval(tick,1000);
+})();
+</script>
+
+<script>
+/* ValidaCatastral ©diegocampos — Todos los derechos reservados. */
+(function(){
+"use strict";
+
+/* ============================================================
+   1 · CONSTANTES DE DOMINIO
+   ============================================================ */
+var HDR = {
+  crc:"codigo de referencia catastral",
+  ubigeo:"ubigeo",
+  distrito:"distrito",
+  mzurb:"manzana urbana",
+  lturb:"lote urbano",
+  ct:"condicion del titular",
+  fa:"forma de adquisicion",
+  td:"tipo de documento",
+  tp:"tipo de partida registral",
+  np:"numero de partida registral",
+  clas:"clasificacion del predio"
+};
+var REQUIRED = [HDR.crc,HDR.ct,HDR.fa,HDR.td,HDR.tp,HDR.np];
+
+/* Formas de adquisición que NO exigen partida registral */
+var SIN_PARTIDA = ["OTROS","POSESION",""];
+
+var REGLAS = {
+  "R1":{sev:"ERROR", txt:"Forma de adquisición sin documento sustentatorio"},
+  "R2":{sev:"ERROR", txt:"Se declara inscripción con bloque registral incompleto"},
+  "R2P":{sev:"ERROR",txt:"POSEEDOR con escritura pública"},
+  "R3A":{sev:"ERROR",txt:"Código de Predio con formato inválido"},
+  "R3B":{sev:"ERROR",txt:"Partida Electrónica con formato inválido"},
+  "R3C":{sev:"ERROR",txt:"Ficha con formato inválido"},
+  "R3F":{sev:"ADVERTENCIA",txt:"Ficha de 8 dígitos: posible Partida Electrónica"},
+  "R4":{sev:"ERROR", txt:"Sucesión intestada con forma distinta de OTROS"},
+  "R5":{sev:"ERROR", txt:"Forma POSESIÓN sin condición POSEEDOR"},
+  "R5C":{sev:"ERROR",txt:"Constancia de posesión fuera de contexto de posesión"},
+  "E1":{sev:"ADVERTENCIA",txt:"CRC con longitud distinta de 24 dígitos"}
+};
+
+/* ============================================================
+   2 · UTILIDADES
+   ============================================================ */
+function norm(v){
+  if(v===null||v===undefined) return "";
+  return String(v).replace(/\s+/g," ").trim();
+}
+function key(v){
+  return norm(v).toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+}
+function up(v){
+  return norm(v).toUpperCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+}
+function esc(s){
+  return String(s).replace(/[&<>"]/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];
+  });
+}
+function $(id){ return document.getElementById(id); }
+
+/* Descomposición del CRC — 24 dígitos */
+function partirCRC(crc){
+  var s = norm(crc);
+  return {
+    raw:s,
+    ubigeo:s.substr(0,6),
+    sector:s.substr(6,2),
+    manzana:s.substr(8,3),
+    lote:s.substr(11,3),
+    edifica:s.substr(14,2),
+    entrada:s.substr(16,2),
+    piso:s.substr(18,2),
+    unidad:s.substr(20,3),
+    ref:s.substr(23,1),
+    base:s.substr(0,23)
+  };
+}
+
+/* ============================================================
+   3 · ESTADO
+   ============================================================ */
+var FILES = [];      // {name, rows:[], ok:bool, msg:""}
+var DATA  = [];      // registros validados
+var RULE_FILTER = "";
+var REPETIDAS = [];  // filas de unidades repetidas dentro de un mismo reporte (Excel aparte)
+
+/* ============================================================
+   4 · LECTURA DE ARCHIVOS
+   ============================================================ */
+function leerArchivo(file){
+  return new Promise(function(resolve){
+    var fr = new FileReader();
+    fr.onload = function(e){
+      try{
+        var wb = XLSX.read(new Uint8Array(e.target.result),{type:"array"});
+        var sh = wb.Sheets["data"] || wb.Sheets[wb.SheetNames[0]];
+        var aoa = XLSX.utils.sheet_to_json(sh,{header:1,raw:false,defval:""});
+        if(!aoa.length){ return resolve({name:file.name,ok:false,msg:"El archivo está vacío.",rows:[]}); }
+
+        var head = aoa[0].map(key);
+        var idx = {};
+        Object.keys(HDR).forEach(function(k){ idx[k] = head.indexOf(HDR[k]); });
+
+        var faltan = REQUIRED.filter(function(h){ return head.indexOf(h)<0; });
+        if(faltan.length){
+          return resolve({name:file.name,ok:false,rows:[],
+            msg:"No es un Reporte de Unidades Administrativas — faltan columnas: "+faltan.join(", ")});
+        }
+
+        var rows = [];
+        for(var i=1;i<aoa.length;i++){
+          var r = aoa[i];
+          var crc = norm(r[idx.crc]);
+          if(!crc) continue;
+          rows.push({
+            archivo:file.name,
+            fila:i+1,
+            crc:crc,
+            ubigeo:norm(r[idx.ubigeo]),
+            distrito:idx.distrito>=0?norm(r[idx.distrito]):"",
+            mzurb:idx.mzurb>=0?norm(r[idx.mzurb]):"",
+            lturb:idx.lturb>=0?norm(r[idx.lturb]):"",
+            ct:norm(r[idx.ct]),
+            fa:norm(r[idx.fa]),
+            td:norm(r[idx.td]),
+            tp:norm(r[idx.tp]),
+            np:norm(r[idx.np]),
+            clas:idx.clas>=0?norm(r[idx.clas]):""
+          });
+        }
+        resolve({name:file.name,ok:true,msg:rows.length+" registros",rows:rows});
+      }catch(err){
+        resolve({name:file.name,ok:false,rows:[],msg:"No se pudo leer el archivo: "+err.message});
+      }
+    };
+    fr.onerror=function(){ resolve({name:file.name,ok:false,rows:[],msg:"Error de lectura."}); };
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+/* ============================================================
+   5 · MOTOR DE VALIDACIÓN
+   ============================================================ */
+function validar(rec, dupSet){
+  var p = partirCRC(rec.crc);
+  var ct = up(rec.ct), fa = up(rec.fa), td = up(rec.td), tp = up(rec.tp);
+  var np = norm(rec.np);
+  var nivelLote = (p.entrada==="99" && p.piso==="99" && p.unidad==="999");
+
+  var obs = [];   // {regla, sev, campos:[], msg}
+  function add(cod,campos,msg){
+    obs.push({regla:cod, sev:REGLAS[cod].sev, campos:campos||[], msg:msg||REGLAS[cod].txt});
+  }
+
+  var hayTD = !!td, hayTP = !!tp, hayNP = !!np;
+  var trio = [hayTD,hayTP,hayNP];
+  var llenos = trio.filter(Boolean).length;
+  var faltantes = [];
+  if(!hayTD) faltantes.push("Tipo de Documento");
+  if(!hayTP) faltantes.push("Tipo de Partida Registral");
+  if(!hayNP) faltantes.push("Número de Partida Registral");
+  var campFalt = [];
+  if(!hayTD) campFalt.push("td");
+  if(!hayTP) campFalt.push("tp");
+  if(!hayNP) campFalt.push("np");
+
+  /* --- Estructurales --- */
+  if(p.raw.length!==24) add("E1",["crc"],"CRC de "+p.raw.length+" dígitos; se esperan 24");
+  /* --- PARQUE: SICUN bloquea los campos de titularidad e inscripción.
+         Queda exento de todas las reglas R*; solo se revisa el CRC (E1). Las unidades repetidas van en un Excel aparte. --- */
+  var esParque = (up(rec.clas).indexOf("PARQUE")>=0);
+  if(esParque){
+    return armar(rec,p,nivelLote,true,obs);
+  }
+
+  /* --- Caso propio: POSEEDOR con escritura pública (prevalece sobre R1/R2) --- */
+  var poseedorEscritura = (!nivelLote && ct==="POSEEDOR" && td.indexOf("ESCRITURA")>=0);
+
+  /* Documento que por sí solo NO acredita inscripción (minuta, doc. privado, constancia):
+     puede ir sin tipo ni número de partida. Solo la escritura pública —o el hecho de
+     declarar una partida— obliga a completar el bloque registral. */
+  var esEscritura = (td.indexOf("ESCRITURA")>=0);
+  var implicaInscripcion = (esEscritura || hayTP || hayNP);
+  var exigePartida = (SIN_PARTIDA.indexOf(fa)<0);
+
+  if(poseedorEscritura){
+    add("R2P",["ct","td"],"POSEEDOR registrado con ESCRITURA PÚBLICA: verificar si corresponde constancia de posesión, o si la condición del titular debe ser propietario");
+  }
+  /* --- R1 · la forma de adquisición exige al menos un documento sustentatorio --- */
+  else if(!nivelLote && exigePartida && !hayTD && !implicaInscripcion){
+    add("R1",["td"],"Forma de adquisición «"+norm(rec.fa)+"» exige al menos Tipo de Documento");
+  }
+  /* --- R2 · si se declara inscripción, el bloque debe estar completo --- */
+  else if(implicaInscripcion && llenos<3){
+    add("R2",campFalt,(esEscritura?"Se declara ESCRITURA PÚBLICA":"Se declara partida registral")+
+      ", por lo que el bloque registral debe estar completo. Falta: "+faltantes.join(", "));
+  }
+
+  /* --- R3 · formato del número de partida --- */
+  if(hayNP){
+    if(tp==="CODIGO DE PREDIO" && !/^P\d{8}$/.test(np)){
+      add("R3A",["np"],"Código de Predio «"+np+"»: debe ser P + 8 dígitos");
+    }
+    if(tp==="PARTIDA ELECTRONICA" && !/^\d{8}$/.test(np)){
+      add("R3B",["np"],"Partida Electrónica «"+np+"»: deben ser 8 dígitos numéricos");
+    }
+    if(tp==="FICHA"){
+      if(/^\d{8}$/.test(np)){
+        add("R3F",["tp","np"],"Ficha «"+np+"» tiene 8 dígitos: probablemente corresponde a PARTIDA ELECTRÓNICA");
+      }else if(!/^\d{5,7}(-\d{1,2})?$/.test(np)){
+        add("R3C",["np"],"Ficha «"+np+"»: debe ser de 5 a 7 dígitos, con guion opcional (123456-01)");
+      }
+    }
+  }
+  /* Número de partida sin tipo declarado y viceversa ya lo cubre R1/R2 */
+
+  if(!nivelLote){
+    /* --- R4 · sucesión intestada --- */
+    if(ct==="SUCESION INTESTADA" && fa!=="OTROS"){
+      add("R4",["ct","fa"],"SUCESIÓN INTESTADA solo admite forma OTROS; declarar «"+norm(rec.fa)+"» supone que ya hay nuevo propietario");
+    }
+    /* --- R5 · posesión --- */
+    if(fa==="POSESION" && ct!=="POSEEDOR"){
+      add("R5",["ct","fa"],"Forma POSESIÓN exige condición POSEEDOR; figura «"+norm(rec.ct)+"»");
+    }
+    if(td.indexOf("CONSTANCIA")>=0 && (ct!=="POSEEDOR" || (fa!=="POSESION" && fa!=="OTROS"))){
+      add("R5C",["ct","fa","td"],"CONSTANCIA DE POSESIÓN solo corresponde a POSEEDOR con forma POSESIÓN u OTROS");
+    }
+  }
+
+  return armar(rec,p,nivelLote,false,obs);
+}
+
+var TXT_PARQUE = "Predio PARQUE: campos de titularidad e inscripción bloqueados en SICUN, exento de validación";
+
+function armar(rec,p,nivelLote,esParque,obs){
+  var sev = esParque ? "EXENTO" : "CONFORME";
+  if(obs.some(function(o){return o.sev==="ERROR";})) sev="ERROR";
+  else if(obs.length) sev="ADVERTENCIA";
+
+  var campos = {};
+  obs.forEach(function(o){ o.campos.forEach(function(c){ campos[c]=true; }); });
+
+  var textos = obs.map(function(o){return "["+o.regla+"] "+o.msg;});
+  if(esParque) textos.unshift(TXT_PARQUE);
+
+  return {
+    archivo:rec.archivo, fila:rec.fila,
+    crc:p.raw, p:p, nivelLote:nivelLote, parque:esParque,
+    ct:rec.ct, fa:rec.fa, td:rec.td, tp:rec.tp, np:rec.np,
+    obs:obs, estado:sev, marcados:campos,
+    reglas:obs.map(function(o){return o.regla;}),
+    texto:textos.join(" | ")
+  };
+}
+
+/* ============================================================
+   6 · PIPELINE
+   ============================================================ */
+function ejecutar(){
+  var rows = [];
+  FILES.forEach(function(f){ if(f.ok) rows = rows.concat(f.rows); });
+  if(!rows.length){ return; }
+
+  var cruce = {};    // por unidad entre archivos → solo aviso general
+  rows.forEach(function(r){
+    var b = partirCRC(r.crc).base;
+    (cruce[b] || (cruce[b] = {}))[r.archivo] = true;
+  });
+
+  DATA = rows.map(function(r){ return validar(r,null); });
+  REPETIDAS = armarRepetidas(DATA);
+
+  /* avisos globales */
+  var ubis = {};
+  DATA.forEach(function(d){ ubis[d.p.ubigeo]=true; });
+  var avisos = [];
+  if(Object.keys(ubis).length>1){
+    avisos.push("<b>Ubigeo mezclado:</b> los archivos contienen "+Object.keys(ubis).length+" distritos distintos ("+Object.keys(ubis).join(", ")+"). Verifica que pertenezcan al mismo polígono.");
+  }
+  var nCruce = Object.keys(cruce).filter(function(b){ return Object.keys(cruce[b]).length>1; }).length;
+  if(nCruce){
+    avisos.push("<b>Archivos que se traslapan:</b> "+nCruce+" unidades aparecen en más de un archivo cargado. Suele ser el mismo sector descargado dos veces o dos descargas que se pisan; revisa que no estés cargando un reporte repetido.");
+  }
+  var nRep = contarUnidadesRep();
+  if(nRep){
+    avisos.push("<b>Unidades repetidas:</b> "+nRep+" unidades figuran más de una vez dentro del mismo reporte ("+REPETIDAS.length+" filas). No se incluyen en la exportación de titularidad; se descargan en un Excel aparte con el botón <b>Exportar unidades repetidas</b>.");
+  }
+  var nb = $("loadNotice");
+  if(avisos.length){ nb.innerHTML = avisos.join("<br>"); nb.classList.remove("hidden"); }
+  else { nb.classList.add("hidden"); }
+
+  $("expRepBtn").classList.toggle("hidden", !REPETIDAS.length);
+  $("expRepBtn").querySelector("span").textContent = "Exportar unidades repetidas ("+nRep+")";
+  pintarUniverso();
+  poblarSelectores();
+  $("resultSection").classList.remove("hidden");
+  $("filterSection").classList.remove("hidden");
+  $("tableSection").classList.remove("hidden");
+  aplicarFiltros();
+  $("resultSection").scrollIntoView({behavior:"smooth",block:"start"});
+}
+
+/* ============================================================
+   6b · UNIDADES REPETIDAS (se reportan en un Excel aparte)
+   Una misma unidad (mismos 23 dígitos del CRC) en varias filas del MISMO
+   reporte. No es un error de la ficha, así que no entra al Estado ni a la
+   exportación de titularidad: va en su propio archivo.
+   ============================================================ */
+function armarRepetidas(set){
+  var grupos = {};
+  set.forEach(function(d){
+    var k = d.p.base+"|"+d.archivo;
+    (grupos[k] || (grupos[k] = [])).push(d);
+  });
+  var out = [];
+  Object.keys(grupos).sort().forEach(function(k){
+    var g = grupos[k];
+    if(g.length<2) return;
+    var firmas = {}, conds = [];
+    g.forEach(function(d){
+      firmas[[up(d.ct),up(d.fa),up(d.td),up(d.tp),norm(d.np)].join("|")] = true;
+      var c = norm(d.ct);
+      if(c && conds.indexOf(c)<0) conds.push(c);
+    });
+    var distinta = Object.keys(firmas).length>1;
+    var msg = distinta
+      ? "Esta unidad aparece "+g.length+" veces en el reporte con datos de titularidad distintos"+
+        (conds.length>1?" ("+conds.join(" / ")+")":"")+
+        ". En SICUN debe quedar un solo registro: revisar cuál es el correcto y depurar el otro"
+      : "Esta unidad aparece "+g.length+" veces en el reporte con los mismos datos. Revisar en SICUN si la ficha quedó duplicada";
+    g.forEach(function(d){
+      out.push({
+        crc:d.crc, p:d.p, nivelLote:d.nivelLote, parque:d.parque,
+        ct:d.ct, fa:d.fa, td:d.td, tp:d.tp, np:d.np,
+        veces:g.length, distinta:distinta,
+        estado:"ADVERTENCIA", reglas:["E2"], texto:"[E2] "+msg,
+        marcados: distinta ? {crc:true, ct:true} : {crc:true}
+      });
+    });
+  });
+  return out;
+}
+function contarUnidadesRep(){
+  var u = {};
+  REPETIDAS.forEach(function(r){ u[r.p.base]=true; });
+  return Object.keys(u).length;
+}
+
+function conteoReglas(set){
+  var c = {};
+  set.forEach(function(d){
+    var vistos = {};
+    d.reglas.forEach(function(r){ if(!vistos[r]){ vistos[r]=true; c[r]=(c[r]||0)+1; } });
+  });
+  return c;
+}
+
+function pintarUniverso(){
+  $("stTotal").textContent = DATA.length;
+  $("stOk").textContent   = DATA.filter(function(d){return d.estado==="CONFORME";}).length;
+  $("stErr").textContent  = DATA.filter(function(d){return d.estado==="ERROR";}).length;
+  $("stWarn").textContent = DATA.filter(function(d){return d.estado==="ADVERTENCIA";}).length;
+  $("stLote").textContent = DATA.filter(function(d){return d.nivelLote;}).length;
+  $("stParque").textContent = DATA.filter(function(d){return d.parque;}).length;
+
+  var c = conteoReglas(DATA);
+  var box = $("ruleChips"); box.innerHTML="";
+  Object.keys(REGLAS).forEach(function(r){
+    if(!c[r]) return;
+    var b = document.createElement("button");
+    b.type="button";
+    b.className = "rulechip"+(REGLAS[r].sev==="ADVERTENCIA"?" warn":"")+(RULE_FILTER===r?" on":"");
+    b.innerHTML = r+" · "+esc(REGLAS[r].txt)+" <b>"+c[r]+"</b>";
+    b.addEventListener("click",function(){
+      RULE_FILTER = (RULE_FILTER===r)?"":r;
+      $("fRegla").value = RULE_FILTER;
+      pintarUniverso(); aplicarFiltros();
+    });
+    box.appendChild(b);
+  });
+}
+
+function poblarSelectores(){
+  var sr = $("fRegla"), prev = sr.value;
+  sr.innerHTML = "<option value=\"\">Todas</option>";
+  var c = conteoReglas(DATA);
+  Object.keys(REGLAS).forEach(function(r){
+    if(!c[r]) return;
+    var o=document.createElement("option"); o.value=r; o.textContent=r+" — "+REGLAS[r].txt+" ("+c[r]+")";
+    sr.appendChild(o);
+  });
+  sr.value = prev;
+
+  var sa = $("fArchivo"), pa = sa.value;
+  sa.innerHTML = "<option value=\"\">Todos</option>";
+  FILES.filter(function(f){return f.ok;}).forEach(function(f){
+    var o=document.createElement("option"); o.value=f.name; o.textContent=f.name; sa.appendChild(o);
+  });
+  sa.value = pa;
+}
+
+/* ============================================================
+   7 · FILTROS
+   ============================================================ */
+function listaCRC(){
+  var raw = $("fCrc").value || "";
+  var parts = raw.split(/[\s,;]+/).map(function(s){return s.trim();}).filter(Boolean);
+  var set = {}, n=0;
+  parts.forEach(function(p){
+    var b = p.replace(/\D/g,"");
+    if(b.length>=23) b = b.substr(0,23);
+    if(b && !set[b]){ set[b]=true; n++; }
+  });
+  return {set:set, n:n, any:n>0};
+}
+
+function coincide(d, f, crcL){
+  if(f.sector && d.p.sector!==f.sector) return false;
+  if(f.mz     && d.p.manzana!==f.mz)    return false;
+  if(f.lote   && d.p.lote!==f.lote)     return false;
+  if(f.edif   && d.p.edifica!==f.edif)  return false;
+  if(f.entr   && d.p.entrada!==f.entr)  return false;
+  if(f.piso   && d.p.piso!==f.piso)     return false;
+  if(f.unid   && d.p.unidad!==f.unid)   return false;
+  if(f.archivo && d.archivo!==f.archivo) return false;
+  if(f.regla  && d.reglas.indexOf(f.regla)<0) return false;
+  if(f.estado==="OBS" && (d.estado==="CONFORME"||d.estado==="EXENTO")) return false;
+  if(f.estado && f.estado!=="OBS" && d.estado!==f.estado) return false;
+  if(crcL.any && !crcL.set[d.p.base]) return false;
+  return true;
+}
+
+function pad(v,n){ v=String(v||"").replace(/\D/g,""); return v?v.padStart(n,"0"):""; }
+
+function leerFiltros(){
+  return {
+    sector:pad($("fSector").value,2),
+    mz:pad($("fMz").value,3),
+    lote:pad($("fLote").value,3),
+    edif:pad($("fEdif").value,2),
+    entr:pad($("fEntr").value,2),
+    piso:pad($("fPiso").value,2),
+    unid:pad($("fUnid").value,3),
+    estado:$("fEstado").value,
+    regla:$("fRegla").value,
+    archivo:$("fArchivo").value
+  };
+}
+
+var VISTA = [];
+function aplicarFiltros(){
+  var f = leerFiltros();
+  var crcL = listaCRC();
+  RULE_FILTER = f.regla;
+
+  VISTA = DATA.filter(function(d){ return coincide(d,f,crcL); });
+
+  /* CRC pegados que no existen en el universo cargado */
+  if(crcL.any){
+    var existentes = {};
+    DATA.forEach(function(d){ existentes[d.p.base]=true; });
+    var falt = Object.keys(crcL.set).filter(function(b){ return !existentes[b]; });
+    $("crcMeta").innerHTML = crcL.n+" CRC en la lista · "+(crcL.n-falt.length)+" encontrados"+
+      (falt.length?" · <b>"+falt.length+" no están en los archivos cargados</b>":"");
+  }else{
+    $("crcMeta").textContent = "Sin lista. La comparación ignora el último dígito de referencia.";
+  }
+
+  var e = VISTA.filter(function(d){return d.estado==="ERROR";}).length;
+  var w = VISTA.filter(function(d){return d.estado==="ADVERTENCIA";}).length;
+  var o = VISTA.filter(function(d){return d.estado==="CONFORME";}).length;
+  var x = VISTA.filter(function(d){return d.estado==="EXENTO";}).length;
+  $("selLine").innerHTML = "Selección: <b>"+VISTA.length+"</b> de "+DATA.length+" registros · "+
+    "<span class=\"r\">"+e+" con error</span> · "+w+" con advertencia · "+o+" conformes · "+x+" exentos (parque)";
+
+  pintarTabla();
+}
+
+/* ============================================================
+   8 · TABLA
+   ============================================================ */
+var COLS = [
+  {k:"n",    t:"N°"},
+  {k:"crc",  t:"CRC", crc:true},
+  {k:"sector",t:"SEC", crc:true},
+  {k:"manzana",t:"MZ", crc:true},
+  {k:"lote", t:"LOTE", crc:true},
+  {k:"edifica",t:"EDIF", crc:true},
+  {k:"entrada",t:"ENT", crc:true},
+  {k:"piso", t:"PISO", crc:true},
+  {k:"unidad",t:"UNID", crc:true},
+  {k:"ct",   t:"Condición del titular"},
+  {k:"fa",   t:"Forma de adquisición"},
+  {k:"td",   t:"Tipo de documento"},
+  {k:"tp",   t:"Tipo de partida"},
+  {k:"np",   t:"N° de partida"},
+  {k:"estado",t:"Estado"},
+  {k:"reglas",t:"Reglas"},
+  {k:"texto",t:"Observación"},
+  {k:"archivo",t:"Archivo"}
+];
+
+function pintarTabla(){
+  var tb = $("resTable").getElementsByTagName("tbody")[0];
+  var th = $("resTable").getElementsByTagName("thead")[0];
+  th.innerHTML = "<tr>"+COLS.map(function(c){
+    return "<th class=\""+(c.crc?"crc-h":"")+"\">"+esc(c.t)+"</th>";
+  }).join("")+"</tr>";
+  tb.innerHTML = "";
+
+  if(!VISTA.length){
+    $("emptyBox").classList.remove("hidden");
+    $("tableNote").textContent = "0 registros";
+    return;
+  }
+  $("emptyBox").classList.add("hidden");
+
+  var LIMITE = 3000;
+  var fr = document.createDocumentFragment();
+  VISTA.slice(0,LIMITE).forEach(function(d,i){
+    var tr = document.createElement("tr");
+    tr.className = d.estado==="ERROR"?"bad":(d.estado==="ADVERTENCIA"?"warn":(d.estado==="EXENTO"?"exe":""));
+    var html = "";
+    html += "<td class=\"col-num\">"+(i+1)+"</td>";
+    html += "<td class=\"crc\">"+esc(d.crc)+"</td>";
+    ["sector","manzana","lote","edifica","entrada","piso","unidad"].forEach(function(k){
+      html += "<td class=\"crc\">"+esc(d.p[k])+"</td>";
+    });
+    ["ct","fa","td","tp","np"].forEach(function(k){
+      var v = d[k];
+      var cls = d.marcados[k]?"hit":"";
+      if(!v && d.parque){ html += "<td>\u2014</td>"; }
+      else if(!v){ html += "<td class=\"vacio "+cls+"\">(VAC\u00CDO)</td>"; }
+      else  { html += "<td class=\""+cls+"\">"+esc(v)+"</td>"; }
+    });
+    var bcls = d.estado==="ERROR"?"err":(d.estado==="ADVERTENCIA"?"adv":(d.estado==="EXENTO"?"exe":"ok"));
+    html += "<td><span class=\"badge "+bcls+"\">"+d.estado+"</span></td>";
+    html += "<td class=\"rcode\">"+esc(d.reglas.join(" "))+"</td>";
+    html += "<td class=\"obs\">"+esc(d.texto)+"</td>";
+    html += "<td class=\"col-num\">"+esc(d.archivo)+"</td>";
+    tr.innerHTML = html;
+    fr.appendChild(tr);
+  });
+  tb.appendChild(fr);
+  $("tableNote").textContent = VISTA.length+" registros"+(VISTA.length>LIMITE?" — se muestran los primeros "+LIMITE+", la exportación incluye todos":"");
+}
+
+/* ============================================================
+   9 · EXPORTACIÓN
+   ============================================================ */
+var EXP_HEAD = ["CRC","Sector","Manzana","Lote","Edifica","Entrada","Piso","Unidad",
+  "Condición del Titular","Forma de Adquisición","Tipo de Documento","Tipo de Partida Registral","Número de Partida Registral",
+  "Nivel","Estado","Reglas","Observaciones"];
+
+function filaExport(d,i){
+  return [ d.crc, d.p.sector, d.p.manzana, d.p.lote, d.p.edifica, d.p.entrada, d.p.piso, d.p.unidad,
+    d.ct, d.fa, d.td, d.tp, d.np, d.parque?"PARQUE":(d.nivelLote?"LOTE":"UNIDAD"), d.estado, d.reglas.join(" "), d.texto ];
+}
+
+function nombreArchivo(pref){
+  var d=new Date(), p=function(n){return String(n).padStart(2,"0");};
+  return "VAL_TITULAR_INSCRIPCION_"+pref+"_"+d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes())+".xlsx";
+}
+
+function exportar(set,pref){
+  $("expError").classList.add("hidden");
+  if(!set.length){ mostrarExpError("No hay registros que exportar con la selección actual."); return; }
+  if(typeof ExcelJS!=="undefined"){ exportarExcelJS(set,pref).catch(function(err){
+      mostrarExpError("No se pudo generar el Excel con formato ("+err.message+"). Se descarga la versión sin color.");
+      exportarSheetJS(set,pref);
+    });
+  }else{
+    exportarSheetJS(set,pref);
+  }
+}
+function mostrarExpError(m){ var b=$("expError"); b.textContent=m; b.classList.remove("hidden"); }
+
+/* Índice de columna (1-based) de cada campo marcable en la hoja exportada */
+var COL_IDX = { crc:1, ct:9, fa:10, td:11, tp:12, np:13 };
+
+function exportarExcelJS(set,pref){
+  var wb = new ExcelJS.Workbook();
+  wb.creator = "ValidaCatastral \u00A9diegocampos";
+  var ws = wb.addWorksheet("VAL_TITULAR_INSCRIPCION",{views:[{state:"frozen",ySplit:1}]});
+  ws.addRow(EXP_HEAD);
+  var hr = ws.getRow(1);
+  hr.font = {bold:true,color:{argb:"FFFFFFFF"},size:10};
+  hr.fill = {type:"pattern",pattern:"solid",fgColor:{argb:"FF1F3A4D"}};
+  hr.alignment = {vertical:"middle",horizontal:"center",wrapText:true};
+  hr.height = 30;
+
+  set.forEach(function(d,i){
+    var row = ws.addRow(filaExport(d,i));
+    /* todo como texto donde importa conservar ceros */
+    [1,2,3,4,5,6,7,8,13].forEach(function(c){ row.getCell(c).numFmt="@"; row.getCell(c).alignment={horizontal:"left"}; });
+    if(d.estado==="ERROR"){
+      row.getCell(15).font={bold:true,color:{argb:"FFB00020"}};
+    }else if(d.estado==="ADVERTENCIA"){
+      row.getCell(15).font={bold:true,color:{argb:"FF8A6100"}};
+    }else if(d.estado==="EXENTO"){
+      row.getCell(15).font={bold:true,color:{argb:"FF5F51C9"}};
+    }else{
+      row.getCell(15).font={color:{argb:"FF0F6E56"}};
+    }
+    Object.keys(d.marcados).forEach(function(k){
+      var ci = COL_IDX[k];
+      if(!ci) return;
+      var cell = row.getCell(ci);
+      cell.fill = {type:"pattern",pattern:"solid",fgColor:{argb:"FFFDE0E0"}};
+      cell.font = {bold:true,color:{argb:"FFB00020"}};
+      if(!norm(d[k]) && k!=="crc"){ cell.value = "(VAC\u00CDO)"; }
+    });
+    row.getCell(17).alignment={wrapText:true,vertical:"top"};
+  });
+
+  var widths=[26,8,9,8,8,8,8,8,22,22,26,24,22,9,14,12,70];
+  widths.forEach(function(w,i){ ws.getColumn(i+1).width=w; });
+  ws.autoFilter = {from:{row:1,column:1},to:{row:1,column:EXP_HEAD.length}};
+
+  return wb.xlsx.writeBuffer().then(function(buf){
+    descargar(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), nombreArchivo(pref));
+  });
+}
+
+/* Excel aparte de unidades repetidas — mismo contrato de columnas */
+var REP_HEAD = ["CRC","Sector","Manzana","Lote","Edifica","Entrada","Piso","Unidad",
+  "Condición del Titular","Forma de Adquisición","Tipo de Documento","Tipo de Partida Registral","Número de Partida Registral",
+  "Veces en el reporte","Nivel","Estado","Reglas","Observaciones"];
+function filaRep(d){
+  return [ d.crc, d.p.sector, d.p.manzana, d.p.lote, d.p.edifica, d.p.entrada, d.p.piso, d.p.unidad,
+    d.ct, d.fa, d.td, d.tp, d.np, String(d.veces),
+    d.parque?"PARQUE":(d.nivelLote?"LOTE":"UNIDAD"), d.estado, d.reglas.join(" "), d.texto ];
+}
+function exportarRepetidas(){
+  $("expError").classList.add("hidden");
+  if(!REPETIDAS.length){ mostrarExpError("No hay unidades repetidas en los reportes cargados."); return; }
+  var nombre = nombreArchivo("REPETIDAS");
+  function plano(){
+    var ws = XLSX.utils.aoa_to_sheet([REP_HEAD].concat(REPETIDAS.map(filaRep)));
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,"UNIDADES_REPETIDAS");
+    XLSX.writeFile(wb,nombre);
+  }
+  if(typeof ExcelJS==="undefined"){ plano(); return; }
+  try{
+    var wb = new ExcelJS.Workbook();
+    wb.creator = "ValidaCatastral \u00A9diegocampos";
+    var ws = wb.addWorksheet("UNIDADES_REPETIDAS",{views:[{state:"frozen",ySplit:1}]});
+    ws.addRow(REP_HEAD);
+    var hr = ws.getRow(1);
+    hr.font = {bold:true,color:{argb:"FFFFFFFF"},size:10};
+    hr.fill = {type:"pattern",pattern:"solid",fgColor:{argb:"FF1F3A4D"}};
+    hr.alignment = {vertical:"middle",horizontal:"center",wrapText:true};
+    hr.height = 30;
+    REPETIDAS.forEach(function(d){
+      var row = ws.addRow(filaRep(d));
+      [1,2,3,4,5,6,7,8,13].forEach(function(c){ row.getCell(c).numFmt="@"; row.getCell(c).alignment={horizontal:"left"}; });
+      row.getCell(14).alignment={horizontal:"center"};
+      row.getCell(16).font={bold:true,color:{argb:"FF8A6100"}};
+      Object.keys(d.marcados).forEach(function(k){
+        var cell = row.getCell(COL_IDX[k]);
+        cell.fill = {type:"pattern",pattern:"solid",fgColor:{argb:"FFFDE0E0"}};
+        cell.font = {bold:true,color:{argb:"FFB00020"}};
+        if(!norm(d[k]) && k!=="crc"){ cell.value = "(VAC\u00CDO)"; }
+      });
+      row.getCell(18).alignment={wrapText:true,vertical:"top"};
+    });
+    [26,8,9,8,8,8,8,8,22,22,26,24,22,10,9,14,10,70].forEach(function(w,i){ ws.getColumn(i+1).width=w; });
+    ws.autoFilter = {from:{row:1,column:1},to:{row:1,column:REP_HEAD.length}};
+    wb.xlsx.writeBuffer().then(function(buf){
+      descargar(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}), nombre);
+    }).catch(function(err){
+      mostrarExpError("No se pudo generar el Excel con formato ("+err.message+"). Se descarga la versión sin color.");
+      plano();
+    });
+  }catch(err){
+    mostrarExpError("No se pudo generar el Excel con formato ("+err.message+"). Se descarga la versión sin color.");
+    plano();
+  }
+}
+
+function exportarSheetJS(set,pref){
+  var aoa = [EXP_HEAD].concat(set.map(function(d,i){ return filaExport(d,i); }));
+  var ws = XLSX.utils.aoa_to_sheet(aoa);
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,"VAL_TITULAR_INSCRIPCION");
+  XLSX.writeFile(wb,nombreArchivo(pref));
+}
+
+function descargar(blob,name){
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); },1500);
+}
+
+/* ============================================================
+   10 · INTERFAZ
+   ============================================================ */
+var intake=$("intake"), fileInput=$("fileInput");
+
+function pintarArchivos(){
+  var box = $("fileList"); box.innerHTML="";
+  FILES.forEach(function(f,i){
+    var d = document.createElement("div");
+    d.className="filechip";
+    d.innerHTML = "<div class=\"ic"+(f.ok?"":" bad")+"\">"+
+      (f.ok?"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><polyline points=\"20 6 9 17 4 12\"/></svg>"
+           :"<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><line x1=\"18\" y1=\"6\" x2=\"6\" y2=\"18\"/><line x1=\"6\" y1=\"6\" x2=\"18\" y2=\"18\"/></svg>")+
+      "</div><div class=\"meta\"><div class=\"nm\">"+esc(f.name)+"</div>"+
+      "<div class=\"sub"+(f.ok?"":" bad")+"\">"+esc(f.msg)+"</div></div>"+
+      "<button class=\"reset\" data-i=\""+i+"\" type=\"button\">Quitar</button>";
+    d.querySelector("button").addEventListener("click",function(ev){
+      ev.stopPropagation();
+      FILES.splice(parseInt(this.getAttribute("data-i"),10),1);
+      sincronizar();
+    });
+    box.appendChild(d);
+  });
+}
+
+function sincronizar(){
+  var hay = FILES.length>0;
+  $("intakeEmpty").classList.toggle("hidden",hay);
+  $("intakeLoaded").classList.toggle("hidden",!hay);
+  intake.classList.toggle("loaded",hay);
+  pintarArchivos();
+  var validos = FILES.filter(function(f){return f.ok;}).length;
+  $("runBtn").disabled = validos===0;
+  if(!hay){
+    DATA=[]; VISTA=[];
+    ["resultSection","filterSection","tableSection"].forEach(function(id){ $(id).classList.add("hidden"); });
+    $("loadNotice").classList.add("hidden");
+  }
+}
+
+function cargar(files){
+  var lista = Array.prototype.slice.call(files).filter(function(f){ return /\.xlsx?$/i.test(f.name); });
+  if(!lista.length){ return; }
+  var err=$("loadError"); err.classList.add("hidden");
+  Promise.all(lista.map(leerArchivo)).then(function(res){
+    res.forEach(function(r){
+      var ya = FILES.some(function(f){ return f.name===r.name; });
+      if(!ya) FILES.push(r);
+    });
+    var malos = FILES.filter(function(f){return !f.ok;});
+    if(malos.length){
+      err.innerHTML = malos.map(function(f){ return esc(f.name)+" — "+esc(f.msg); }).join("<br>");
+      err.classList.remove("hidden");
+    }
+    sincronizar();
+  });
+}
+
+intake.addEventListener("click",function(){ if(!FILES.length) fileInput.click(); });
+intake.addEventListener("keydown",function(e){ if((e.key==="Enter"||e.key===" ")&&!FILES.length){ e.preventDefault(); fileInput.click(); } });
+intake.addEventListener("dragover",function(e){ e.preventDefault(); intake.classList.add("drag"); });
+intake.addEventListener("dragleave",function(){ intake.classList.remove("drag"); });
+intake.addEventListener("drop",function(e){ e.preventDefault(); intake.classList.remove("drag"); cargar(e.dataTransfer.files); });
+fileInput.addEventListener("change",function(e){ cargar(e.target.files); fileInput.value=""; });
+$("addBtn").addEventListener("click",function(e){ e.stopPropagation(); fileInput.click(); });
+$("resetBtn").addEventListener("click",function(e){ e.stopPropagation(); FILES=[]; sincronizar(); });
+$("runBtn").addEventListener("click",ejecutar);
+
+["fSector","fMz","fLote","fEdif","fEntr","fPiso","fUnid","fCrc"].forEach(function(id){
+  $(id).addEventListener("input",function(){ if(DATA.length) aplicarFiltros(); });
+});
+["fEstado","fRegla","fArchivo"].forEach(function(id){
+  $(id).addEventListener("change",function(){ if(DATA.length){ RULE_FILTER=$("fRegla").value; pintarUniverso(); aplicarFiltros(); } });
+});
+$("clearBtn").addEventListener("click",function(){
+  ["fSector","fMz","fLote","fEdif","fEntr","fPiso","fUnid","fCrc"].forEach(function(id){ $(id).value=""; });
+  $("fEstado").value=""; $("fRegla").value=""; $("fArchivo").value=""; RULE_FILTER="";
+  if(DATA.length){ pintarUniverso(); aplicarFiltros(); }
+});
+$("expSelBtn").addEventListener("click",function(){ exportar(VISTA,"SELECCION"); });
+$("expAllBtn").addEventListener("click",function(){ exportar(DATA,"TOTAL"); });
+$("expRepBtn").addEventListener("click",exportarRepetidas);
+
+})();
+</script>
+</body>
+</html>
