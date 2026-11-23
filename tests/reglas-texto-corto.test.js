@@ -21,7 +21,7 @@ assert.equal(c2reglasTxt({reglas:['R4A']},''),'R4A');
 assert.equal(c2reglasTxt({reglas:['R4A','R99']},'USO'),'el CIIU no es de ese uso (R4A); R99');
 // d) Solo se permiten los números fijos aprobados.
 for(const [g,cat] of Object.entries(RC))for(const [c,t] of Object.entries(cat)){
-  assert(!/\d/.test(t.replace(/\b(?:P12345678|Rev\. 4|001|01|02|03|81|82|8|1)\b/g,'')),g+' '+c+' lleva dígitos: '+t);
+  assert(!/\d/.test(t.replace(/\b(?:Rev\. 4|001|01|02|03|81|82|8|1)\b/g,'')),g+' '+c+' lleva dígitos: '+t);
   assert(!/;/.test(t),g+' '+c+' usa el separador ";"');
   assert(/^\S.*\S$/.test(t),g+' '+c+' vacío o con espacios');
 }

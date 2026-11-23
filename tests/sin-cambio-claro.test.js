@@ -86,7 +86,7 @@ assert.strictEqual(T.queHacer({reglas:['R99']},'USO'),'');
 assert.deepStrictEqual(Object.keys(T.RA).sort(),Object.keys(T.RC).sort());
 for(const [g,cat] of Object.entries(T.RA))for(const [k,v] of Object.entries(cat)){
   var textoNumerico=g==='TIT'&&k==='R2'?v.replace('llenar los 3: tipo de documento, tipo de partida y número',''):v;
-  assert(!/\d/.test(textoNumerico.replace(/\b(?:P12345678|Rev\. 4|001|01|02|03|81|82|8|1)\b/g,'')),g+' '+k+' lleva dígitos: '+v);
+  assert(!/\d/.test(textoNumerico.replace(/\b(?:Rev\. 4|001|01|02|03|81|82|8|1)\b/g,'')),g+' '+k+' lleva dígitos: '+v);
   if(g==='USO'&&k==='R9')assert.strictEqual(v,'si hay negocio, cambiar el uso; si no, quitar el CIIU');
   else assert(!/;/.test(v),g+' '+k+' usa ";"');
   assert(/^\S.*\S$/.test(v),g+' '+k);

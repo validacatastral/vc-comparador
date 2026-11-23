@@ -2455,7 +2455,7 @@ var REGLAS_CORTAS={
 /* Qué corregir por regla: misma estructura que REGLAS_CORTAS. Acción fija, sin valores de SICUN. */
 var REGLAS_ACCION={
   TIT:{R1:'poner el documento que lo sustenta',R2:'llenar los 3: tipo de documento, tipo de partida y número',
-    R2P:'con escritura es propietario: cambiar la condición',R3A:'debe ser P + 8 dígitos (ej. P12345678)',
+    R2P:'con escritura es propietario: cambiar la condición',R3A:'debe ser la letra P seguida de 8 números',
     R3B:'deben ser 8 dígitos',R3C:'revisar el número de ficha',
     R3F:'probablemente es partida electrónica: cambiar el tipo',R4:'la forma de adquisición debe ser OTROS',
     R4H:'cambiar la condición del titular',R6O:'quitar documento y partida',
@@ -3095,7 +3095,12 @@ function validar(r, ctx){
   return hits;
 }
 
-return {validar,prepararContexto};
+function codigoUsoCatalogo(valor){
+  var codigo=norm(valor).split(/\s+-\s+/)[0].replace(/\D/g,'').padStart(6,'0');
+  return Object.prototype.hasOwnProperty.call(CIIU,codigo)?codigo:'';
+}
+
+return {validar,prepararContexto,codigoUsoCatalogo};
 })();
 /* Motor de COND (©diegocampos). */
 var C2_COND=(function(){
@@ -3464,7 +3469,11 @@ function c2usoCiiuEval(code,uso,lin,unidades,piso,msg){
   var campos={ciiu:'codigodeactividadeconomicaciiu',uso:'codigodeuso',desc:'descripciondeluso',ecc:'ecc',npiso:'npiso'};
   var base=lin.map(function(f){return c2registro(Object.assign({__crc:code},f),campos);});
   if(uso!==undefined)unidades=[{__crc:code,codigodeuso:uso}];
-  var ua=(unidades||[]).map(function(f){return c2registro(f,campos);});
+  var ua=(unidades||[]).map(function(f){
+    var unidad=c2registro(f,campos);
+    unidad.uso=C2_USO.codigoUsoCatalogo(unidad.uso)||unidad.uso;
+    return unidad;
+  });
   var ctx=C2_USO.prepararContexto({unid:ua},base);
   var filas=base.filter(function(r){return !piso||String(r.npiso||'').replace(/^0+/,'')===String(piso).replace(/^0+/,'');});
   if(!filas.length||filas.some(function(r){return r.__sin.ciiu;}))return null;
@@ -3486,18 +3495,19 @@ function c2usoCiiuEval(code,uso,lin,unidades,piso,msg){
   var res=c2resultado(pendientes,msg,null,actual,'uso y CIIU conformes',sinDatos);
   if(!res)return null;
   if(!pendientes.length&&hits.length)res.txt=Array.from(new Set(hits)).join(', ')+' (falso error)';
-  res.esperado=c2ciiuEsperado(filas,porFila,res.reglas);
+  res.esperado=c2ciiuEsperado(filas,porFila,res.reglas,ctx);
   return res;
 }
-/* CIIU esperado [{ciiu,desc}] del mismo cálculo del validador (r.esperado / r.esperadoDesc, catálogo uso → CIIU),
+/* CIIU esperado [{ciiu,desc,uso}] del mismo cálculo del validador (r.esperado / r.esperadoDesc, catálogo uso → CIIU),
    solo de las filas que incumplen una regla con CIIU esperado. Nunca el CIIU actual ni otros textos del esperadoDesc. */
-function c2ciiuEsperado(filas,porFila,reglas){
+function c2ciiuEsperado(filas,porFila,reglas,ctx){
   var out=[],vistos={};
   filas.forEach(function(r,i){
     if(!porFila[i].some(function(c){return reglas.indexOf(c)>=0&&REGLAS_CIIU_ESPERADO.indexOf(c)>=0;}))return;
+    var unidad=ctx.U[r.crc], uso=unidad?C2_USO.codigoUsoCatalogo(unidad.uso):'';
     var desc={};String(r.esperadoDesc||'').split('  |  ').forEach(function(p){var m=p.match(/^(\d{4}): (.+)$/);if(m)desc[m[1]]=m[2];});
     String(r.esperado||'').split(' / ').forEach(function(c){c=c.trim();
-      if(!/^\d{4}$/.test(c)||vistos[c]||c===String(r.ciiu||'').replace(/\D/g,''))return;vistos[c]=1;out.push({ciiu:c,desc:desc[c]||'',uso:r.uso});});
+      if(!/^\d{4}$/.test(c)||vistos[c]||c===String(r.ciiu||'').replace(/\D/g,''))return;vistos[c]=1;out.push({ciiu:c,desc:desc[c]||'',uso:uso});});
   });
   return out;
 }

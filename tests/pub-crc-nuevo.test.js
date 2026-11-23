@@ -72,4 +72,33 @@ for (const [uso, verCatalogo] of [['030101', true], ['050101', false]]) {
   assert.doesNotMatch(JSON.stringify(publicada), /9999/);
   assert.equal(Object.hasOwn(run(board, tit).fila, 'catUso'), false);
 }
-console.log('ok · CRC nuevo, solo DV, catálogo de uso y Excel');
+const conHeaders = [KEY, 'N° Piso', 'Código De Actividad Económica (CIIU)', 'ECC'];
+const conRows = [[code, '1', '4711', 'TERMINADO'], [code, '2', '9601', 'TERMINADO']];
+const con = ctx('CON', conHeaders, conRows);
+const r4b = fila('VAL_USO_CIIU', code, 'APLICA', '[R4B] El CIIU no corresponde al uso', '1',
+  {codigodeuso:'020201', codigodeactividadeconomicaciiu:'9999'});
+for (const uso of ['020201', '20201', '020201 - LOCAL DE SERVICIOS']) {
+  const ua = ctx('UA', [KEY, 'Código De Uso'], [[code, uso]]);
+  const publicada = run([ua, con], r4b).fila;
+  assert.match(publicada.resultado, /\(R4B\).* · debería ser: /);
+  assert.equal(publicada.catUso, '020201', uso);
+}
+
+assert.equal(Object.hasOwn(run([con], r4b).fila, 'catUso'), false);
+const conConUso = ctx('CON', [...conHeaders, 'Código De Uso'], conRows.map(row => [...row, '020201']));
+const sinUA = run([conConUso], r4b).fila;
+assert.match(sinUA.resultado, / · debería ser: /);
+assert.equal(Object.hasOwn(sinUA, 'catUso'), false);
+const uaFueraCatalogo = ctx('UA', [KEY, 'Código De Uso'], [[code, '999998 - DESCONOCIDO']]);
+assert.equal(Object.hasOwn(run([uaFueraCatalogo, conConUso], r4b).fila, 'catUso'), false);
+
+const uaPartida = ctx('UA', [KEY, 'Condición del Titular', 'Forma de Adquisición', 'Tipo de Documento',
+  'Tipo de Partida Registral', 'Número de Partida Registral'],
+  [[code, 'PROPIETARIO', 'COMPRA VENTA', 'ESCRITURA PÚBLICA', 'CÓDIGO DE PREDIO', 'X12345678']]);
+const r3a = fila('VAL_TITULAR_INSCRIPCION', code, 'APLICA', '[R3A] Tipo de partida registral', '',
+  {tipodepartidaregistral:'PARTIDA ELECTRÓNICA'});
+const publicadaR3A = run([uaPartida], r3a).fila;
+assert.match(publicadaR3A.resultado, /debe ser la letra P seguida de 8 números/);
+assert.doesNotMatch(publicadaR3A.resultado, /••••/);
+
+console.log('ok · CRC nuevo, solo DV, catálogo de uso, Excel y texto publicado de TIT R3A');
