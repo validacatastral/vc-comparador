@@ -25,6 +25,8 @@ function original(nombre){
   return vm.runInNewContext(motor+(titular?'(rows,i)=>validar(rows[i],null).reglas':
     '(rows,i,cruces)=>validar(rows[i],prepararContexto(cruces,rows)).map(h=>h.c)'));
 }
+const niveles=vm.runInNewContext(fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8').match(/var REGLAS_NIVEL=\{[\s\S]*?\n\};/)[0]+'; REGLAS_NIVEL');
+const grupo={USO:'USO',COND:'COND',OBRAS:'OBR',CRC:'CRC',TITULAR:'TIT'};
 const ref=Object.fromEntries(['USO','COND','OBRAS','CRC','TITULAR'].map(n=>[n,original(n)]));
 const edificio='0000010100100101', clave=(ent,piso,unidad)=>edificio+ent+piso+unidad+'1';
 const K=clave('01','01','001'), K2=clave('01','02','001');
@@ -57,14 +59,15 @@ function verificar(tipo,regla,malo,bueno,{falso=false,vigente=false}={}){
     assert.equal(estado.reglas.includes(regla),debe&&!falso,tipo+' equivalencia '+regla);
     const estable=run(b,filaUE);
     if(debe&&!falso){
-      assert(estable.result==='⚠ SIN CAMBIO EN SICUN'||estable.result.startsWith('◐ Cambió pero sigue mal: ')&&estable.result.includes('('+regla+')'),estable.result);   /* ⚠ sin cambio, o ◐ si el inicial difiere (caso a) */
+      assert(estable.result==='⚠ SIN CAMBIO EN SICUN'||/^◐ Cambió(?: pero sigue mal|, revisar): /.test(estable.result)&&estable.result.includes('('+regla+')'),estable.result);   /* ⚠ sin cambio, o ◐ si el inicial difiere (caso a) */
       assert(estable.note.includes('Sigue en SICUN: '+regla),estable.note);
     }
     const cambio=b.find(x=>x.preset.id===rep);
     cambio.A.rows.filter(r=>r[KEY]===code).forEach(r=>{r[nombres[campo]]='ANTES';});
     cambio.RES=T.compareCtx(cambio);
     const final=run(b,filaUE);
-    assert.equal(String(final.result).replace(/^(◐ Cambió pero sigue mal: ).*?\(([A-Z0-9]+)\)(?: · .*)?$/,'$1$2'),debe&&!falso?'◐ Cambió pero sigue mal: '+regla:'✔ VERIFICADO',tipo+' '+regla+' '+final.result+' '+final.note);
+    const prefijo=niveles[grupo[tipo]][regla]==='ADVERTENCIA'?'◐ Cambió, revisar: ':'◐ Cambió pero sigue mal: ';
+    assert.equal(String(final.result).replace(/^(◐ Cambió(?: pero sigue mal|, revisar): ).*?\(([A-Z0-9]+)\)(?: · .*)?$/,'$1$2'),debe&&!falso?prefijo+regla:'✔ VERIFICADO',tipo+' '+regla+' '+final.result+' '+final.note);
   }
   escenarios++;
 }

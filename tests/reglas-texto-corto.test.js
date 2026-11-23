@@ -3,7 +3,7 @@
 const fs=require('node:fs'), path=require('node:path'), vm=require('node:vm'), assert=require('node:assert/strict');
 const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 function cut(from,to){const i=html.indexOf(from),j=html.indexOf(to,i);assert(i>=0&&j>i,'no se halló: '+from);return html.slice(i,j);}
-const T=vm.runInNewContext(cut('var TIT_REGLAS','function c2titularReglas')+cut('function c2reglasTxt','function c2filaDespues')+
+const T=vm.runInNewContext(cut('var C2_SIGUE_MAL','/* Solo se juzga')+cut('var TIT_REGLAS','function c2titularReglas')+cut('function c2reglasTxt','function c2filaDespues')+
   '({REGLAS_CORTAS,TIT_REGLAS,c2reglasTxt})');
 const {REGLAS_CORTAS:RC,TIT_REGLAS,c2reglasTxt}=T;
 
@@ -14,7 +14,7 @@ assert.equal(RC.TIT,TIT_REGLAS);
 assert.equal(c2reglasTxt({reglas:['R5']},'TIT'),TIT_REGLAS.R5+' (R5)');
 // mismo código, distinto validador → distinto texto; varias reglas con "; "
 assert.notEqual(c2reglasTxt({reglas:['R5']},'USO'),c2reglasTxt({reglas:['R5']},'TIT'));
-assert.equal(c2reglasTxt({reglas:['R10','R4A']},'USO'),'el CIIU no existe (R10); el CIIU no es de ese uso (R4A)');
+assert.equal(c2reglasTxt({reglas:['R10','R4A']},'USO'),'el CIIU no es de ese uso (R4A); el CIIU no existe (R10)');
 // c) código desconocido o grupo desconocido → solo el código
 assert.equal(c2reglasTxt({reglas:['R99']},'USO'),'R99');
 assert.equal(c2reglasTxt({reglas:['R4A']},''),'R4A');
@@ -43,5 +43,5 @@ for(const [g,set] of Object.entries(activos)){
 }
 // prefijo intacto en la línea del status
 assert(html.includes("var C2_SIGUE_MAL='◐ Cambió pero sigue mal: ';"));
-assert(html.includes('status=C2_SIGUE_MAL+c2reglasTxt(tok,c2grupoRegla(row))+c2queHacer(tok,c2grupoRegla(row));'));
+assert(html.includes('status=c2prefijoNivel(tok,c2grupoRegla(row))+c2reglasTxt(tok,c2grupoRegla(row))+c2queHacer(tok,c2grupoRegla(row));'));
 console.log('reglas-texto-corto: ok');

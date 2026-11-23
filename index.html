@@ -2397,11 +2397,26 @@ function c2usoDespues(board,code){
 var C2_CUMPLE='✔ CUMPLE EN SICUN';
 /* Cambió el campo pero el DESPUÉS sigue incumpliendo la regla del mensaje → pendiente de atención (bucket 8). Solo nombres de regla. */
 var C2_SIGUE_MAL='◐ Cambió pero sigue mal: ';
+var C2_REVISAR='◐ Cambió, revisar: ';
+/* Niveles de las reglas activas según los validadores originales. */
+var REGLAS_NIVEL={
+  TIT:{R1:'ERROR',R2:'ERROR',R2P:'ERROR',R3A:'ERROR',R3B:'ERROR',R3C:'ERROR',R4:'ERROR',R5:'ERROR',R5C:'ERROR',R4H:'ERROR',R6O:'ERROR',R13:'ERROR',R3F:'ADVERTENCIA'},
+  USO:{R1:'ERROR',R3A:'ERROR',R4A:'ERROR',R8A:'ERROR',R2:'ADVERTENCIA',R3B:'ADVERTENCIA',R4B:'ADVERTENCIA',R5:'ADVERTENCIA',R6:'ADVERTENCIA',R8B:'ADVERTENCIA',R8C:'ADVERTENCIA',R9:'ADVERTENCIA',R10:'ADVERTENCIA'},
+  COND:{R1:'ERROR',R2:'ERROR',R3:'ERROR',R9:'ERROR',R10:'ERROR',R11:'ERROR',R4:'ADVERTENCIA',R5:'ADVERTENCIA',R6:'ADVERTENCIA',R8:'ADVERTENCIA',R10C:'ADVERTENCIA',R12:'ADVERTENCIA',R13:'ADVERTENCIA'},
+  OBR:{R1:'ERROR',R2:'ERROR',R3:'ERROR',R5:'ERROR',R6:'ERROR',R4:'ADVERTENCIA',R7P:'ADVERTENCIA'},
+  CRC:{R1:'ERROR',R2:'ERROR',R3:'ERROR',R4:'ERROR',R5:'ERROR',R6:'ERROR',R6C:'ERROR',R6A:'ADVERTENCIA',R6B:'ADVERTENCIA'},
+  FECHA:{R1:'ERROR'}
+};
+function c2nivelRegla(grupo,regla){return (REGLAS_NIVEL[grupo]||{})[regla]||'ERROR';}
+function c2nivel(t,grupo){var rs=t.reglas||[];return rs.length&&rs.every(function(r){return c2nivelRegla(grupo,r)==='ADVERTENCIA';})?'ADVERTENCIA':'ERROR';}
+function c2prefijoNivel(t,grupo){return c2nivel(t,grupo)==='ADVERTENCIA'?C2_REVISAR:C2_SIGUE_MAL;}
+
 /* Solo se juzga si el DESPUÉS trae las columnas de la regla (columna ausente ≠ valor vacío). MEP es opcional en la propia regla. */
 function c2tieneCampos(t){var a=t.actual||{};return Object.keys(a).every(function(k){return a[k]!==undefined||k==='mep';});}
 /* Texto corto publicable por regla: "texto (CÓDIGO)"; varias con "; ". Código fuera del catálogo → solo el código. */
 function c2reglasTxt(t,grupo){var rs=t.reglas||Array.from(new Set((String(t.txt||'').match(/\bR\d+[A-Z]?\b/g)||[])));
   var cat=REGLAS_CORTAS[grupo]||{};
+  rs=rs.slice().sort(function(a,b){return (c2nivelRegla(grupo,a)==='ADVERTENCIA'?1:0)-(c2nivelRegla(grupo,b)==='ADVERTENCIA'?1:0);});
   return rs.map(function(r){return grupo==='USO'&&r==='R8B'&&t.tallerRepuestos?'taller con venta de repuestos: revisar si el uso es 020202 Taller (R8B)':Object.prototype.hasOwnProperty.call(cat,r)?cat[r]+' ('+r+')':r;}).join('; ')||'regla del validador';}
 /* Qué corregir: " · qué hacer: acción; acción" (una por regla, sin repetir) desde REGLAS_ACCION. En USO, las reglas con CIIU esperado
    del catálogo (t.esperado) muestran " · debería ser: 8510 Desc o 8521 Desc" en vez de la acción genérica. Nunca valores de SICUN. */
@@ -4208,14 +4223,14 @@ function c2rows(){
         if(cmpIni===null)addNote('sin valor inicial comparable');   /* null = no cambió (casos b/c), nunca a ni d */
         if(!tfin.cumple){addNote('Sigue en SICUN: '+tfin.txt);
           paso3={caso:cambioIni?'cambioAntes':'sigueMal',reglas:tfin.reglas,esperado:tfin.esperado||[],usoSugerido:tfin.usoSugerido||[],tallerRepuestos:tfin.tallerRepuestos};
-          if(cambioIni)sigueMalAntes=C2_SIGUE_MAL+c2reglasTxt(tfin,g3)+c2queHacer(tfin,g3);}   /* (a) se aplica tras el paso 2 */
+          if(cambioIni)sigueMalAntes=c2prefijoNivel(tfin,g3)+c2reglasTxt(tfin,g3)+c2queHacer(tfin,g3);}   /* (a) se aplica tras el paso 2 */
         else if(cambioIni){status=C2_CUMPLE;paso3={caso:'cumple',reglas:[]};addNote('Cumple en SICUN: '+tfin.txt+' · corregido antes de la descarga ANTES');addNote(notaIni);}
         else {paso3={caso:'falsoError',reglas:tfin.reglas};addNote('Sin cambio desde la validación: '+tfin.txt+' según las reglas; posible falso error, si es así marcar NO APLICA');}
         if(tfin.extra)addNote('Ojo, además: '+tfin.extra);}}
     else if((status==='✔ VERIFICADO'||status==='✔ CAMBIÓ')&&txt(row.message).trim()){   /* cambió, pero ¿quedó bien? reglas del mensaje (paso 3) sobre el DESPUÉS */
       var ren=hits.concat(otros,dvs).filter(function(e){return (e.type==='rename'||e.type==='crcmatch')&&e.before===code&&/^\d{24}$/.test(e.after);})[0];
       var tok=c2estadoFinal(BOARD_(),row,ren?ren.after:code);
-      if(tok&&c2tieneCampos(tok)){if(!tok.cumple)status=C2_SIGUE_MAL+c2reglasTxt(tok,c2grupoRegla(row))+c2queHacer(tok,c2grupoRegla(row));if(tok.extra)addNote('Ojo, además: '+tok.extra);}}
+      if(tok&&c2tieneCampos(tok)){if(!tok.cumple)status=c2prefijoNivel(tok,c2grupoRegla(row))+c2reglasTxt(tok,c2grupoRegla(row))+c2queHacer(tok,c2grupoRegla(row));if(tok.extra)addNote('Ojo, además: '+tok.extra);}}
     var otra=null;if(code&&(status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
       if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&!c2ruidoSicun(e);}:function(e){return !!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
       if(otra)status=row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}
@@ -4229,10 +4244,10 @@ function c2rows(){
     var finalUso=tok||tfin; if(finalUso&&finalUso.notas)finalUso.notas.forEach(addNote);
     var primerCiiu=finalUso&&finalUso.esperado&&finalUso.esperado[0];
     all.push(Object.assign({},row,{crcNuevo:renNuevo?renNuevo.after:'',catUso:primerCiiu?primerCiiu.uso:'',code:code||row.rawCode,crcIlegible:!code&&status==='? NO ENCONTRADO',fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,campos:campos,change:[otra?otra.texto:'',change].filter(Boolean).join(' | '),note:note,
-      changeView:[otra?otra.texto:'',resumen,c2cambios(hits,otros,5)].filter(Boolean).join(' | '),obsChange:c2obsCambios(row.observation,hits,otros),otraUnidad:otra?otra.detalle:'',paso3:paso3}));
+      changeView:[otra?otra.texto:'',resumen,c2cambios(hits,otros,5)].filter(Boolean).join(' | '),obsChange:c2obsCambios(row.observation,hits,otros),otraUnidad:otra?otra.detalle:'',paso3:paso3,nivel:finalUso&&!finalUso.cumple&&(c2bucket(status)===8||(c2bucket(status)===2&&paso3&&paso3.caso==='sigueMal'))?c2nivel(finalUso,c2grupoRegla(row)):''}));
   });});return all;
 }
-function c2bucket(s){if(/^◐ Cambió pero sigue mal/.test(s))return 8;if(/^◐ Cambió otro campo/.test(s))return 1;if(/OTRA UNIDAD/.test(s))return 7;if(/VERIFICADO|✔ CAMBIÓ|NO APLICA CONFIRMADO|CUMPLE EN SICUN/.test(s))return 0;if(/OTRO CAMPO/.test(s))return 1;if(/SIN CAMBIO/i.test(s))return 2;if(/NO ENCONTRADO|SECTOR NO CARGADO/.test(s))return 3;if(/INVÁLIDO|INCOMPLETO|PENDIENTE|LOTE AMBIGUO|REVISAR A MANO/.test(s))return 4;if(/^⏸/.test(s))return 6;return 5;}
+function c2bucket(s){if(/^◐ Cambió(?: pero sigue mal|, revisar)/.test(s))return 8;if(/^◐ Cambió otro campo/.test(s))return 1;if(/OTRA UNIDAD/.test(s))return 7;if(/VERIFICADO|✔ CAMBIÓ|NO APLICA CONFIRMADO|CUMPLE EN SICUN/.test(s))return 0;if(/OTRO CAMPO/.test(s))return 1;if(/SIN CAMBIO/i.test(s))return 2;if(/NO ENCONTRADO|SECTOR NO CARGADO/.test(s))return 3;if(/INVÁLIDO|INCOMPLETO|PENDIENTE|LOTE AMBIGUO|REVISAR A MANO/.test(s))return 4;if(/^⏸/.test(s))return 6;return 5;}
 function c2summary(rows){var result={};rows.forEach(function(r){var a=result[r.validator]||(result[r.validator]=[0,0,0,0,0,0,0,0,0,0]);a[0]++;a[c2bucket(r.result)+1]++;});return result;}
 /* Asignaciones locales por polígono y validador; nunca se editan filas fuente. */
 function asgRead(polygon){
@@ -4279,7 +4294,7 @@ function c2render(){gapRender();asgRender();var files=c2files(), section=$('c2Se
   rows=rows.filter(function(r){return (!$('c2Technician').value||r.tecnico===$('c2Technician').value)&&(!$('c2Validator').value||r.validator===$('c2Validator').value)&&(!$('c2Result').value||r.result===$('c2Result').value);});
   $('c2Body').innerHTML=rows.map(function(r){var b=c2bucket(r.result);return '<tr>'+[r.polygon,r.sheet,r.tecnico,r.validator+' · '+r.fi].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+c2codeCells(r.code)+[r.piso,r.state,r.message,b===1?r.result+c2EsperadoDetalle(r):b===2?c2SinCambioDetalle(r):r.result,r.changeView,r.observation,r.note].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+'</tr>';}).join('');
 }
-function c2sheets(rows,files){rows=rows||c2assign(c2rows());files=files||c2files();var head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota','Observación vs Antes → Después','CRC nuevo'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,c2bucket(r.result)===2?c2SinCambioDetalle(r):r.result,r.change,r.note,r.obsChange,r.crcNuevo||'']);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio','Otra unidad del lote','Cambió pero sigue mal']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k].slice(0,7),[summary[k][8],summary[k][9]]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);files.forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=files.reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
+function c2sheets(rows,files){rows=rows||c2assign(c2rows());files=files||c2files();var head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota','Observación vs Antes → Después','Nivel','CRC nuevo'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,c2bucket(r.result)===2?c2SinCambioDetalle(r):r.result,r.change,r.note,r.obsChange,r.nivel||'',r.crcNuevo||'']);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio','Otra unidad del lote','Cambió pero sigue mal']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k].slice(0,7),[summary[k][8],summary[k][9]]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);files.forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=files.reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
 (function(){var original=writeStyledWorkbook;writeStyledWorkbook=function(sheets,filename){if(c2files().length)sheets=sheets.concat(c2sheets());return original(sheets,filename);};})();
 function c2enmascarar(header,value){
   if(value==null||value==='')return value;
@@ -4365,7 +4380,7 @@ function c2ObservadosDetalle(row,prefijo){
 function c2EsperadoDetalle(row){return c2ObservadosDetalle(row,' · se esperaba: ');}
 /* Texto ⚠ según el caso del paso 3 (row.paso3). Siempre empieza con "⚠ Sin cambio en SICUN" (vc-pendientes clasifica por SINCAMBIO). */
 function c2SinCambioDetalle(row){var p=row.paso3||{};
-  if(p.caso==='sigueMal'){var g=c2grupoRegla(row),t={reglas:p.reglas||[],esperado:p.esperado,usoSugerido:p.usoSugerido,tallerRepuestos:p.tallerRepuestos};return '⚠ Sin cambio en SICUN · no se corrigió, sigue mal: '+c2reglasTxt(t,g)+c2queHacer(t,g);}
+  if(p.caso==='sigueMal'){var g=c2grupoRegla(row),t={reglas:p.reglas||[],esperado:p.esperado,usoSugerido:p.usoSugerido,tallerRepuestos:p.tallerRepuestos};return '⚠ Sin cambio en SICUN · no se corrigió, '+(c2nivel(t,g)==='ADVERTENCIA'?'revisar: ':'sigue mal: ')+c2reglasTxt(t,g)+c2queHacer(t,g);}
   if(p.caso==='falsoError')return '⚠ Sin cambio en SICUN · el dato ya cumple la regla: posible falso error, si es así marcar NO APLICA';
   return '⚠ Sin cambio en SICUN'+c2ObservadosDetalle(row,' · sigue igual: ')+' — revisa que se haya guardado';}
 function pubResultado(r){var b=c2bucket(r.result);if(b===2)return c2SinCambioDetalle(r);if(r.result.startsWith('ℹ NO APLICA pero SICUN cambió'))return r.result+' · qué hacer: cambiar la marca a APLICA u OTRO CAMBIO';return b===1?PUB_OTRO_CAMPO+c2EsperadoDetalle(r):b===7?PUB_OTRA_UNIDAD+(r.otraUnidad?' · '+r.otraUnidad:''):r.result;}
