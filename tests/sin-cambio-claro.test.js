@@ -35,11 +35,12 @@ console.log('ok b · '+tb);
   var codigos=m[1].match(/\b\d{4}\b/g)||[];assert(codigos.length>=1&&codigos.length<=3,t);
   assert.deepStrictEqual(codigos,['8510','8521'],t);assert(/8510 Enseñanza preprimaria y primaria o 8521 Enseñanza secundaria de formación general/.test(t),t);
   assert(t.indexOf('4711')<0&&t.indexOf('050101')<0&&!/Educación inicial/i.test(t)&&!/glosario/i.test(t),t);
-  assert(!/qué hacer/.test(t),'R4A con esperado no repite la acción genérica: '+t);
+  assert(/qué hacer: cambiar el CIIU o el uso/.test(t),t);
+  assert(/o cambiar el uso a: 020101/.test(t),t);
 });
 // > 3 CIIU → 3 primeros + "(ver catálogo)"; descripción corta
 var muchos=T.queHacer({reglas:['R4A'],esperado:[{ciiu:'4711',desc:'Venta al por menor en comercios no especializados con predominio'},{ciiu:'4719',desc:'Uno'},{ciiu:'4721',desc:'Dos'},{ciiu:'4722',desc:'Tres'}]},'USO');
-assert.strictEqual(muchos,' · debería ser: 4711 Venta al por menor en comercios, 4719 Uno o 4721 Dos (ver catálogo)');
+assert.strictEqual(muchos,' · qué hacer: cambiar el CIIU o el uso · debería ser: 4711 Venta al por menor en comercios, 4719 Uno o 4721 Dos (ver catálogo)');
 
 // (c) cumple y NO cambió → ⚠ (bucket 2) posible falso error
 var c=run(uso('050101','8510'),fila('VAL_USO_CIIU',K,'APLICA',MSG,'1',ini('050101','8510')));
