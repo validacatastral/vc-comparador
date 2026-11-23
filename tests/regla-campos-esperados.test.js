@@ -47,12 +47,12 @@ assert.strictEqual(T.c2cambios(c.hits,c.otros,5),'Esperado: UA · Código De Uso
 var muchos=[];for(var i=0;i<25;i++)muchos.push(ev('UA','Código De Uso',String(i),String(i+1)));
 assert(/\| \+5 más$/.test(T.c2obsCambios('x',muchos,[])));assert(T.c2obsCambios('x'.repeat(9000),[],[]).length<=5000);
 
-// 5) Excel: UNA columna nueva AL FINAL; las 16 anteriores no se mueven ni se renombran
+// 5) Excel: las columnas existentes conservan su orden y CRC nuevo se agrega al final
 var sheets=cut('function c2sheets(','\n');
 var antes=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota'];
 var head=JSON.parse(sheets.match(/head=(\[[^\]]+\])/)[1].replace(/'/g,'"'));
-assert.deepStrictEqual(head,antes.concat(['Observación vs Antes → Después']));
-assert(/r\.report,r\.expected,c2bucket\(r\.result\)===2\?c2SinCambioDetalle\(r\):r\.result,r\.change,r\.note,r\.obsChange\]\)/.test(sheets),'la fila termina en la columna nueva');
+assert.deepStrictEqual(head,antes.concat(['Observación vs Antes → Después','CRC nuevo']));
+assert(/r\.report,r\.expected,c2bucket\(r\.result\)===2\?c2SinCambioDetalle\(r\):r\.result,r\.change,r\.note,r\.obsChange,r\.crcNuevo\|\|''\]\)/.test(sheets),'la fila termina en la columna nueva');
 
 // 6) La columna (observación y valores) NO va a "Publicar pendientes": la proyección publicada no la referencia
 var pub=cut('function pubFields(row,events){','async function pubPost(');
