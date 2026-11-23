@@ -117,5 +117,5 @@ var t=P.counts(filas);assert.strictEqual(t.sigueMal,1);assert.strictEqual(t.veri
 assert.strictEqual(P.counts([filas[0]]).sigueMal,undefined,'sigueMal solo si > 0');
 assert(P.publica(filas[1])&&!P.publica(filas[0]));assert.strictEqual(P.resultado(filas[1]),SM);
 assert.strictEqual(P.pend(t),2);assert(/sigue mal 1/.test(P.desglose(t)));assert.strictEqual(P.desglose({sinCambio:1}),'⚠ 1 · ℹ 0 · ◐ 0');
-assert.strictEqual(JSON.stringify(P.summary(filas).V),JSON.stringify([3,1,0,1,0,0,0,0,0,1]));
+assert.strictEqual(JSON.stringify(P.summary(filas).V),JSON.stringify([3,1,0,1,0,0,0,0,0,1,0]));
 console.log('ok sigue mal · publicación (totales.sigueMal, pendiente, resultado fijo) y resumen');

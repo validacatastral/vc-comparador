@@ -51,8 +51,8 @@ assert(/\| \+5 más$/.test(T.c2obsCambios('x',muchos,[])));assert(T.c2obsCambios
 var sheets=cut('function c2sheets(','\n');
 var antes=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota'];
 var head=JSON.parse(sheets.match(/head=(\[[^\]]+\])/)[1].replace(/'/g,'"'));
-assert.deepStrictEqual(head,antes.concat(['Observación vs Antes → Después','Nivel','CRC nuevo']));
-assert(/r\.report,r\.expected,c2bucket\(r\.result\)===2\?c2SinCambioDetalle\(r\):r\.result,r\.change,r\.note,r\.obsChange,r\.nivel\|\|\x27\x27,r\.crcNuevo\|\|''\]\)/.test(sheets),'la fila termina en la columna nueva');
+assert.deepStrictEqual(head,antes.concat(['Observación vs Antes → Después','Nivel','Revisión','CRC nuevo']));
+assert(/r\.report,r\.expected,c2bucket\(r\.result\)===2\?c2SinCambioDetalle\(r\):r\.result,r\.change,r\.note,r\.obsChange,r\.nivel\|\|\x27\x27,r\.revision\|\|\x27\x27,r\.crcNuevo\|\|''\]\)/.test(sheets),'la fila termina en la columna nueva');
 
 // 6) La columna (observación y valores) NO va a "Publicar pendientes": la proyección publicada no la referencia
 var pub=cut('function pubFields(row,events){','async function pubPost(');
