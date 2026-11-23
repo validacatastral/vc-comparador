@@ -2402,21 +2402,24 @@ function c2tieneCampos(t){var a=t.actual||{};return Object.keys(a).every(functio
 /* Texto corto publicable por regla: "texto (CÓDIGO)"; varias con "; ". Código fuera del catálogo → solo el código. */
 function c2reglasTxt(t,grupo){var rs=t.reglas||Array.from(new Set((String(t.txt||'').match(/\bR\d+[A-Z]?\b/g)||[])));
   var cat=REGLAS_CORTAS[grupo]||{};
-  return rs.map(function(r){return Object.prototype.hasOwnProperty.call(cat,r)?cat[r]+' ('+r+')':r;}).join('; ')||'regla del validador';}
+  return rs.map(function(r){return grupo==='USO'&&r==='R8B'&&t.tallerRepuestos?'taller con venta de repuestos: revisar si el uso es 020202 Taller (R8B)':Object.prototype.hasOwnProperty.call(cat,r)?cat[r]+' ('+r+')':r;}).join('; ')||'regla del validador';}
 /* Qué corregir: " · qué hacer: acción; acción" (una por regla, sin repetir) desde REGLAS_ACCION. En USO, las reglas con CIIU esperado
    del catálogo (t.esperado) muestran " · debería ser: 8510 Desc o 8521 Desc" en vez de la acción genérica. Nunca valores de SICUN. */
-var REGLAS_CIIU_ESPERADO=['R3A','R4A','R4B','R8B','R10'];
+var REGLAS_CIIU_ESPERADO=['R3A','R4A','R4B','R10'];
 function c2deberiaSer(esp){
   var vacia=/^(de|del|al|a|la|las|el|los|en|y|e|o|u|por|para|con|sin|n|c|p)$/i;   /* ~5 palabras, sin cortar en "de", "al"… */
   var xs=esp.slice(0,3).map(function(e){var w=String(e.desc||'').replace(/[(),;:.]+/g,' ').split(/\s+/).filter(Boolean).slice(0,6);
     while(w.length&&vacia.test(w[w.length-1]))w.pop();return e.ciiu+(w.length?' '+w.join(' '):'');});
-  return ' · debería ser: '+(xs.length>1?xs.slice(0,-1).join(', ')+' o '+xs[xs.length-1]:xs[0])+(esp.length>3?' (ver catálogo)':'');}
+  return ' · debería ser: '+(xs.length>1?xs.slice(0,-1).join(', ')+' o '+xs[xs.length-1]:xs[0])+' (ver catálogo)';}
 function c2queHacer(t,grupo){
   var rs=t.reglas||Array.from(new Set((String(t.txt||'').match(/\bR\d+[A-Z]?\b/g)||[])));
   var cat=REGLAS_ACCION[grupo]||{},esp=grupo==='USO'&&t.esperado&&t.esperado.length?t.esperado:null,acc=[],deberia=false;
-  rs.forEach(function(r){if(esp&&REGLAS_CIIU_ESPERADO.indexOf(r)>=0){deberia=true;return;}
+  rs.forEach(function(r){if(esp&&REGLAS_CIIU_ESPERADO.indexOf(r)>=0)deberia=true;
     if(Object.prototype.hasOwnProperty.call(cat,r)&&acc.indexOf(cat[r])<0)acc.push(cat[r]);});
-  return (acc.length?' · qué hacer: '+acc.join('; '):'')+(deberia?c2deberiaSer(esp):'');}
+  var usos=grupo==='USO'&&t.usoSugerido&&t.usoSugerido.length?t.usoSugerido.slice(0,2):[];
+  var textoUsos=usos.map(function(u){var w=String(u.nombre).replace(/[(),;:.]+/g,' ').split(/\s+/).filter(Boolean).slice(0,6);while(w.length&&/^(de|del|al|a|la|las|el|los|en|y|o|por|para|con|sin)$/i.test(w[w.length-1]))w.pop();return u.uso+(w.length?' '+w.join(' '):'');}).join(' o ');
+  var sufijo=textoUsos&&(rs.some(function(r){return ['R4A','R4B','R9'].indexOf(r)>=0;})?' · o cambiar el uso a: '+textoUsos:rs.indexOf('R8B')>=0?' · uso que corresponde: '+textoUsos:'');
+  return (acc.length?' · qué hacer: '+acc.join('; '):'')+(deberia?c2deberiaSer(esp):'')+(sufijo||'');}
 function c2filaDespues(board,code,rep){
   var c=board.find(function(x){return x.preset&&x.preset.id===rep&&x.B&&x.B.headers;});if(!c||!code)return null;
   var r=c.B.rows.find(function(x){return normKey(x[c.preset.key])===code;});if(!r)return null;
@@ -2977,7 +2980,8 @@ function validar(r, ctx){
   var uso = norm(r.uso), ciiu = stripLetters(r.ciiu);
   r.lineas = ctx.lineas[r.crc] || 1;
   r.ciiuDesc = ciiu ? (descOf(ciiu) || "No existe en la CIIU Rev. 4") : "";
-  r.esperado = ""; r.esperadoDesc = "";
+  r.esperado = ""; r.esperadoDesc = ""; r.notas=[]; r.usoSugerido=[]; r.tallerRepuestos=false;
+  function sugerirUsos(){r.usoSugerido=(USOS_POR_CIIU[ciiu]||[]).map(function(u){return {uso:u,nombre:USO_NOMBRE[u]};});}
 
   function fijarEsperado(lista){
     var pr = ESPERADO_PRINCIPAL[uso];
@@ -3042,13 +3046,16 @@ function validar(r, ctx){
     /* ¿Ese CIIU tiene un uso específico en el glosario? */
     var alt = USOS_POR_CIIU[ciiu] || [];
     if(alt.length){
+      sugerirUsos();
+      var distintos=Array.from(new Set((ctx.ciius[r.crc]||[]).filter(Boolean)));
+      r.tallerRepuestos=distintos.length===2&&distintos.indexOf("4520")>=0&&distintos.indexOf("4530")>=0;
       var txtAlt = alt.map(function(x){ return nombreUso(x,ctx); }).join(" o ");
       r.esperadoDesc = "Uso sugerido: "+txtAlt+"  |  "+r.esperadoDesc;
       H("R8B","Uso residual con CIIU "+ciiu+", que en el glosario corresponde al uso "+txtAlt+
         ". Verificar si el uso debió ser "+(alt.length>1?"uno de esos":alt[0])+" en lugar de 020199."+varias,["uso","ciiu"]);
     }else{
       r.esperadoDesc = "Sin uso específico en el glosario para "+ciiu+"  |  "+r.esperadoDesc;
-      H("R8B","Uso residual con CIIU "+ciiu+", que no tiene un uso específico en el glosario: el 020199 es coherente, solo confirmar la actividad."+varias,["uso","ciiu"]);
+      r.notas.push("020199 coherente: confirmar la actividad");
     }
     return hits;
   }
@@ -3057,6 +3064,7 @@ function validar(r, ctx){
   if(uso===USO_DESOCUPADO){
     if(ciiu && !comun){
       r.esperado = "Sin CIIU (local desocupado)";
+      sugerirUsos();
       H("R9","El uso indica local desocupado, pero la línea declara el CIIU "+ciiu+". Revisar si el uso debió ser el específico de esa actividad o si el CIIU sobra.",["uso","ciiu"]);
     }else{
       r.esperado = "N/A (sin actividad)";
@@ -3082,6 +3090,8 @@ function validar(r, ctx){
     return hits;
   }
   if(esp.indexOf(ciiu)<0){
+    if(r.lineas>1&&(ctx.ciius[r.crc]||[]).some(function(c){return esp.indexOf(c)>=0;})){r.notas.push("otra línea ya tiene el CIIU del uso: revisar la actividad de esta línea");return hits;}
+    sugerirUsos();
     /* ¿Ese CIIU tiene un uso propio en el glosario? Se avisa para que el técnico vea las dos salidas */
     var otros = (USOS_POR_CIIU[ciiu]||[]).filter(function(x){ return x!==uso; }), aviso = "";
     if(otros.length){
@@ -3496,6 +3506,9 @@ function c2usoCiiuEval(code,uso,lin,unidades,piso,msg){
   if(!res)return null;
   if(!pendientes.length&&hits.length)res.txt=Array.from(new Set(hits)).join(', ')+' (falso error)';
   res.esperado=c2ciiuEsperado(filas,porFila,res.reglas,ctx);
+  res.notas=Array.from(new Set([].concat.apply([],filas.map(function(r){return r.notas||[];}))));
+  res.usoSugerido=[]; filas.forEach(function(r,i){if(porFila[i].some(function(c){return res.reglas.indexOf(c)>=0&&['R4A','R4B','R8B','R9'].indexOf(c)>=0;}))(r.usoSugerido||[]).forEach(function(u){if(!res.usoSugerido.some(function(x){return x.uso===u.uso;}))res.usoSugerido.push(u);});});
+  res.tallerRepuestos=res.reglas.indexOf('R8B')>=0&&filas.some(function(r,i){return r.tallerRepuestos&&porFila[i].indexOf('R8B')>=0;});
   return res;
 }
 /* CIIU esperado [{ciiu,desc,uso}] del mismo cálculo del validador (r.esperado / r.esperadoDesc, catálogo uso → CIIU),
@@ -3507,7 +3520,7 @@ function c2ciiuEsperado(filas,porFila,reglas,ctx){
     var unidad=ctx.U[r.crc], uso=unidad?C2_USO.codigoUsoCatalogo(unidad.uso):'';
     var desc={};String(r.esperadoDesc||'').split('  |  ').forEach(function(p){var m=p.match(/^(\d{4}): (.+)$/);if(m)desc[m[1]]=m[2];});
     String(r.esperado||'').split(' / ').forEach(function(c){c=c.trim();
-      if(!/^\d{4}$/.test(c)||vistos[c]||c===String(r.ciiu||'').replace(/\D/g,''))return;vistos[c]=1;out.push({ciiu:c,desc:desc[c]||'',uso:uso});});
+      if(!/^\d{4}$/.test(c)||vistos[c]||filas.some(function(f){return c===String(f.ciiu||'').replace(/\D/g,'');}))return;vistos[c]=1;out.push({ciiu:c,desc:desc[c]||'',uso:uso});});
   });
   return out;
 }
@@ -4194,7 +4207,7 @@ function c2rows(){
         var notaIni='cambió antes de la descarga ANTES: '+camposIni.map(function(k){return C2_CAMPO_NOMBRE[k]||k;}).join(', ');
         if(cmpIni===null)addNote('sin valor inicial comparable');   /* null = no cambió (casos b/c), nunca a ni d */
         if(!tfin.cumple){addNote('Sigue en SICUN: '+tfin.txt);
-          paso3={caso:cambioIni?'cambioAntes':'sigueMal',reglas:tfin.reglas,esperado:tfin.esperado||[]};
+          paso3={caso:cambioIni?'cambioAntes':'sigueMal',reglas:tfin.reglas,esperado:tfin.esperado||[],usoSugerido:tfin.usoSugerido||[],tallerRepuestos:tfin.tallerRepuestos};
           if(cambioIni)sigueMalAntes=C2_SIGUE_MAL+c2reglasTxt(tfin,g3)+c2queHacer(tfin,g3);}   /* (a) se aplica tras el paso 2 */
         else if(cambioIni){status=C2_CUMPLE;paso3={caso:'cumple',reglas:[]};addNote('Cumple en SICUN: '+tfin.txt+' · corregido antes de la descarga ANTES');addNote(notaIni);}
         else {paso3={caso:'falsoError',reglas:tfin.reglas};addNote('Sin cambio desde la validación: '+tfin.txt+' según las reglas; posible falso error, si es así marcar NO APLICA');}
@@ -4213,7 +4226,8 @@ function c2rows(){
     if(otra)campos=otra.campos.join(' | ');   /* campos de las OTRAS unidades (solo nombres) */
     var changes=hits.concat(otros).filter(function(e){return e.type!=='crcmatch';}).map(function(e){return e.report+' · '+e.field+': '+e.before+' → '+e.after;});
     var change=(resumen?resumen+(changes.length?' | ':''):'')+changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':'');
-    var finalUso=tok||tfin, primerCiiu=finalUso&&finalUso.esperado&&finalUso.esperado[0];
+    var finalUso=tok||tfin; if(finalUso&&finalUso.notas)finalUso.notas.forEach(addNote);
+    var primerCiiu=finalUso&&finalUso.esperado&&finalUso.esperado[0];
     all.push(Object.assign({},row,{crcNuevo:renNuevo?renNuevo.after:'',catUso:primerCiiu?primerCiiu.uso:'',code:code||row.rawCode,crcIlegible:!code&&status==='? NO ENCONTRADO',fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,campos:campos,change:[otra?otra.texto:'',change].filter(Boolean).join(' | '),note:note,
       changeView:[otra?otra.texto:'',resumen,c2cambios(hits,otros,5)].filter(Boolean).join(' | '),obsChange:c2obsCambios(row.observation,hits,otros),otraUnidad:otra?otra.detalle:'',paso3:paso3}));
   });});return all;
@@ -4351,7 +4365,7 @@ function c2ObservadosDetalle(row,prefijo){
 function c2EsperadoDetalle(row){return c2ObservadosDetalle(row,' · se esperaba: ');}
 /* Texto ⚠ según el caso del paso 3 (row.paso3). Siempre empieza con "⚠ Sin cambio en SICUN" (vc-pendientes clasifica por SINCAMBIO). */
 function c2SinCambioDetalle(row){var p=row.paso3||{};
-  if(p.caso==='sigueMal'){var g=c2grupoRegla(row),t={reglas:p.reglas||[],esperado:p.esperado};return '⚠ Sin cambio en SICUN · no se corrigió, sigue mal: '+c2reglasTxt(t,g)+c2queHacer(t,g);}
+  if(p.caso==='sigueMal'){var g=c2grupoRegla(row),t={reglas:p.reglas||[],esperado:p.esperado,usoSugerido:p.usoSugerido,tallerRepuestos:p.tallerRepuestos};return '⚠ Sin cambio en SICUN · no se corrigió, sigue mal: '+c2reglasTxt(t,g)+c2queHacer(t,g);}
   if(p.caso==='falsoError')return '⚠ Sin cambio en SICUN · el dato ya cumple la regla: posible falso error, si es así marcar NO APLICA';
   return '⚠ Sin cambio en SICUN'+c2ObservadosDetalle(row,' · sigue igual: ')+' — revisa que se haya guardado';}
 function pubResultado(r){var b=c2bucket(r.result);if(b===2)return c2SinCambioDetalle(r);if(r.result.startsWith('ℹ NO APLICA pero SICUN cambió'))return r.result+' · qué hacer: cambiar la marca a APLICA u OTRO CAMBIO';return b===1?PUB_OTRO_CAMPO+c2EsperadoDetalle(r):b===7?PUB_OTRA_UNIDAD+(r.otraUnidad?' · '+r.otraUnidad:''):r.result;}

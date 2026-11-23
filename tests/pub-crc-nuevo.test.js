@@ -56,7 +56,7 @@ assert.equal(Object.hasOwn(dv.fila, 'crcNuevo'), false);
 assert.match(dv.fila.campos, /CRC renombrado \(solo DV\)/);
 assert.equal(dv.excel[1].at(-1), '');
 
-for (const [uso, verCatalogo] of [['030101', true], ['050101', false]]) {
+for (const [uso, verCatalogo] of [['030101', true], ['050101', true]]) {
   const board = [
     ctx('UA', [KEY, 'Código De Uso'], [[code, uso]]),
     ctx('CON', [KEY, 'N° Piso', 'Código De Actividad Económica (CIIU)', 'ECC'],
@@ -73,7 +73,7 @@ for (const [uso, verCatalogo] of [['030101', true], ['050101', false]]) {
   assert.equal(Object.hasOwn(run(board, tit).fila, 'catUso'), false);
 }
 const conHeaders = [KEY, 'N° Piso', 'Código De Actividad Económica (CIIU)', 'ECC'];
-const conRows = [[code, '1', '4711', 'TERMINADO'], [code, '2', '9601', 'TERMINADO']];
+const conRows = [[code, '1', '4711', 'TERMINADO'], [code, '2', '4719', 'TERMINADO']];
 const con = ctx('CON', conHeaders, conRows);
 const r4b = fila('VAL_USO_CIIU', code, 'APLICA', '[R4B] El CIIU no corresponde al uso', '1',
   {codigodeuso:'020201', codigodeactividadeconomicaciiu:'9999'});
