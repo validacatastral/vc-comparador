@@ -584,14 +584,14 @@ input, select, textarea, button {max-width:100%;}
     <p class="sec-label">Cruce revisor</p>
     <div id="c2Stats" class="panel stats"></div>
     <p class="bulkmsg">El cruce utiliza solo reportes comparados. Las hojas sin columna de estado se informan en la carga.</p>
-    <div class="board"><table><thead><tr><th>Validador</th><th>Filas</th><th>Verificado / cambió</th><th>Otro campo</th><th>Sin cambio</th><th>No encontrado</th><th>Inválido / incompleto</th><th>NO APLICA con cambio</th><th>Sin comparar</th><th>Otra unidad del lote</th><th>Cambió pero sigue mal</th></tr></thead><tbody id="c2Summary"></tbody></table></div>
+    <div class="board"><table><thead><tr><th>Validador</th><th>Filas</th><th>Verificado / cambió</th><th>Otro campo</th><th>Sin cambio</th><th>No encontrado</th><th>Inválido / incompleto</th><th>NO APLICA con cambio</th><th>Sin comparar</th><th>Otra unidad del lote</th><th>Cambió pero sigue mal</th><th>Revisado a mano</th></tr></thead><tbody id="c2Summary"></tbody></table></div>
     <div class="actions"><label>Validador <select id="c2Validator"><option value="">Todos</option></select></label><label>Técnico <select id="c2Technician"><option value="">Todos</option></select></label><label>Resultado <select id="c2Result"><option value="">Todos</option></select></label><label><input type="checkbox" id="c2NoAplica" checked> Avisar NO APLICA con cambio</label><button type="button" class="rbtn" id="pubStart">Publicar pendientes</button><a href="#pubPanel" class="rbtn" id="pubSettings" aria-expanded="false">⚙ Publicación</a><button type="button" class="rbtn" id="asgToggle" aria-controls="asgPanel" aria-expanded="false">👤 Asignar técnicos</button></div>
     <div id="asgPanel" class="panel hidden"><label>Polígono <select id="asgPolygon"></select></label><div id="asgRows"></div><datalist id="asgTechnicians"></datalist><button type="button" class="rbtn" id="asgClear">Limpiar asignación</button><p id="asgStatus" role="status"></p></div>
     <div id="pubPanel" class="panel hidden"><label>URL del Apps Script (/exec) <input id="pubUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label><label>Clave de escritura <input id="pubKey" type="password" autocomplete="off"></label><label><input type="checkbox" id="pubRemember"> Recordar clave en este navegador</label><label><input type="checkbox" id="pubObs"> Incluir observación del revisor (puede contener nombres)</label></div>
     <p class="sub">Publicar envía solo los polígonos que marques; tu vista no cambia.</p>
     <div id="pubStatus" role="status" aria-live="polite"></div>
     <dialog id="pubDialog" aria-labelledby="pubTitle"><h3 id="pubTitle">Publicar pendientes</h3><div id="pubPreview"></div><div id="pubList"></div><button type="button" id="pubCancel">Cancelar</button> <button type="button" id="pubSend">Publicar marcados</button></dialog>
-    <div class="tablecard" style="border-radius:12px;margin-top:12px"><div class="scroll"><table><thead><tr><th>Polígono</th><th>Hoja</th><th>Técnico</th><th>Validador · FI</th><th>Código</th><th>Sec-Mz-Lt</th><th>Piso</th><th>Estado</th><th>Mensaje validador</th><th>Verificación SICUN</th><th>Qué cambió</th><th>Observación</th><th>Nota</th></tr></thead><tbody id="c2Body"></tbody></table></div></div>
+    <div class="tablecard" style="border-radius:12px;margin-top:12px"><div class="scroll"><table><thead><tr><th>Polígono</th><th>Hoja</th><th>Técnico</th><th>Validador · FI</th><th>Código</th><th>Sec-Mz-Lt</th><th>Piso</th><th>Estado</th><th>Mensaje validador</th><th>Verificación SICUN</th><th>Qué cambió</th><th>Observación</th><th>Revisión</th><th>Nota</th></tr></thead><tbody id="c2Body"></tbody></table></div></div>
   </section>
 
   <section id="boardSection" class="hidden">
@@ -3884,7 +3884,8 @@ function c2read(wb,name){
     var rawHead=[];for(col=0;col<=range.e.c;col++)rawHead.push(c2campo(display(range.s.r,col)));
     function find(re){return headers.findIndex(function(h){return re.test(h);});}
     var state=find(/aplica\s*\/\s*no\s*aplica/i); if(state<0)state=headers.indexOf('estado');
-    var obs=find(/^(observacion|observaciones|obs)$/); if(obs<0&&state>=0)obs=state+1;
+    var revision=find(/^revision$/);
+    var obs=find(/^(observacion|observaciones|obs)$/); if(obs<0&&state>=0&&state+1!==revision)obs=state+1;
     var encargado=find(/^encargado$/);
     var msg=find(/^val_/), piso=find(/^n.?\s*piso$/i), validator=c2val(sn), sheet={name:sn,validator:validator,rows:0,noState:state<0};
     if(state<0)file.totals.noState++;
@@ -3904,11 +3905,11 @@ function c2read(wb,name){
         else partial=construido;
       }
       var p=piso<0?'':c2clean(display(r,piso));if(/^\d+\.0+$/.test(p))p=String(parseInt(p,10));
-      file.rows.push({tecnico:c2technician(encargado<0?'':display(r,encargado),sn),polygon:file.polygon,sheet:sn,validator:validator,rawCode:code,partial:partial,idLote:idLote,numeric:numeric,piso:p,state:st,observation:observation,message:msg<0?'':c2clean(display(r,msg)),noState:state<0,inicial:(function(){var o={},fin=msg<0?(state<0?rawHead.length:state):msg;for(var c=1;c<fin;c++)if(rawHead[c])o[rawHead[c]]=c2clean(display(r,c));return o;})()});
+      file.rows.push({tecnico:c2technician(encargado<0?'':display(r,encargado),sn),polygon:file.polygon,sheet:sn,validator:validator,rawCode:code,partial:partial,idLote:idLote,numeric:numeric,piso:p,state:st,observation:observation,revision:revision<0?'':c2clean(display(r,revision)),message:msg<0?'':c2clean(display(r,msg)),noState:state<0,inicial:(function(){var o={},fin=Math.min.apply(null,[rawHead.length].concat([msg,state,obs].filter(function(i){return i>=0;})));for(var c=1;c<fin;c++)if(c!==revision&&rawHead[c])o[rawHead[c]]=c2clean(display(r,c));return o;})()});
     }
     file.sheets.push(sheet);
   });
-  var seen=new Set();file.rows=file.rows.filter(function(x){var k=JSON.stringify([x.sheet,x.state,x.rawCode,x.partial,x.piso,x.observation]);if(seen.has(k))return false;seen.add(k);return true;});return file;
+  var seen=new Set();file.rows=file.rows.filter(function(x){var k=JSON.stringify([x.sheet,x.state,x.rawCode,x.partial,x.piso,x.observation,x.revision]);if(seen.has(k))return false;seen.add(k);return true;});return file;
 }
 function c2files(){return CUR<0?[]:(DISTRICTS[CUR].c2||[]);}
 function c2keys(){var keys=new Set();BOARD_().forEach(function(c){['A','B'].forEach(function(side){if(c[side])c[side].rows.forEach(function(r){var k=txt(r[c.preset.key]).trim();if(/^\d{14}$|^\d{24}$/.test(k))keys.add(k);});});});return Array.from(keys);}
@@ -4162,7 +4163,7 @@ function c2rows(){
   var gapState=gapNow(), gapIdx={};if(gapState&&!gapState.bloquea)gapState.gaps.forEach(function(g){gapIdx[g.sector+'|'+g.rep]=g;});
   var lados=null, huellas=null, lotCache={}, lotIdx=null;function lotMatch(l){if(!huellas)huellas=c2huellas(BOARD_());return lotCache[l]||(lotCache[l]=c2matchUnits(huellas.A,huellas.B,l));}
   var all=[];files.forEach(function(file){file.rows.forEach(function(row){
-    if(row.noState||(!row.state||row.state==='PENDIENTE'))return;
+    if((row.noState||(!row.state||row.state==='PENDIENTE'))&&!c2clean(row.revision))return;
     var invalid=['APLICA','NO APLICA','OTRO CAMBIO'].indexOf(row.state)<0, code=c2resolve(row,keys), map=c2mapRow(row), level=map?map.level:(code.length===8?'LOTE':'CRC');
     var lotUbigeos=code.length===8?new Set(keys.filter(function(k){return k.slice(6,8)===code.slice(0,2);}).map(function(k){return k.slice(0,6);})):null;
     var lotCode=code.length===8?(lotUbigeos.size===1?Array.from(lotUbigeos)[0]+code:''):code.slice(0,14);
@@ -4212,13 +4213,13 @@ function c2rows(){
     function names(list){var u=Array.from(new Set(list.map(function(e){return e.report+' · '+e.field;})));return u.slice(0,5).join(', ')+(u.length>5?' y '+(u.length-5)+' más':'');}
     var sec8=code.length===24?code.slice(0,8):(lotCode||'').slice(0,8), rowGaps=map&&sec8.length===8?c2reports(map).map(function(id){return gapIdx[sec8+'|'+id];}).filter(Boolean):[];
     var sector=code.length===8?code.slice(0,2):code.slice(6,8), sectorLoaded=keys.some(function(k){return k.slice(6,8)===sector;}), status, cls=null;
-    if(row.state==='NO APLICA'&&(!$('c2NoAplica').checked||(code&&((!matching.length && !(lotUbigeos && lotUbigeos.size>1))||!sectorLoaded))))return;
+    if(!c2clean(row.revision)&&row.state==='NO APLICA'&&(!$('c2NoAplica').checked||(code&&((!matching.length && !(lotUbigeos && lotUbigeos.size>1))||!sectorLoaded))))return;
     if(invalid)status='ESTADO INVÁLIDO';else if(!code){status='? NO ENCONTRADO';note='CRC ilegible en el Excel (no tiene 24 dígitos) — revisar el archivo';}else if(!sectorLoaded)status='SECTOR NO CARGADO';else if(lotUbigeos && lotUbigeos.size>1)status='LOTE AMBIGUO (varios ubigeos)';else if(!matching.length)status='? NO ENCONTRADO';else if(!BOARD_().some(function(c){return !!c.RES;}))status='PENDIENTE DE COMPARACIÓN';
     else if(rowGaps.length && row.state!=='NO APLICA' && !hits.length && (row.state==='APLICA'||!otros.length))status='⏸ Sin comparar ('+Array.from(new Set(rowGaps.map(function(g){return g.motivo;}))).join('; ')+')';
     else if(row.state==='APLICA' && isCrc && revisar.length){status='⚠ REVISAR A MANO';addNote('CRC: '+revisar[0].reason+'; no se pudo emparejar la unidad');}
     else if(row.state==='APLICA' && map && !hits.length && c2reports(map).some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';
     else {var soloDV=dvs.length>0&&!hits.length&&!otros.length;   /* lo único que cambió es el DV → sin cambio en el campo observado */
-      cls=c2classify(row.state,hits.length,otros.length+(soloDV?1:0));if(cls.omit)return;status=cls.result;
+      cls=c2classify(row.state,hits.length,otros.length+(soloDV?1:0));if(cls.omit&&!c2clean(row.revision))return;status=cls.result;
       if(cls.extra&&otros.length)addNote('También cambió: '+names(otros));
       if(dvs.length)addNote(soloDV?'solo DV recalculado por SICUN':'DV recalculado por SICUN');
       if(cls.suggestion)addNote('Sugerencia: '+cls.suggestion+(hits.length?' (cambió '+names(hits)+')':''));
@@ -4253,12 +4254,14 @@ function c2rows(){
     var change=(resumen?resumen+(changes.length?' | ':''):'')+changes.slice(0,5).join(' | ')+(changes.length>5?' | +'+(changes.length-5)+' más':'');
     var finalUso=tok||tfin; if(finalUso&&finalUso.notas)finalUso.notas.forEach(addNote);
     var primerCiiu=finalUso&&finalUso.esperado&&finalUso.esperado[0];
+    var nivelFinal=finalUso&&!finalUso.cumple&&(c2bucket(status)===8||(c2bucket(status)===2&&paso3&&paso3.caso==='sigueMal'))?c2nivel(finalUso,c2grupoRegla(row)):'';
+    if(c2clean(row.revision)){addNote('Sin revisión: '+status);status='✔ Revisado a mano · ver columna REVISIÓN del Excel del validador: '+c2clean(row.revision).slice(0,200);}
     all.push(Object.assign({},row,{crcNuevo:renNuevo?renNuevo.after:'',catUso:primerCiiu?primerCiiu.uso:'',code:code||row.rawCode,crcIlegible:!code&&status==='? NO ENCONTRADO',fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,campos:campos,change:[otra?otra.texto:'',change].filter(Boolean).join(' | '),note:note,
-      changeView:[otra?otra.texto:'',resumen,c2cambios(hits,otros,5)].filter(Boolean).join(' | '),obsChange:c2obsCambios(row.observation,hits,otros),otraUnidad:otra?otra.detalle:'',paso3:paso3,nivel:finalUso&&!finalUso.cumple&&(c2bucket(status)===8||(c2bucket(status)===2&&paso3&&paso3.caso==='sigueMal'))?c2nivel(finalUso,c2grupoRegla(row)):''}));
+      changeView:[otra?otra.texto:'',resumen,c2cambios(hits,otros,5)].filter(Boolean).join(' | '),obsChange:c2obsCambios(row.observation,hits,otros),otraUnidad:otra?otra.detalle:'',paso3:paso3,nivel:nivelFinal}));
   });});return all;
 }
-function c2bucket(s){if(/^◐ Cambió(?: pero sigue mal|, revisar)/.test(s))return 8;if(/^◐ Cambió otro campo/.test(s))return 1;if(/OTRA UNIDAD/.test(s))return 7;if(/VERIFICADO|✔ CAMBIÓ|NO APLICA CONFIRMADO|CUMPLE EN SICUN/.test(s))return 0;if(/OTRO CAMPO/.test(s))return 1;if(/SIN CAMBIO/i.test(s))return 2;if(/NO ENCONTRADO|SECTOR NO CARGADO/.test(s))return 3;if(/INVÁLIDO|INCOMPLETO|PENDIENTE|LOTE AMBIGUO|REVISAR A MANO/.test(s))return 4;if(/^⏸/.test(s))return 6;return 5;}
-function c2summary(rows){var result={};rows.forEach(function(r){var a=result[r.validator]||(result[r.validator]=[0,0,0,0,0,0,0,0,0,0]);a[0]++;a[c2bucket(r.result)+1]++;});return result;}
+function c2bucket(s){if(/^✔ Revisado a mano/.test(s))return 9;if(/^◐ Cambió(?: pero sigue mal|, revisar)/.test(s))return 8;if(/^◐ Cambió otro campo/.test(s))return 1;if(/OTRA UNIDAD/.test(s))return 7;if(/VERIFICADO|✔ CAMBIÓ|NO APLICA CONFIRMADO|CUMPLE EN SICUN/.test(s))return 0;if(/OTRO CAMPO/.test(s))return 1;if(/SIN CAMBIO/i.test(s))return 2;if(/NO ENCONTRADO|SECTOR NO CARGADO/.test(s))return 3;if(/INVÁLIDO|INCOMPLETO|PENDIENTE|LOTE AMBIGUO|REVISAR A MANO/.test(s))return 4;if(/^⏸/.test(s))return 6;return 5;}
+function c2summary(rows){var result={};rows.forEach(function(r){var a=result[r.validator]||(result[r.validator]=[0,0,0,0,0,0,0,0,0,0,0]);a[0]++;a[c2bucket(r.result)+1]++;});return result;}
 /* Asignaciones locales por polígono y validador; nunca se editan filas fuente. */
 function asgRead(polygon){
   try{var value=JSON.parse(localStorage.getItem('vc-cmp-asig-'+polygon)||'{}');return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}catch(e){return {};}
@@ -4297,14 +4300,14 @@ function c2codeCells(code){
 }
 function c2render(){gapRender();asgRender();var files=c2files(), section=$('c2Section');$('c2Load').classList.toggle('hidden',CUR<0);section.classList.toggle('hidden',!files.length);if(!files.length){$('c2FilesSummary').textContent='Ningún archivo cargado.';return;}
   $('c2FilesSummary').innerHTML=files.map(function(f){var t=f.totals;return esc(f.name)+' · Polígono '+esc(f.polygon||'no identificado')+' · '+f.sheets.length+' hojas VAL_ · '+t.valid+' filas · '+t.reviewed+' revisadas · APLICA '+t.aplica+' · NO APLICA '+t.no+' · OTRO CAMBIO '+t.otro+' · vacías / pendientes '+t.empty+' · inválidas '+t.invalid+(t.noState?' · '+t.noState+' SIN COLUMNA DE ESTADO: '+esc(f.sheets.filter(function(s){return s.noState;}).map(function(s){return s.name+' ('+s.rows+' filas)';}).join(', ')):'');}).join('<br>');
-  var rows=c2assign(c2rows()), summary=c2summary(rows), totals=[0,0,0,0,0,0,0,0,0];rows.forEach(function(r){totals[c2bucket(r.result)]++;});var labels=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio','⏸ Sin comparar','◐ Otra unidad del lote','◐ Cambió pero sigue mal'];$('c2Stats').innerHTML=labels.map(function(l,i){return '<div class="stat '+(['new','mod','del','same','del','same','same','ren','mod'][i])+'"><div class="k">'+l+'</div><div class="v">'+totals[i]+'</div></div>';}).join('');
+  var rows=c2assign(c2rows()), summary=c2summary(rows), totals=[0,0,0,0,0,0,0,0,0,0];rows.forEach(function(r){totals[c2bucket(r.result)]++;});var labels=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio','⏸ Sin comparar','◐ Otra unidad del lote','◐ Cambió pero sigue mal','✔ Revisado a mano'];$('c2Stats').innerHTML=labels.map(function(l,i){return '<div class="stat '+(['new','mod','del','same','del','same','same','ren','mod','new'][i])+'"><div class="k">'+l+'</div><div class="v">'+totals[i]+'</div></div>';}).join('');
   $('c2Summary').innerHTML=Object.keys(summary).sort().map(function(k){return '<tr><td>'+esc(k)+'</td>'+summary[k].map(function(n){return '<td>'+n+'</td>';}).join('')+'</tr>';}).join('');
   function options(id,values){var el=$(id),old=el.value;el.innerHTML='<option value="">Todos</option>'+values.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');el.value=old;}
   options('c2Technician',Array.from(new Set(rows.map(function(r){return r.tecnico;}))).sort());options('c2Validator',Array.from(new Set(rows.map(function(r){return r.validator;}))).sort());options('c2Result',Array.from(new Set(rows.map(function(r){return r.result;}))).sort());
   rows=rows.filter(function(r){return (!$('c2Technician').value||r.tecnico===$('c2Technician').value)&&(!$('c2Validator').value||r.validator===$('c2Validator').value)&&(!$('c2Result').value||r.result===$('c2Result').value);});
-  $('c2Body').innerHTML=rows.map(function(r){var b=c2bucket(r.result);return '<tr>'+[r.polygon,r.sheet,r.tecnico,r.validator+' · '+r.fi].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+c2codeCells(r.code)+[r.piso,r.state,r.message,b===1?r.result+c2EsperadoDetalle(r):b===2?c2SinCambioDetalle(r):r.result,r.changeView,r.observation,r.note].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+'</tr>';}).join('');
+  $('c2Body').innerHTML=rows.map(function(r){var b=c2bucket(r.result);return '<tr>'+[r.polygon,r.sheet,r.tecnico,r.validator+' · '+r.fi].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+c2codeCells(r.code)+[r.piso,r.state,r.message,b===1?r.result+c2EsperadoDetalle(r):b===2?c2SinCambioDetalle(r):r.result,r.changeView,r.observation,r.revision||'',r.note].map(function(v){return '<td>'+esc(v)+'</td>';}).join('')+'</tr>';}).join('');
 }
-function c2sheets(rows,files){rows=rows||c2assign(c2rows());files=files||c2files();var head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota','Observación vs Antes → Después','Nivel','CRC nuevo'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,c2bucket(r.result)===2?c2SinCambioDetalle(r):r.result,r.change,r.note,r.obsChange,r.nivel||'',r.crcNuevo||'']);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio','Otra unidad del lote','Cambió pero sigue mal']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k].slice(0,7),[summary[k][8],summary[k][9]]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);files.forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=files.reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
+function c2sheets(rows,files){rows=rows||c2assign(c2rows());files=files||c2files();var head=['Polígono','Hoja','Técnico','Validador','Regla FI','Código (CRC/ID_LOTE)','Sec-Mz-Lt','Piso','Estado revisor','Mensaje validador','Observación','Reporte SICUN','Campos esperados','Verificación SICUN','Qué cambió','Nota','Observación vs Antes → Después','Nivel','Revisión','CRC nuevo'], det=[head];rows.forEach(function(r){var c=r.code.length===8?r.code:r.code.slice(6,14);det.push([r.polygon,r.sheet,r.tecnico,r.validator,r.fi,r.code,c.slice(0,2)+'-'+c.slice(2,5)+'-'+c.slice(5,8),r.piso,r.state,r.message,r.observation,r.report,r.expected,c2bucket(r.result)===2?c2SinCambioDetalle(r):r.result,r.change,r.note,r.obsChange,r.nivel||'',r.revision||'',r.crcNuevo||'']);});var summary=c2summary(rows),sum=[['Validador','Filas','Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio','Otra unidad del lote','Cambió pero sigue mal','Revisado a mano']];Object.keys(summary).sort().forEach(function(k){sum.push([k].concat(summary[k].slice(0,7),[summary[k][8],summary[k][9],summary[k][10]]));});sum.push([],['Archivo','Polígono','Hojas VAL_','Filas válidas','Revisadas','APLICA','NO APLICA','OTRO CAMBIO','Vacías / pendientes','Estado inválido','Hojas sin estado']);files.forEach(function(f){var t=f.totals;sum.push([f.name,f.polygon,f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState]);});var totals=files.reduce(function(a,f){var t=f.totals;[f.sheets.length,t.valid,t.reviewed,t.aplica,t.no,t.otro,t.empty,t.invalid,t.noState].forEach(function(n,i){a[i]+=n;});return a;},[0,0,0,0,0,0,0,0,0]);sum.push(['TOTAL',''].concat(totals));return [{name:'CRUCE_REVISOR',aoa:det,headerRow:0},{name:'CRUCE_RESUMEN',aoa:sum,headerRow:0}];}
 (function(){var original=writeStyledWorkbook;writeStyledWorkbook=function(sheets,filename){if(c2files().length)sheets=sheets.concat(c2sheets());return original(sheets,filename);};})();
 function c2enmascarar(header,value){
   if(value==null||value==='')return value;
@@ -4366,7 +4369,7 @@ $('c2Clear').addEventListener('click',function(){if(CUR>=0)DISTRICTS[CUR].c2=[];
 /* Publicación: proyección explícita de datos, sin valores SICUN ni mensaje del validador. */
 var PUB_LABELS=['Verificado / cambió','Cambió otro campo','Sin cambio','No encontrado / sector','Inválido / incompleto','NO APLICA con cambio'];
 var PUB_COUNTS=['verificado','otroCampo','sinCambio','noEncontrado','invalido','noAplicaConCambio'];
-function pubCounts(rows){rows=rows.filter(function(r){return c2bucket(r.result)!==6;});var out={filas:rows.length};PUB_COUNTS.forEach(function(k){out[k]=0;});rows.forEach(function(r){var b=c2bucket(r.result);if(b===7)out.otraUnidad=(out.otraUnidad||0)+1;else if(b===8)out.sigueMal=(out.sigueMal||0)+1;else out[PUB_COUNTS[b]]++;if(b===3&&r.crcIlegible)out.crcIlegible=(out.crcIlegible||0)+1;});return out;}   /* ◐ otra unidad (7): total aparte, solo si hay; sin esas filas los totales salen idénticos a antes */
+function pubCounts(rows){rows=rows.filter(function(r){return c2bucket(r.result)!==6;});var out={filas:rows.length};PUB_COUNTS.forEach(function(k){out[k]=0;});rows.forEach(function(r){var b=c2bucket(r.result);if(b===7)out.otraUnidad=(out.otraUnidad||0)+1;else if(b===8)out.sigueMal=(out.sigueMal||0)+1;else if(b===9)out.revisado=(out.revisado||0)+1;else out[PUB_COUNTS[b]]++;if(b===3&&r.crcIlegible)out.crcIlegible=(out.crcIlegible||0)+1;});return out;}   /* ◐ otra unidad (7): total aparte, solo si hay; sin esas filas los totales salen idénticos a antes */
 function pubGroup(rows,key){var groups=Object.create(null);rows.forEach(function(r){var k=r[key]||'SIN ASIGNAR';(groups[k]||(groups[k]=[])).push(r);});Object.keys(groups).forEach(function(k){groups[k]=pubCounts(groups[k]);});return groups;}
 function pubFields(row,events){
   if(typeof row.campos==='string')return row.campos; /* mismos campos que decidieron el estado (filtrados por piso) */
@@ -4380,7 +4383,7 @@ function pubFields(row,events){
    Los ✔ verificados (esperado + extra) no se publican. El aviso ◐ sale con etiqueta propia para distinguirlo en el JSON y en la página pública. */
 var PUB_OTRO_CAMPO='◐ Cambió otro campo, no el observado', PUB_OTRA_UNIDAD='◐ Cambió otra unidad del lote';
 /* ◐ otra unidad (7): aviso aparte; el detalle (CRC y campos, sin valores) va en 'resultado' porque el Apps Script descarta campos nuevos de la fila. */
-function pubPublica(r){var bucket=c2bucket(r.result);return (r.crcIlegible&&bucket===3)||bucket===1||bucket===2||bucket===5||bucket===7||bucket===8;}
+function pubPublica(r){var bucket=c2bucket(r.result);return (r.crcIlegible&&bucket===3)||bucket===1||bucket===2||bucket===5||bucket===7||bucket===8||bucket===9;}
 function c2ObservadosDetalle(row,prefijo){
   var map=c2mapRow(row);
   var campos=map?c2expected({observados:map.observados}):[];
