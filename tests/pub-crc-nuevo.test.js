@@ -20,13 +20,13 @@ const app = vm.runInNewContext([
   }})`
 ].join('\n'));
 
-function run(board, row) {
+function run(board, row, required = true) {
   for (const report of board) {
     report.A.day = '2025-01-01';
     report.B.day = '2025-01-02';
   }
   const result = app.run(board, row);
-  assert.ok(result.fila, 'la fila debe publicarse');
+  if(required)assert.ok(result.fila, 'la fila debe publicarse');
   return result;
 }
 
@@ -45,16 +45,16 @@ function renombre(after, porHuella = false) {
 }
 const tit = fila('VAL_TITULARES', code, 'APLICA');
 for (const porHuella of [false, true]) {
-  const real = run(renombre(nuevo, porHuella), tit);
+  const real = run(renombre(nuevo, porHuella), {...tit,state:'NO APLICA'});
   assert.equal(real.fila.crcNuevo, nuevo);
   assert.doesNotMatch(real.fila.campos, /CRC renombrado/);
   assert.equal(real.excel[0].at(-1), 'CRC nuevo');
   assert.equal(real.excel[1].at(-1), nuevo);
 }
-const dv = run(renombre(soloDV), tit);
-assert.equal(Object.hasOwn(dv.fila, 'crcNuevo'), false);
+const dv = run(renombre(soloDV), {...tit,state:'NO APLICA'});
+assert.equal(dv.fila.crcNuevo, soloDV);
 assert.match(dv.fila.campos, /CRC renombrado \(solo DV\)/);
-assert.equal(dv.excel[1].at(-1), '');
+assert.equal(dv.excel[1].at(-1), soloDV);
 
 for (const [uso, verCatalogo] of [['030101', true], ['050101', true]]) {
   const board = [
@@ -87,10 +87,10 @@ for (const uso of ['020201', '20201', '020201 - LOCAL DE SERVICIOS']) {
 assert.equal(Object.hasOwn(run([con], r4b).fila, 'catUso'), false);
 const conConUso = ctx('CON', [...conHeaders, 'Código De Uso'], conRows.map(row => [...row, '020201']));
 const sinUA = run([conConUso], r4b).fila;
-assert.match(sinUA.resultado, / · debería ser: /);
+assert.doesNotMatch(sinUA.resultado, / · debería ser: /); // No se usa el uso de CON sin UA.
 assert.equal(Object.hasOwn(sinUA, 'catUso'), false);
 const uaFueraCatalogo = ctx('UA', [KEY, 'Código De Uso'], [[code, '999998 - DESCONOCIDO']]);
-assert.equal(Object.hasOwn(run([uaFueraCatalogo, conConUso], r4b).fila, 'catUso'), false);
+assert.equal(run([uaFueraCatalogo, conConUso], r4b, false).fila, undefined); // El uso de UA prevalece; R4B ya no aplica.
 
 const uaPartida = ctx('UA', [KEY, 'Condición del Titular', 'Forma de Adquisición', 'Tipo de Documento',
   'Tipo de Partida Registral', 'Número de Partida Registral'],

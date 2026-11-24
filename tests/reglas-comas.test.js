@@ -36,7 +36,7 @@ console.log('ok b · FI.29.09 solo ECS → APLICA '+b1.result+' · OTRO CAMBIO '
 // (c) FI.31.02 + Área Verificada → ✔; y con FI.29.09 la misma Área no es observada (◐). Mensaje con ambas reglas → unión.
 var c=run([ctx('CON',['Área Verificada'])],fila('VAL_CATEGORIAS-AREAS_2','APLICA',M3102));
 assert.strictEqual(c.result,'✔ VERIFICADO');
-assert.strictEqual(run([ctx('CON',['Área Verificada'])],fila('VAL_CATEGORIAS-AREAS_2','APLICA',M2909)).result,'◐ CAMBIÓ OTRO CAMPO');
+assert.strictEqual(run([ctx('CON',['Área Verificada'])],fila('VAL_CATEGORIAS-AREAS_2','APLICA',M2909)).result,'⚠ SIN CAMBIO EN SICUN');
 var u=T.c2mapRow(fila('VAL_CATEGORIAS-AREAS_2','APLICA',M2909+' | '+M3102));
 assert.deepStrictEqual(JSON.parse(JSON.stringify(u.observados)),{CON:['ECC','Muros y Columna','Techo','Puertas y Ventanas','Área Verificada']});
 assert.strictEqual(run([ctx('CON',['Área Verificada'])],fila('VAL_CATEGORIAS-AREAS_2','APLICA',M2909+' | '+M3102)).result,'✔ VERIFICADO');

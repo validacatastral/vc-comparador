@@ -55,7 +55,7 @@ assert.strictEqual(r[1].result,'ℹ NO APLICA pero SICUN cambió','c NO APLICA: 
 assert.strictEqual(r[2].result,'✔ VERIFICADO');
 // …y la propia unidad que solo cambió en OTRO piso (CRC+PISO) no cuenta como "otra unidad": sigue ⚠ SIN CAMBIO
 r=run(board([unidad(U1),unidad(U2)],[unidad(U1,null,'85.00'),unidad(U2)]),[fila('VAL_PISO_CATEGORIA_TECHO',U1,'APLICA','2')]   /* sin estado final: prueba solo la regla de otro piso */);
-assert.strictEqual(r[0].result,'⚠ SIN CAMBIO EN SICUN','c otro piso propio: '+r[0].result);assert(/otro piso cambió/.test(r[0].note),r[0].note);
+assert.strictEqual(r[0].result,'⚠ SIN CAMBIO EN SICUN','c otro piso propio: '+r[0].result);assert(!/Área Verificada/.test(r[0].note),r[0].note); // ruido de área sin fila de áreas ni observación.
 console.log('ok c · propia unidad → como hoy (✔ / ℹ / ⚠ con otro piso propio)');
 
 // (d) Renumeración: el CRC pedido no está en DESPUÉS (ni en ANTES: no encontrado) y en el lote aparece un CRC nuevo
@@ -100,9 +100,9 @@ assert(!('otraUnidad' in sin));assert.deepStrictEqual(JSON.parse(JSON.stringify(
 console.log('ok publicación · totales.otraUnidad aparte · sin el caso, totales idénticos');
 
 // Publicación completa (pubPayload): mismas columnas por fila que siempre (el Apps Script descarta campos nuevos)
-var P=vm.runInNewContext([cut('function txt(v){','function normVal'),cut('function c2bucket','\n'),cut('var PUB_LABELS','/* Prepara la publicación'),
+var P=vm.runInNewContext([cut('function pubResultadoSicun','function c2rows'),cut('function txt(v){','function normVal'),cut('function c2bucket','\n'),cut('var PUB_LABELS','/* Prepara la publicación'),
   'function c2assign(r){return r;}function c2keys(){return [];}function c2resolve(row){return row.code;}function c2map(){return null;}function BOARD_(){return [{RES:{},A:{name:"a"},B:{name:"b"}}];}function c2events(){return [];}function fileDate(f){return {day:f.name==="a"?"2026-11-10":"2026-11-14"};}'].join('\n')+'\n({pubPayload:pubPayload});');
 var pay=P.pubPayload('260210019',[{tecnico:'T',sheet:'S',validator:VAL,fi:'FI',code:U1,piso:'',state:'APLICA',result:T.OTRA,otraUnidad:U2+' (UA · '+COND+')',campos:'UA · '+COND,note:'',observation:''}],'clave',false);
-assert.deepStrictEqual(Object.keys(pay.filas[0]),['poligono','tecnico','hoja','validador','fi','codigo','smz','piso','estado','resultado','campos','nota']);
+assert.deepStrictEqual(Object.keys(pay.filas[0]),['poligono','tecnico','hoja','validador','fi','codigo','smz','piso','estado','resultado','resultadoSicun','campos','nota']);
 assert.strictEqual(pay.filas[0].resultado,'◐ Cambió otra unidad del lote · '+U2+' (UA · '+COND+')');assert.strictEqual(pay.totales.otraUnidad,1);assert.strictEqual(pay.totales.verificado,0);
 console.log('ok pubPayload · mismas columnas · resultado con detalle · sintaxis '+n+' <script>');

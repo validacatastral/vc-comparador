@@ -44,21 +44,21 @@ var b1=board([unidad(A1,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA)],[unidad
 assert.strictEqual(b1[0].RES.renombrados.length,1,'UA empareja el par');
 assert(b1.slice(1).every(function(c){return !c.RES.renombrados.length;}),'TIT/CON/OBR no emparejan (varios renglones)');
 var r=run(b1,[fila('VAL_TITULAR_INSCRIPCION',A1,'APLICA'),fila('VAL_TITULAR_INSCRIPCION',B1,'APLICA'),fila('VAL_TITULARES',A1,'APLICA')]);
-assert.strictEqual(r[0].result,'✔ VERIFICADO','1a CRC viejo: '+r[0].result+' ‖ '+r[0].campos);
+assert.strictEqual(r[0].result,'✔ CAMBIÓ (renombrado)','1a CRC viejo: '+r[0].result+' ‖ '+r[0].campos);
 assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+TDOC);
 assert(/POSEEDOR → OTROS/.test(r[0].change)&&/ESCRITURA PÚBLICA → /.test(r[0].change),r[0].change);
 assert(/DV recalculado por SICUN/.test(r[0].note)&&!/solo DV/.test(r[0].note),r[0].note);
 sinEliminado(r[0],'1a');
 assert.strictEqual(r[1].result,'✔ VERIFICADO','1a CRC nuevo');sinEliminado(r[1],'1a nuevo');
-assert.strictEqual(r[2].result,'✔ VERIFICADO','VAL_TITULARES: cambió UA · Condición del Titular (relacionado)');assert.strictEqual(r[2].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[2],'1a VAL_TITULARES');
+assert.strictEqual(r[2].result,'✔ CAMBIÓ (renombrado)','VAL_TITULARES: cambió UA · Condición del Titular (relacionado)');assert.strictEqual(r[2].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[2],'1a VAL_TITULARES');
 console.log('ok 1a · '+A1+' → '+B1+' · '+r[0].result+' · '+r[0].campos+' · nota: '+r[0].note);
 
 // 1b) Lote con otra unidad idéntica (la huella empata) → pasa por el par renombrado y no por la huella.
 var S1='150112350070090101020017', S1b='150112350070090101020016';
 var b1b=board([unidad(A1,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA),unidad(S1,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA)],[unidad(B1,'OTROS','POSESIÓN','',BB),unidad(S1b,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BB)]);
 r=run(b1b,[fila('VAL_TITULAR_INSCRIPCION',A1,'APLICA'),fila('VAL_TITULAR_INSCRIPCION',S1,'NO APLICA')]);
-assert.strictEqual(r[0].result,'✔ VERIFICADO','1b: '+r[0].result+' ‖ '+r[0].campos);assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[0],'1b');
-assert.strictEqual(r[1].result,'✔ NO APLICA CONFIRMADO','1b unidad vecina solo DV: '+r[1].campos+' ‖ '+r[1].change+' ‖ '+r[1].note);sinEliminado(r[1],'1b vecina');
+assert.strictEqual(r[0].result,'✔ CAMBIÓ (renombrado)','1b: '+r[0].result+' ‖ '+r[0].campos);assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[0],'1b');
+assert.strictEqual(r[1].result,'ℹ NO APLICA pero SICUN cambió','1b unidad vecina solo DV: '+r[1].campos+' ‖ '+r[1].change+' ‖ '+r[1].note);sinEliminado(r[1],'1b vecina');
 console.log('ok 1b · huella empatada → '+r[0].result+' · '+r[0].campos);
 
 // Caso 2 real: 150112350440030101010015 → …016. Condición POSEEDOR→OTROS, Forma POSESIÓN→OTROS, Tipo de Documento ESCRITURA PÚBLICA→vacío.
@@ -68,7 +68,7 @@ var u2a=unidad(A2,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA), u2b=unidad(B2
 var b2=board([u2a,unidad(S2,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA)],[u2b,unidad(S2b,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BB)]);
 var ren2=b2[0].RES.renombrados.map(function(x){return x.de+'→'+x.a;});assert(ren2.indexOf(A2+'→'+B2)<0,'2a: UA no empareja bien el par: '+ren2.join(', '));
 r=run(b2,[fila('VAL_TITULAR_INSCRIPCION',A2,'APLICA'),fila('VAL_TITULAR_INSCRIPCION',B2,'APLICA')]);
-assert.strictEqual(r[0].result,'✔ VERIFICADO','2a: '+r[0].result+' ‖ '+r[0].campos);
+assert.strictEqual(r[0].result,'✔ CAMBIÓ (renombrado)','2a: '+r[0].result+' ‖ '+r[0].campos);
 assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+FORMA+' | UA · '+TDOC+' | UA · Número de Partida Registral | UA · Fecha de Adquisición');
 assert(/También cambió: UA · Fecha de Adquisición/.test(r[0].note)&&/DV recalculado por SICUN/.test(r[0].note),r[0].note);
 sinEliminado(r[0],'2a');assert.strictEqual(r[1].result,'✔ VERIFICADO','2a CRC nuevo');sinEliminado(r[1],'2a nuevo');
@@ -76,13 +76,13 @@ console.log('ok 2a · '+A2+' → '+B2+' (par por DV; UA emparejó: '+(ren2.join(
 // 2b) Mismo caso con UA emparejado y unidad sola en el lote.
 var b2b=board([unidad(A2,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA)],[unidad(B2,'OTROS','OTROS','',BB)]);
 r=run(b2b,[fila('VAL_TITULAR_INSCRIPCION',A2,'APLICA')]);
-assert.strictEqual(r[0].result,'✔ VERIFICADO');assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+FORMA+' | UA · '+TDOC);sinEliminado(r[0],'2b');
+assert.strictEqual(r[0].result,'✔ CAMBIÓ (renombrado)');assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+FORMA+' | UA · '+TDOC);sinEliminado(r[0],'2b');
 console.log('ok 2b · '+r[0].result+' · '+r[0].campos);
 
 // 3) Cambio real en TIT/CON del par renombrado (no emparejado en esos reportes) se ve como celda, no como "(registro eliminado)".
 var u3b=unidad(B2,'OTROS','OTROS','',BB);u3b.CON[1]['Área Verificada']='75.00';
 r=run(board([unidad(A2,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA)],[u3b]),[fila('VAL_CATEGORIAS-AREAS',A2,'APLICA'),fila('VAL_TITULAR_INSCRIPCION',A2,'APLICA')]);
-assert.strictEqual(r[0].result,'✔ VERIFICADO','CON Área Verificada del par renombrado');assert(/CON · Área Verificada: 60.00 → 75.00/.test(r[0].change),r[0].change);sinEliminado(r[0],'3');
+assert.strictEqual(r[0].result,'✔ CAMBIÓ (renombrado)','CON Área Verificada del par renombrado');assert(/CON · Área Verificada: 60.00 → 75.00/.test(r[0].change),r[0].change);sinEliminado(r[0],'3');
 assert(/También cambió: CON · Área Verificada/.test(r[1].note),r[1].note);
 console.log('ok 3 · CON del par renombrado → '+r[0].result+' · '+r[0].campos);
 
@@ -91,6 +91,6 @@ var C4='150112350070090101010013', D4='150112350070090101020014';
 function rekey(u,k){var o2={};Object.keys(u).forEach(function(rep){o2[rep]=u[rep].map(function(x){return Object.assign({},x,{'Código de Referencia Catastral':k});});});return o2;}
 var u4=rekey(unidad(C4,'OTROS','POSESIÓN','',BA),D4);
 r=run(board([unidad(C4,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA)],[u4]),[fila('VAL_TITULAR_INSCRIPCION',C4,'APLICA'),fila('VAL_CRC',C4,'APLICA')]);
-assert.strictEqual(r[0].result,'✔ VERIFICADO');assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[0],'4');
-assert.strictEqual(r[1].result,'✔ VERIFICADO','VAL_CRC renombre de código');assert(/CRC (renombrado|cambió)/.test(r[1].campos+' '+r[1].change),r[1].change);
+assert.strictEqual(r[0].result,'✔ CAMBIÓ (renombrado)');assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[0],'4');
+assert.strictEqual(r[1].result,'✔ CAMBIÓ (renombrado)','VAL_CRC renombre de código');assert(/CRC (renombrado|cambió)/.test(r[1].campos+' '+r[1].change),r[1].change);
 console.log('ok 4 · renombre de código → '+r[0].result+' · VAL_CRC '+r[1].result+' ('+r[1].campos+')');

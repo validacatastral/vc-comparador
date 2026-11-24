@@ -11,7 +11,7 @@ var EVENTS=[{key:KEY,type:'cell',report:'UA',field:'Tipo de Interior',before:'IN
   {key:OTRA,type:'cell',report:'UA',field:'Código De Uso',before:'010101',after:'020202'},{key:OTRA,type:'cell',report:'CON',field:'Área Verificada',before:'50',after:'60'}];
 var stubs='function c2assign(r){return r;}function c2keys(){return [];}function c2resolve(row){return row.code;}'+
   'function BOARD_(){return [{RES:{},A:{name:"a"},B:{name:"b"}}];}function c2events(){return EVENTS;}function fileDate(f){return {day:f.name==="a"?"2026-11-10":"2026-11-14"};}';
-var src=[cut('function txt(v){','function normVal'),cut('var CAMPOS_VALIDADOR','/* ============ Configuración de reportes'),cut('function stripAccents','\n'),cut('function c2norm','\n'),cut('function c2map','function c2state'),cut('function c2campo','\n'),cut('function c2expected','\n'),cut('function c2bucket','\n'),cut('var PUB_LABELS','/* Prepara la publicación'),stubs].join('\n');
+var src=[cut('function pubResultadoSicun','function c2rows'),cut('function txt(v){','function normVal'),cut('var CAMPOS_VALIDADOR','/* ============ Configuración de reportes'),cut('function stripAccents','\n'),cut('function c2norm','\n'),cut('function c2map','function c2state'),cut('function c2campo','\n'),cut('function c2expected','\n'),cut('function c2bucket','\n'),cut('var PUB_LABELS','/* Prepara la publicación'),stubs].join('\n');
 var T=vm.runInNewContext(src+'\n({pubPayload:pubPayload,pubPublica:pubPublica,pubResultado:pubResultado,PUB_OTRO_CAMPO:PUB_OTRO_CAMPO,c2bucket:c2bucket});',{EVENTS:EVENTS});
 function row(code,state,result,extra){return Object.assign({tecnico:'TEC SINTETICO',sheet:'VAL_USO_CIIU',validator:'VAL_USO_CIIU',fi:'FI-01',code:code,piso:'01',state:state,result:result,
   observation:'titular con DNI '+DNI+' corregir uso',note:'',message:'mensaje '+DNI,change:'TIT · Nombres: '+TITULAR+' → X',changeView:'Otro campo: TIT · Número De Documento: '+DNI+' → 40302010',
@@ -40,7 +40,7 @@ assert.strictEqual(aviso.codigo,KEY);assert.strictEqual(aviso.estado,'APLICA');a
 assert.strictEqual(aviso.campos,'UA · Tipo de Interior | TIT · Nombres | TIT · Número De Documento','solo nombres de campo');
 assert.strictEqual(aviso.obs,'titular con DNI •••• corregir uso','números de 8+ dígitos tapados');
 assert.strictEqual(aviso.nota,'Sugerencia: posible OTRO CAMBIO');
-assert.deepStrictEqual(Object.keys(aviso),['poligono','tecnico','hoja','validador','fi','codigo','smz','piso','estado','resultado','campos','obs','nota'],'mismas columnas publicadas que antes');
+assert.deepStrictEqual(Object.keys(aviso),['poligono','tecnico','hoja','validador','fi','codigo','smz','piso','estado','resultado','resultadoSicun','campos','obs','nota'],'mismas columnas publicadas que antes');
 
 // 2) Los ✔ verificado (esperado + extra), ✔ cambió y no encontrados NO se publican
 assert.strictEqual(p.filas.length,3);

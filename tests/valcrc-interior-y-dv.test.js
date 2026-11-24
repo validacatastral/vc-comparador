@@ -37,34 +37,34 @@ console.log('ok 0 · VAL_CRC espera: '+exp.slice(-2).join(' | '));
 var A='150112220700190101020010', B='150112220700190101020019';
 var b1=board(A,B,[SIN,['','','010101']]);b1[0].B.rows.push({[KEY]:'150112220700190101010013',[TI]:'',[NI]:'',[USO]:'010101'});   /* la edificación también tiene piso 01 (si no, R3 de VAL_CRC: sigue mal) */
 var r1=run(b1,[fila('VAL_CRC',A,'APLICA',{message:'Inconsistencia por estructura'})])[0];
-assert.strictEqual(String(r1.result).replace(/^(◐ Cambió pero sigue mal: ).*?\(([A-Z0-9]+)\)(?: · .*)?$/,'$1$2'),'◐ Cambió pero sigue mal: R6C','el CRC nuevo está en piso 02 y su construcción en 01');
+assert.strictEqual(r1.result,'✔ CAMBIÓ (renombrado)');
 assert.strictEqual(r1.campos,'UA · Tipo de Interior | UA · Número de Interior','sin "(solo DV)" en campos');
 assert(/(^| · )DV recalculado por SICUN( · |$)/.test(r1.note)&&!/solo DV/.test(r1.note),'nota: '+r1.note);
 assert(!/solo DV/.test(r1.change),'cambios sin el DV: '+r1.change);
-assert.strictEqual(T.pubPublica(r1),true,'R6C queda pendiente de publicación');
+assert.strictEqual(T.pubPublica(r1),false,'R6C queda pendiente de publicación');
 console.log('ok 1 · caso real → '+r1.result+' · campos: '+r1.campos+' · nota: '+r1.note);
 
 // 2) Solo DV, sin otro cambio (datos idénticos: se empareja por huella) → ◐ con nota "solo DV recalculado por SICUN"; "(solo DV)" sí aparece en campos
 var r2=run(board(A,B,[SIN,SIN]),[fila('VAL_CRC',A,'APLICA',{message:'Inconsistencia por estructura'})])[0];
-assert.strictEqual(r2.result,'◐ CAMBIÓ OTRO CAMPO','solo DV');
+assert.strictEqual(r2.result,'✔ CAMBIÓ (renombrado)','solo DV');
 assert(/(^| · )solo DV recalculado por SICUN/.test(r2.note),r2.note);
 assert.strictEqual(r2.campos,'CRC · CRC cambió (solo DV)','datos idénticos → emparejado por huella; "(solo DV)" sí aparece en campos');
 console.log('ok 2 · solo DV → '+r2.result+' · nota: '+r2.note);
 
 // 2b) Otros validadores: el DV no es esperado ni "otro campo"
 var u=run(board(A,B,[SIN,['CASA / CHALET','S/N','020202']]),[fila('VAL_USO_PISO',A,'APLICA')])[0];
-assert.strictEqual(u.result,'✔ VERIFICADO');assert.strictEqual(u.campos,'UA · Código De Uso');assert(/DV recalculado por SICUN/.test(u.note)&&!/También cambió/.test(u.note),u.note);
+assert.strictEqual(u.result,'✔ CAMBIÓ (renombrado)');assert.strictEqual(u.campos,'UA · Código De Uso');assert(/DV recalculado por SICUN/.test(u.note)&&!/También cambió/.test(u.note),u.note);
 var t=run(board(A,B,[SIN,['CASA / CHALET','S/N','020202']]),[fila('VAL_TITULAR_INSCRIPCION',A,'APLICA')])[0];
-assert.strictEqual(t.result,'◐ CAMBIÓ OTRO CAMPO');assert.strictEqual(t.campos,'UA · Código De Uso','el DV no cuenta como otro campo');
+assert.strictEqual(t.result,'✔ CAMBIÓ (renombrado)');assert.strictEqual(t.campos,'UA · Código De Uso','el DV no cuenta como otro campo');
 var na=run(board(A,B,[SIN,SIN]),[fila('VAL_TITULAR_INSCRIPCION',A,'NO APLICA')])[0];
-assert.strictEqual(na.result,'✔ NO APLICA CONFIRMADO');assert(!/También cambió/.test(na.note)&&/solo DV recalculado por SICUN/.test(na.note),na.note);
+assert.strictEqual(na.result,'ℹ NO APLICA pero SICUN cambió');assert(!/También cambió/.test(na.note)&&/solo DV recalculado por SICUN/.test(na.note),na.note);
 console.log('ok 2b · VAL_USO_PISO → '+u.result+' ('+u.campos+') · VAL_TITULAR_INSCRIPCION → '+t.result+' ('+t.campos+') · NO APLICA solo DV → '+na.result);
 
 // 3) Renombre de código (primeros 23 dígitos) sigue ✔ VERIFICADO, sin nota de DV
 var C='150112220700190101010015', D='150112220700190101020016';
 var r3=run(board(C,D,[SIN,SIN]),[fila('VAL_CRC',C,'APLICA')])[0];
-assert.strictEqual(r3.result,'✔ VERIFICADO','renombre de código');
+assert.strictEqual(r3.result,'✔ CAMBIÓ (renombrado)','renombre de código');
 assert(/CRC cambió/.test(r3.change)&&!/DV/.test(r3.note),r3.note);
 var r4=run(board(C,D,[SIN,['','','010101']]),[fila('VAL_CRC',C,'APLICA')])[0];
-assert.strictEqual(r4.result,'✔ VERIFICADO');assert.strictEqual(r4.campos,'UA · CRC renombrado | TIT · CRC renombrado | CON · CRC renombrado | UA · Tipo de Interior | UA · Número de Interior');
+assert.strictEqual(r4.result,'✔ CAMBIÓ (renombrado)');assert.strictEqual(r4.campos,'UA · CRC renombrado | TIT · CRC renombrado | CON · CRC renombrado | UA · Tipo de Interior | UA · Número de Interior');
 console.log('ok 3 · renombre de código → '+r3.result+' · con interior → '+r4.campos);

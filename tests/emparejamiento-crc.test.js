@@ -4,7 +4,7 @@
 var fs=require('fs'),path=require('path'),vm=require('vm'),assert=require('assert');
 var html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
 function cut(from,to){var i=html.indexOf(from),j=html.indexOf(to,i);assert(i>=0&&j>i,'no se halló: '+from);return html.slice(i,j);}
-var src=[cut('var CAMPOS_VALIDADOR','var C2_MAP'),cut('function stripAccents','\n'),cut('function txt(v){','function normVal'),cut('function toNum','function eqVal'),cut('function normKey','\n'),
+var src=[cut('function c2bienComunCambio','\n'),cut('var CAMPOS_VALIDADOR','var C2_MAP'),cut('function stripAccents','\n'),cut('function txt(v){','function normVal'),cut('function toNum','function eqVal'),cut('function normKey','\n'),
   cut('var CRC_PARTS','function crcHtml'),cut('function c2norm','\n'),cut('/* Criterio APLICA','/* Diferencias reales')].join('\n');
 var T=vm.runInNewContext(src+'\n({M:CAMPOS_VALIDADOR,c2eventKind:c2eventKind,c2classify:c2classify,c2huellas:c2huellas,c2matchUnits:c2matchUnits,c2lotSummary:c2lotSummary});');
 
