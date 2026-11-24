@@ -31,16 +31,16 @@ console.log('ok 1 · renombre de código → '+r1.result+' · campos: '+r1.campo
 // 2) Solo cambió el DV (lo recalcula SICUN) → ◐ con nota "solo DV recalculado por SICUN"
 var A2='150112990370190101020010', B2='150112990370190101020019';
 var r2=run(renombre(A2,B2),[fila('VAL_CRC',A2,'APLICA',{message:'VAL_CRC: código no coincide',observation:'se corrigió en SICUN'})])[0];
-assert.strictEqual(r2.result,'✔ CAMBIÓ (renombrado)','solo DV');
+assert.match(r2.result,/^◐ Cambió pero sigue mal: .*\(R3\)/,'solo DV evalúa CRC nuevo');
 assert(/(^| · )solo DV recalculado por SICUN/.test(r2.note),'nota solo DV: '+r2.note);
 assert.strictEqual(r2.campos,'UA · CRC renombrado (solo DV) | TIT · CRC renombrado (solo DV) | CON · CRC renombrado (solo DV)');
-assert.strictEqual(T.pubPublica(r2),false,'◐ sigue publicándose como aviso');
+assert.strictEqual(T.pubPublica(r2),true,'◐ sigue publicándose como aviso');
 console.log('ok 2 · solo DV → '+r2.result+' · nota: '+r2.note);
 
 // 3) Regla vieja retirada: mencionar "DV"/"dígito verificador" ya no cambia el estado (sigue ◐)
 ['corregir dígito verificador','Digito  Verificador mal','DV incorrecto','el dv no cuadra'].forEach(function(obs,i){
   var r=run(renombre(A2,B2),[fila('VAL_CRC',A2,'APLICA',i%2?{message:obs}:{observation:obs})])[0];
-  assert.strictEqual(r.result,'✔ CAMBIÓ (renombrado)','solo DV con mención: '+obs);assert(/solo DV recalculado por SICUN/.test(r.note));
+  if(i%2)assert.match(r.result,/^◐ Cambió pero sigue mal: .*\(R3\)/);else assert.strictEqual(r.result,'✔ CAMBIÓ (renombrado)');assert(/solo DV recalculado por SICUN/.test(r.note));
   assert.strictEqual(r.campos,r2.campos,'mismos campos');});
 console.log('ok 3 · mención de "DV" en obs o mensaje ya no cuenta → ◐ CAMBIÓ OTRO CAMPO');
 

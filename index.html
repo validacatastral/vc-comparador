@@ -4142,13 +4142,13 @@ function c2ruidoSicun(e){
     if((a===''&&cero.test(b))||(b===''&&cero.test(a)))return true;}
   return false;
 }
-function c2otraUnidad(idx,lot,code,esperado,otroPiso,floors){
+function c2otraUnidad(idx,lot,code,esperado,otroPiso,floors,ignorarRenumeracion){
   var x=idx&&lot?idx.get(lot):null;if(!x)return null;
   var own=code&&code.length===24?code:'';
   function campos(k){return Array.from(new Set((x.ev.get(k)||[]).filter(function(e){return !esperado||esperado(e);}).map(function(e){return e.report+' · '+e.field;})));}
   function lista(crcs,fmt){return crcs.slice(0,3).map(fmt).join(', ')+(crcs.length>3?' +'+(crcs.length-3):'');}
   function todos(crcs){return Array.from(new Set([].concat.apply([],crcs.map(campos))));}
-  if(own&&!x.B.has(own)){var nuevos=Array.from(x.B).filter(function(k){return !x.A.has(k)&&!(k.slice(16,18)==='99'||k.slice(18,20)==='99'||k.slice(20,22)==='99');}).sort();
+  if(own&&!x.B.has(own)&&!ignorarRenumeracion){var nuevos=Array.from(x.B).filter(function(k){return !x.A.has(k)&&!(k.slice(16,18)==='99'||k.slice(18,20)==='99'||k.slice(20,22)==='99');}).sort();
     if(nuevos.length){var r='Posible renumeración: '+lista(nuevos,function(k){return k;});return {detalle:r,texto:r,campos:todos(nuevos),crcs:nuevos};}}
   if(own&&otroPiso.length){
     var porPiso=new Map(), camposPiso=new Set();
@@ -4248,7 +4248,9 @@ function c2rows(){
     relevant=relevant.filter(function(e){return allowed(e,true);});
     var dvs=relevant.filter(c2esDV);relevant=relevant.filter(function(e){return !c2esDV(e);});
     var renNuevo=relevant.concat(dvs).find(function(e){return (e.type==='rename'||e.type==='crcmatch')&&e.before===code&&/^\d{24}$/.test(e.after);});
-    var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC);
+    var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC), valCrc=c2mapKey(row.validator)==='VAL_CRC';
+    var vanished=code.length===24&&!common(code)&&present(code,'A')&&!present(code,'B');
+    var renamed=vanished&&renNuevo, neutralDV=!!(renamed&&c2esDV(renamed)&&!valCrc);
     var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
     var split=c2pisoSplit(relevant,map&&level==='CRC+PISO'?(row.piso||''):null,floors,function(e){return c2eventKind(map,e,sameLot);},row.state==='OTRO CAMBIO'), hits=[], otros=split.otros;
     if(split.sinPiso)addNote('cruzado sin piso');
@@ -4266,22 +4268,20 @@ function c2rows(){
     else if(row.state==='APLICA' && isCrc && revisar.length){status='⚠ REVISAR A MANO';addNote('CRC: '+revisar[0].reason+'; no se pudo emparejar la unidad');}
     else if(row.state==='APLICA' && map && !hits.length && c2reports(map).some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';
     else {var soloDV=dvs.length>0&&!hits.length&&!otros.length;   /* lo único que cambió es el DV → sin cambio en el campo observado */
-      cls=c2classify(row.state,hits.length,otros.length+(soloDV?1:0));if(cls.omit&&!c2clean(row.revision)&&note.indexOf(' atribuido a ')<0)return;status=cls.result;
+      cls=c2classify(row.state,hits.length,otros.length+(soloDV&&valCrc?1:0));if(cls.omit&&!c2clean(row.revision)&&note.indexOf(' atribuido a ')<0)return;status=cls.result;
       if(cls.extra&&otros.length)addNote('También cambió: '+names(otros));
       if(dvs.length)addNote(soloDV?'solo DV recalculado por SICUN':'DV recalculado por SICUN');
       if(cls.suggestion)addNote('Sugerencia: '+cls.suggestion+(hits.length?' (cambió '+names(hits)+')':''));
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
-    // Una eliminación de la clave o de un renglón del dominio y un CRC nuevo son cambios definitivos.
-    var vanished=code.length===24&&!common(code)&&present(code,'A')&&!present(code,'B');
-    var renamed=vanished&&(renNuevo||dvs.find(function(e){return e.before===code&&/^\d{24}$/.test(e.after);}));
+    // Las eliminaciones son definitivas; los renombres se evalúan en el CRC nuevo.
     var removed=hits.concat(otros).some(function(e){return (e.type==='eliminados'||e.type==='rem')&&(!map||c2reports(map).indexOf(e.report)>=0);});
-    if((vanished||removed||renamed)&&['APLICA','OTRO CAMBIO','NO APLICA'].indexOf(row.state)>=0){
+    if(((vanished&&!neutralDV)||removed)&&['APLICA','OTRO CAMBIO','NO APLICA'].indexOf(row.state)>=0){
       status=row.state==='NO APLICA'?'ℹ NO APLICA pero SICUN cambió':'✔ CAMBIÓ ('+(renamed?'renombrado':'eliminado')+')';
     }
-    if(soloDV)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
+    if(soloDV&&valCrc)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
     var paso3=null, sigueMalAntes='';
     if(status==='⚠ SIN CAMBIO EN SICUN'){
-      var tfin=c2estadoFinal(BOARD_(),row,code);
+      var tfin=c2estadoFinal(BOARD_(),row,renNuevo?renNuevo.after:code);
       if(tfin&&c2tieneCampos(tfin)){
         var camposIni=[], cmpIni=c2cambioDesdeInicial(row.inicial,tfin.actual,tfin.campos,camposIni), cambioIni=cmpIni===true, g3=c2grupoRegla(row);
         var notaIni='cambió antes de la descarga ANTES: '+camposIni.map(function(k){return C2_CAMPO_NOMBRE[k]||k;}).join(', ');
@@ -4292,13 +4292,13 @@ function c2rows(){
         else if(cambioIni){status=C2_CUMPLE;paso3={caso:'cumple',reglas:[]};addNote('Cumple en SICUN: '+tfin.txt+' · corregido antes de la descarga ANTES');addNote(notaIni);}
         else {paso3={caso:'falsoError',reglas:tfin.reglas};addNote('Sin cambio desde la validación: '+tfin.txt+' según las reglas; posible falso error, si es así marcar NO APLICA');}
         if(tfin.extra)addNote('Ojo, además: '+tfin.extra);}}
-    else if((status==='✔ VERIFICADO'||status==='✔ CAMBIÓ')&&txt(row.message).trim()){   /* cambió, pero ¿quedó bien? reglas del mensaje (paso 3) sobre el DESPUÉS */
+    else if((status==='✔ VERIFICADO'||status==='✔ CAMBIÓ'||status==='✔ CAMBIÓ (renombrado)')&&!removed&&txt(row.message).trim()){   /* cambió, pero ¿quedó bien? reglas del mensaje (paso 3) sobre el DESPUÉS */
       var ren=hits.concat(otros,dvs).filter(function(e){return (e.type==='rename'||e.type==='crcmatch')&&e.before===code&&/^\d{24}$/.test(e.after);})[0];
       var tok=c2estadoFinal(BOARD_(),row,ren?ren.after:code);
       if(tok&&c2tieneCampos(tok)){if(!tok.cumple)status=c2prefijoNivel(tok,c2grupoRegla(row))+c2reglasTxt(tok,c2grupoRegla(row))+c2queHacer(tok,c2grupoRegla(row));if(tok.extra)addNote('Ojo, además: '+tok.extra);}}
     var otra=null;if(code&&(status==='⚠ SIN CAMBIO EN SICUN'||status==='? NO ENCONTRADO')&&BOARD_().some(function(c){return !!c.RES;})){
-      if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&allowed(e,false);}:function(e){return allowed(e,false)&&!!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors);
-      if(otra)status=vanished?'✔ CAMBIÓ (CRC renombrado/eliminado)':row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}
+      if(!lotIdx)lotIdx=c2lotIndex(BOARD_(),events);otra=c2otraUnidad(lotIdx,lotKey,code,row.state==='OTRO CAMBIO'?function(e){return e.type==='cell'&&allowed(e,false);}:function(e){return allowed(e,false)&&!!map&&e.type==='cell'&&(c2inList(map.observados,e)||c2inList(map.relacionados,e));},split.otroPiso,floors,neutralDV);
+      if(otra)status=vanished&&!neutralDV?'✔ CAMBIÓ (CRC renombrado/eliminado)':row.state==='OTRO CAMBIO'?C2_OTRO_CAMBIO_LOTE:C2_OTRA_UNIDAD;}
     if(sigueMalAntes&&status==='⚠ SIN CAMBIO EN SICUN'){status=sigueMalAntes;addNote(notaIni);}
     if(status==='⚠ SIN CAMBIO EN SICUN'&&c2mapKey(row.validator)==='VAL_USO_CIIU'&&tfin&&tfin.cumple&&/\bR7\b/.test(tfin.txt))addNote('Sugerencia: debería ser NO APLICA (comercial no identificado no lleva CIIU)');
     if(split.otroPiso.length&&!(otra&&otra.otroPiso))addNote('otro piso cambió: '+c2cambiosTxt(split.otroPiso,3));

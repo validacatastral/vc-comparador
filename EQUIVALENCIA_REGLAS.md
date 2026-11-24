@@ -415,7 +415,7 @@ El paso 1 compara los campos observados y relacionados del mapa de la fila. Para
 
 ING se carga, pero solo participa en filas cuyo mapa incluye ING. Área Verificada de CON se ignora excepto cuando el CRC tiene una fila de áreas o la observación menciona área o construcción. El recálculo de porcentaje de bien común entre vacío y cero es ruido, también en CON. Los cambios y eliminaciones de registros con entrada 99, piso 99 o unidad 99x no cuentan.
 
-Eliminar una clave o renglón del dominio o renombrar el CRC cuenta como cambio: APLICA y OTRO CAMBIO dan ✔ CAMBIÓ, y NO APLICA da ℹ. Una eliminación no se vuelve a evaluar como «sigue mal». Un valor que pasa a vacío también es un cambio. Si desapareció el CRC propio y se detecta otra unidad, el resultado indica CRC renombrado/eliminado.
+Eliminar una clave o renglón del dominio o renombrar el CRC cuenta como cambio: APLICA y OTRO CAMBIO dan ✔ CAMBIÓ, y NO APLICA da ℹ. Un renombre cuyo único cambio es el dígito verificador solo cuenta para VAL_CRC; para otros validadores se evalúan los demás cambios normalmente. El renombre se evalúa sobre el CRC nuevo y puede quedar «sigue mal»; solo una eliminación se salta esa evaluación. Un valor que pasa a vacío también es un cambio. Si desapareció el CRC propio y se detecta otra unidad, el resultado indica CRC renombrado/eliminado.
 
 Para USO_CIIU el uso procede de UA del DESPUÉS y las líneas CON de la unidad aportan contexto. Si alguna línea corresponde al uso según el catálogo, R4A/R4B y R8C no deben marcar las líneas de esa unidad.
 

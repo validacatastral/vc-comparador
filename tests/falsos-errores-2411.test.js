@@ -17,3 +17,12 @@ console.log('atribución, área, bien común y valor a vacío: ok');
 // Eliminación completa de UA: no se ejecuta la regla final sobre la fila que ya no existe.
 const gone=ctx('UA',[KEY,'Tipo de Documento'],[[K,'ESCRITURA PÚBLICA']]);gone.B.rows=[];gone.RES=T.compareCtx(gone);
 for(const state of ['APLICA','OTRO CAMBIO','NO APLICA']){const v=cross([gone],[{...titular,state}])[0];assert(v, state);assert.match(v.result,state==='NO APLICA'?/^ℹ NO APLICA/:/^✔ CAMBIÓ \(eliminado\)/);}
+// Un CRC renombrado se vuelve a validar; el borrado no se evalúa contra otra unidad.
+const nuevo='150110150180390101020016',dv=K.slice(0,23)+'9';
+const HT=[KEY,'Condición del Titular','Forma de Adquisición','Tipo de Documento','Tipo de Partida Registral','Número de Partida Registral'];
+function renombrar(to,doc){const c=ctx('UA',HT,[[K,'POSEEDOR','OTROS','ESCRITURA PÚBLICA','','']]);c.B.rows=[{[KEY]:to,'Condición del Titular':'POSEEDOR','Forma de Adquisición':'OTROS','Tipo de Documento':doc,'Tipo de Partida Registral':'','Número de Partida Registral':''}];c.RES=T.compareCtx(c);c.RES.renombrados=[{de:K,a:to,row:c.B.rows[0]}];return c;}
+const titR2=fila('VAL_TITULAR_INSCRIPCION',K,'APLICA','[R2P] Tipo de Documento');
+let rr=cross([renombrar(nuevo,'ESCRITURA PÚBLICA')],[titR2])[0];assert.match(rr.result,/^◐ Cambió pero sigue mal: .*\(R2P\)/);
+rr=cross([renombrar(nuevo,'')],[titR2])[0];assert.equal(rr.result,'✔ CAMBIÓ (renombrado)');
+rr=cross([renombrar(dv,'ESCRITURA PÚBLICA')],[titR2])[0];assert(!/CAMBIÓ \(renombrado\)|OTRO CAMPO/.test(rr.result));
+rr=cross([renombrar(dv,'')],[{...titR2,state:'NO APLICA'}])[0];assert.match(rr.result,/^ℹ NO APLICA/);

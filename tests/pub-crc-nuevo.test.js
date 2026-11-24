@@ -51,9 +51,10 @@ for (const porHuella of [false, true]) {
   assert.equal(real.excel[0].at(-1), 'CRC nuevo');
   assert.equal(real.excel[1].at(-1), nuevo);
 }
-const dv = run(renombre(soloDV), {...tit,state:'NO APLICA'});
+assert.equal(run(renombre(soloDV), {...tit,state:'NO APLICA'}, false).fila, undefined);
+const dv = run(renombre(soloDV), {...tit,state:'NO APLICA',revision:'Revisado'});
 assert.equal(dv.fila.crcNuevo, soloDV);
-assert.match(dv.fila.campos, /CRC renombrado \(solo DV\)/);
+assert.doesNotMatch(dv.fila.campos, /CRC renombrado/);
 assert.equal(dv.excel[1].at(-1), soloDV);
 
 for (const [uso, verCatalogo] of [['030101', true], ['050101', true]]) {
