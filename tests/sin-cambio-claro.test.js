@@ -107,5 +107,5 @@ for(const [g,set] of Object.entries(activos)){assert(set.size>0,g);for(const k o
 
 // prefijos y Excel con el mismo texto que se publica
 assert(html.includes("var C2_SIGUE_MAL='◐ Cambió pero sigue mal: ';"));
-assert(/c2bucket\(r\.result\)===2\?c2SinCambioDetalle\(r\):r\.result,r\.change/.test(cut('function c2sheets(','\n')));
+assert(/c2bucket\(r\.result\)===2\?c2SinCambioDetalle\(r\):r\.result,r\.resultadoSicun\|\|r\.result,r\.change/.test(cut('function c2sheets(','\n')));
 console.log('sin-cambio-claro: ok');

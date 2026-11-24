@@ -408,3 +408,15 @@ Titularidad exime PARQUE de las reglas R. El nivel 99-99-999 conserva las compro
 En USO_CIIU, R3C y R7 son FALSO ERROR. Una línea con CIIU en local desocupado sí puede incumplir R9. Las líneas de otros pisos aportan contexto a R3B y R8C. En uso común se siguen comprobando la existencia del código y el cruce cuando proceda.
 En obras, UCA exime R1, R7 y R7P. Tanques plásticos: 18, 21, 22, 28. Tanques elevados: 18 y 21. Parapetos: 50–53. En condición, PE con AIRES está permitido por R1. Los prefijos 030 y 0501 sugieren INDUSTRIA y CENTRO DE ENSEÑANZA.
 CRC deduplica el código completo. Las secuencias de entrada y unidad excluyen 99/999 por campo. El cruce por 23 dígitos suma área verificada por piso y usa un umbral de 50 % para construcción principal.
+
+## Criterios del cruce y publicación (24-11)
+
+El paso 1 compara los campos observados y relacionados del mapa de la fila. Para NO APLICA y OTRO CAMBIO se omiten los campos observados por otra fila de otro validador del mismo CRC y piso, salvo que también estén en el mapa propio. La atribución se anota por nombre de campo y validador. OTRO CAMBIO solo cuenta cambios en los reportes de su mapa; APLICA conserva su criterio de campos esperados. El paso 2 aplica los mismos filtros al buscar cambios en otra unidad u otro piso. El paso 3 evalúa la regla del mensaje en el DESPUÉS y distingue una infracción de una advertencia.
+
+ING se carga, pero solo participa en filas cuyo mapa incluye ING. Área Verificada de CON se ignora excepto cuando el CRC tiene una fila de áreas o la observación menciona área o construcción. El recálculo de porcentaje de bien común entre vacío y cero es ruido, también en CON. Los cambios y eliminaciones de registros con entrada 99, piso 99 o unidad 99x no cuentan.
+
+Eliminar una clave o renglón del dominio o renombrar el CRC cuenta como cambio: APLICA y OTRO CAMBIO dan ✔ CAMBIÓ, y NO APLICA da ℹ. Un renombre cuyo único cambio es el dígito verificador solo cuenta para VAL_CRC; para otros validadores se evalúan los demás cambios normalmente. El renombre se evalúa sobre el CRC nuevo y puede quedar «sigue mal»; solo una eliminación se salta esa evaluación. Un valor que pasa a vacío también es un cambio. Si desapareció el CRC propio y se detecta otra unidad, el resultado indica CRC renombrado/eliminado.
+
+Para USO_CIIU el uso procede de UA del DESPUÉS y las líneas CON de la unidad aportan contexto. Si alguna línea corresponde al uso según el catálogo, R4A/R4B y R8C no deben marcar las líneas de esa unidad.
+
+La revisión manual se aplica después del cruce. CRUCE_REVISOR añade «Verificación SICUN (sin revisión)» y la publicación envía `filas[].resultadoSicun` como cadena con etiqueta y, si corresponde, códigos de regla; no incluye valores SICUN. `totales.sigueMal` cuenta exclusivamente «◐ Cambió pero sigue mal» y `totales.revisar` cuenta «◐ Cambió, revisar», y se omite cuando es cero. Estos conteos también se calculan por técnico y validador. El Apps Script receptor debe conservar ambos campos nuevos.

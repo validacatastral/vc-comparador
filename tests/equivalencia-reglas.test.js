@@ -114,7 +114,7 @@ assert.equal(T.crc([reporte('UA',[{crc:corto}])],corto,'LON'),null);
 // El formato que trae el uso en Construcciones prescinde de UA.
 const legacy=reporte('CON',[{crc:K,piso:'1',uso:'050101',ciiu:'G4711'}]);
 const consulta=(tipo,regla)=>fila(val[tipo],K,'APLICA',regla,'1');
-assert(T.estado([legacy],consulta('USO','Verificar CIIU'),K).reglas.includes('R4A'));
+assert.equal(T.estado([legacy],consulta('USO','Verificar CIIU'),K),null); // Uso solo de UA del DESPUÉS.
 const sinCiiu=reporte('CON',[{crc:K,piso:'1',uso:'050101'}]);
 assert.equal(T.estado([sinCiiu],consulta('USO','R3A'),K),null);
 const sinUso=reporte('CON',[{crc:K,piso:'1',ciiu:'9998'}]);

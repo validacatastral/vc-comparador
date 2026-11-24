@@ -58,7 +58,7 @@ var S1='150112350070090101020017', S1b='150112350070090101020016';
 var b1b=board([unidad(A1,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA),unidad(S1,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA)],[unidad(B1,'OTROS','POSESIÓN','',BB),unidad(S1b,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BB)]);
 r=run(b1b,[fila('VAL_TITULAR_INSCRIPCION',A1,'APLICA'),fila('VAL_TITULAR_INSCRIPCION',S1,'NO APLICA')]);
 assert.strictEqual(r[0].result,'✔ VERIFICADO','1b: '+r[0].result+' ‖ '+r[0].campos);assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[0],'1b');
-assert.strictEqual(r[1].result,'✔ NO APLICA CONFIRMADO','1b unidad vecina solo DV: '+r[1].campos+' ‖ '+r[1].change+' ‖ '+r[1].note);sinEliminado(r[1],'1b vecina');
+assert.strictEqual(r.length,1,'NO APLICA con solo DV no tiene cambios y se omite');
 console.log('ok 1b · huella empatada → '+r[0].result+' · '+r[0].campos);
 
 // Caso 2 real: 150112350440030101010015 → …016. Condición POSEEDOR→OTROS, Forma POSESIÓN→OTROS, Tipo de Documento ESCRITURA PÚBLICA→vacío.
@@ -91,6 +91,6 @@ var C4='150112350070090101010013', D4='150112350070090101020014';
 function rekey(u,k){var o2={};Object.keys(u).forEach(function(rep){o2[rep]=u[rep].map(function(x){return Object.assign({},x,{'Código de Referencia Catastral':k});});});return o2;}
 var u4=rekey(unidad(C4,'OTROS','POSESIÓN','',BA),D4);
 r=run(board([unidad(C4,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA)],[u4]),[fila('VAL_TITULAR_INSCRIPCION',C4,'APLICA'),fila('VAL_CRC',C4,'APLICA')]);
-assert.strictEqual(r[0].result,'✔ VERIFICADO');assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[0],'4');
-assert.strictEqual(r[1].result,'✔ VERIFICADO','VAL_CRC renombre de código');assert(/CRC (renombrado|cambió)/.test(r[1].campos+' '+r[1].change),r[1].change);
+assert.strictEqual(r[0].result,'✔ CAMBIÓ (renombrado)');assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[0],'4');
+assert.strictEqual(r[1].result,'✔ CAMBIÓ (renombrado)','VAL_CRC renombre de código');assert(/CRC (renombrado|cambió)/.test(r[1].campos+' '+r[1].change),r[1].change);
 console.log('ok 4 · renombre de código → '+r[0].result+' · VAL_CRC '+r[1].result+' ('+r[1].campos+')');

@@ -20,7 +20,7 @@ const h=[KEY,'Código De Uso','Clasificación Del Predio','Predio Catastral En',
 const ua=ctx('UA',h,[[K,'010101','CASA HABITACION','PREDIO INDEPENDIENTE','BLOCK']]);
 const row=fila('VAL_COND_PREDIO_EN',K,'APLICA','[R12]','',{clasificaciondelpredio:'CASA HABITACION',prediocatastralen:'PREDIO INDEPENDIENTE',tipodeedificacion:'BLOCK',codigodeuso:'010101'});
 T.set([ua],[{rows:[row]}]);const sin=T.rows()[0];assert.match(T.pub(sin),/^⚠ Sin cambio en SICUN · no se corrigió, revisar: .*\(R12\)/);assert.equal(sin.nivel,'ADVERTENCIA');
-assert.equal(T.counts([adv,err]).sigueMal,2);assert.equal(T.bucket(sin.result),2);
+assert.equal(T.counts([adv,err]).sigueMal,1);assert.equal(T.counts([adv,err]).revisar,1);assert.equal(T.bucket(sin.result),2);
 const hoja=T.sheets([adv,err,sin],[])[0].aoa, col=hoja[0].indexOf('Nivel');assert.deepEqual(Array.from(hoja.slice(1),r=>r[col]),['ADVERTENCIA','ERROR','ADVERTENCIA']);
 function codigos(seg,re){return new Set([...seg.matchAll(re)].map(m=>m[1]));}
 const activos={TIT:codigos(cut('function c2titularReglas','function c2titularAplicables'),/push\('([A-Z]\d+[A-Z]?)'\)/g),USO:codigos(cut('var C2_USO=(function','var C2_COND=(function'),/H\("(R\d+[A-Z]?)"/g),COND:codigos(cut('var C2_COND=(function','var C2_OBRA=(function'),/add\("(R\d+[A-Z]?)"/g),OBR:codigos(cut('var C2_OBRA=(function','function c2usoCiiuFinal'),/c\s*:\s*"(R\d+[A-Z]?)"/g),CRC:codigos(cut('function c2crcFinal','var C2_FECHA=(function'),/push\('(R\d+[A-Z]?)'\)/g),FECHA:codigos(cut('function c2fechaPisoFinal','function c2estadoFinal'),/'(R\d+[A-Z]?)'/g)};

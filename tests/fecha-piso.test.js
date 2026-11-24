@@ -109,7 +109,7 @@ bordes.forEach((_,i)=>cotejar(bordes,i));
 const viejo=K.slice(0,23)+'0',antes=[linea('1','2020-01-01',vecina),linea('2','2018-01-01',viejo)];
 const renombrado=tablero([antes[0],linea('2','2019-01-01',K)],antes);
 const rr=run(renombrado,revisor('2','[R1] (FI.28.02)',viejo));
-assert.equal(String(rr.result).replace(/^(◐ Cambió pero sigue mal: ).*?\(([A-Z0-9]+)\)(?: · .*)?$/,'$1$2'),'◐ Cambió pero sigue mal: R1',rr.change+' '+rr.note);
+assert.match(rr.result,/^◐ Cambió pero sigue mal: .*\(R1\)/,rr.change+' '+rr.note);
 assert.match(rr.changeView+' '+rr.note,/DV|CRC/);
 
 // La línea más antigua del nivel inferior manda, independientemente de la unidad y el orden.
