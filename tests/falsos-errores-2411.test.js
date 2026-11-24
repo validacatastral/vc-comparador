@@ -45,3 +45,20 @@ for(const v of ['VAL_CRC','VAL_TITULAR_INSCRIPCION']){
  x=cross(tableroDv(),[fila(v,oldDv,'NO APLICA','Inconsistencia en dígito verificador')])[0];assert.match(x.result,/^ℹ NO APLICA/);assert.equal(x.crcNuevo,newDv);
  x=cross(tableroDv(),[{...fila(v,oldDv,'NO APLICA','FI.02.04'),observation:'revisar DV'}])[0];assert.equal(x.result,'✔ NO APLICA CONFIRMADO');
 }
+// FI.29.09: cinco lotes indicados, con CRC sintéticos de bien común y un campo observado a la vez.
+const H29=[KEY,'N° Piso','ECC','Muros y Columna','Techo','Puertas y Ventanas'];
+for(const ubicacion of ['22048001','22054001','23010006','23022008','23071010']){
+ const bc='150110'+ubicacion+'0199999994',vecino='150110'+ubicacion+'0101010010';
+ for(const campo of H29.slice(2))for(const state of ['APLICA','OTRO CAMBIO']){
+  const vals=[bc,'1','A','A','A','A'],con=ctx('CON',H29,[vals]);
+  con.B.rows[0][campo]='B';con.RES=T.compareCtx(con);
+  const ua=ctx('UA',[KEY],[[bc],[vecino]]);
+  const propia=fila('VAL_CATEGORIAS-AREAS_2',bc,state,'FI.29.09','1');
+  const otras=fila('VAL_CATEGORIAS-AREAS_2',vecino,state,'FI.29.09','1');
+  const [r,otro]=cross([ua,con],[propia,otras]);
+  assert.equal(r.result,state==='APLICA'?'✔ VERIFICADO':'✔ CAMBIÓ',ubicacion+' '+campo+' '+state);
+  assert.match(r.campos,new RegExp(campo.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+  assert(!/OTRA UNIDAD|VERIFICADO|CAMBIÓ/.test(otro.result),'bien común ajeno: '+ubicacion+' '+campo+' '+otro.result);
+ }
+}
+console.log('FI.29.09: cambios propios de ECC, muros, techo y puertas; bien común ajeno ignorado');
