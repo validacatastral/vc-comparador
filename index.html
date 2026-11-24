@@ -4236,7 +4236,8 @@ function c2rows(){
       return /RECAPITULACION_AREA|AREA_TERR_PISO/.test(x.row.validator)||(/CATEGORIAS-AREAS/.test(x.row.validator)&&/FI\.31\.02/i.test((x.row.message||'')+' '+(x.map.fi||'')))||c2inList(x.map.observados,{report:'CON',field:'Área Verificada'})||c2inList(x.map.relacionados,{report:'CON',field:'Área Verificada'});
     });}
     function allowed(e,attribution){
-      if(common(e.key)||((e.type==='rename'||e.type==='crcmatch')&&(common(e.before)||common(e.after))))return false;
+      if(common(e.key)&&e.key!==code)return false;
+      if((e.type==='rename'||e.type==='crcmatch')&&(common(e.before)||common(e.after))&&e.before!==code&&e.after!==code)return false;
       if(e.report==='ING'&&(!map||c2reports(map).indexOf('ING')<0))return false;
       if(e.type==='cell'&&/bien com/i.test(stripAccents(String(e.field||'')))){var a=txt(e.before).trim(),b=txt(e.after).trim();if((!a&&/^0+([.,]0+)?$/.test(b))||(!b&&/^0+([.,]0+)?$/.test(a)))return false;}
       if(e.report==='CON'&&c2campo(e.field)==='areaverificada'&&!areaContext(e))return false;
@@ -4248,9 +4249,15 @@ function c2rows(){
     relevant=relevant.filter(function(e){return allowed(e,true);});
     var dvs=relevant.filter(c2esDV);relevant=relevant.filter(function(e){return !c2esDV(e);});
     var renNuevo=relevant.concat(dvs).find(function(e){return (e.type==='rename'||e.type==='crcmatch')&&e.before===code&&/^\d{24}$/.test(e.after);});
-    var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC), valCrc=c2mapKey(row.validator)==='VAL_CRC';
+    var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC), dvMencion=/\bdv\b|\bdigito\s+(?:de\s+)?verifica(?:dor|cion)\b/.test(c2norm(row.message));
     var vanished=code.length===24&&!common(code)&&present(code,'A')&&!present(code,'B');
-    var renamed=vanished&&renNuevo, neutralDV=!!(renamed&&c2esDV(renamed)&&!valCrc);
+    var renamed=vanished&&renNuevo, neutralDV=!!(renamed&&c2esDV(renamed)&&!dvMencion);
+    var renNo=row.state==='NO APLICA'&&!!renamed;
+    if(renNo&&map)relevant=relevant.filter(function(e){
+      if(e.type==='rename'||e.type==='crcmatch')return false;
+      if(e.type==='cell')return c2inList(map.observados,e)||c2inList(map.relacionados,e);
+      return ['add','rem','nuevos','eliminados'].indexOf(e.type)>=0&&c2reports(map).indexOf(e.report)>=0;
+    });
     var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
     var split=c2pisoSplit(relevant,map&&level==='CRC+PISO'?(row.piso||''):null,floors,function(e){return c2eventKind(map,e,sameLot);},row.state==='OTRO CAMBIO'), hits=[], otros=split.otros;
     if(split.sinPiso)addNote('cruzado sin piso');
@@ -4268,17 +4275,21 @@ function c2rows(){
     else if(row.state==='APLICA' && isCrc && revisar.length){status='⚠ REVISAR A MANO';addNote('CRC: '+revisar[0].reason+'; no se pudo emparejar la unidad');}
     else if(row.state==='APLICA' && map && !hits.length && c2reports(map).some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';
     else {var soloDV=dvs.length>0&&!hits.length&&!otros.length;   /* lo único que cambió es el DV → sin cambio en el campo observado */
-      cls=c2classify(row.state,hits.length,otros.length+(soloDV&&valCrc?1:0));if(cls.omit&&!c2clean(row.revision)&&note.indexOf(' atribuido a ')<0)return;status=cls.result;
+      cls=c2classify(row.state,hits.length,otros.length+(soloDV&&dvMencion?1:0));if(cls.omit&&!c2clean(row.revision)&&note.indexOf(' atribuido a ')<0&&!neutralDV&&!renNo)return;status=cls.result;
       if(cls.extra&&otros.length)addNote('También cambió: '+names(otros));
       if(dvs.length)addNote(soloDV?'solo DV recalculado por SICUN':'DV recalculado por SICUN');
       if(cls.suggestion)addNote('Sugerencia: '+cls.suggestion+(hits.length?' (cambió '+names(hits)+')':''));
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
     // Las eliminaciones son definitivas; los renombres se evalúan en el CRC nuevo.
     var removed=hits.concat(otros).some(function(e){return (e.type==='eliminados'||e.type==='rem')&&(!map||c2reports(map).indexOf(e.report)>=0);});
-    if(((vanished&&!neutralDV)||removed)&&['APLICA','OTRO CAMBIO','NO APLICA'].indexOf(row.state)>=0){
+    if(renNo&&map){
+      var dvEsObservado=c2esDV(renamed)&&dvMencion;
+      status=(hits.length||otros.length||dvEsObservado)?'ℹ NO APLICA pero SICUN cambió':'✔ NO APLICA CONFIRMADO';
+      if(status==='✔ NO APLICA CONFIRMADO')addNote('CRC renombrado, cambio atribuido a otro validador');
+    }else if(((vanished&&!neutralDV)||removed)&&['APLICA','OTRO CAMBIO','NO APLICA'].indexOf(row.state)>=0){
       status=row.state==='NO APLICA'?'ℹ NO APLICA pero SICUN cambió':'✔ CAMBIÓ ('+(renamed?'renombrado':'eliminado')+')';
     }
-    if(soloDV&&valCrc)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
+    if(soloDV&&dvMencion)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */
     var paso3=null, sigueMalAntes='';
     if(status==='⚠ SIN CAMBIO EN SICUN'){
       var tfin=c2estadoFinal(BOARD_(),row,renNuevo?renNuevo.after:code);
@@ -4309,6 +4320,7 @@ function c2rows(){
     var finalUso=tok||tfin; if(finalUso&&finalUso.notas)finalUso.notas.forEach(addNote);
     var primerCiiu=finalUso&&finalUso.esperado&&finalUso.esperado[0];
     var nivelFinal=finalUso&&!finalUso.cumple&&(c2bucket(status)===8||(c2bucket(status)===2&&paso3&&paso3.caso==='sigueMal'))?c2nivel(finalUso,c2grupoRegla(row)):'';
+    if(renNuevo)addNote('Renombrado → '+renNuevo.after);
     var resultadoSicun=pubResultadoSicun({resultadoSicun:status});
     if(c2clean(row.revision)){addNote('Sin revisión: '+status);status='✔ Revisado a mano · ver columna REVISIÓN del Excel del validador: '+c2clean(row.revision).slice(0,200);}
     all.push(Object.assign({},row,{crcNuevo:renNuevo?renNuevo.after:'',catUso:primerCiiu?primerCiiu.uso:'',code:code||row.rawCode,crcIlegible:!code&&status==='? NO ENCONTRADO',fi:fi,report:map?c2reports(map).join(', '):'Todos',expected:expected.join(' | '),result:status,resultadoSicun:resultadoSicun,campos:campos,change:[otra?otra.texto:'',change].filter(Boolean).join(' | '),note:note,

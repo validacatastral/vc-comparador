@@ -73,7 +73,7 @@ sm(run([ctx2('UA',HT,[TMAL],[[K,'POSEEDOR','OTROS','ESCRITURA IMPERFECTA','','',
 ok(run([ctx2('UA',HT,[TMAL],[[K,'POSEEDOR','OTROS','ESCRITURA IMPERFECTA','','','PARQUE']])],fila('VAL_TITULAR_INSCRIPCION',K,'APLICA',MSG_TD)),'✔ VERIFICADO','tit c PARQUE');
 var K99='150110680440069999999995';
 r=run([ctx2('UA',HT,[[K99,'POSEEDOR','OTROS','ESCRITURA PÚBLICA','','','CASA HABITACION']],[[K99,'POSEEDOR','OTROS','ESCRITURA IMPERFECTA','','','CASA HABITACION']])],fila('VAL_TITULAR_INSCRIPCION',K99,'APLICA',MSG_TD));
-assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN','bien común no cuenta como cambio');
+ok(r,'✔ VERIFICADO','cambio del propio bien común');
 r=run([ctx2('UA',HT.concat(['Código De Uso']),[TMAL.concat(['010101'])],[TMAL.concat(['020105'])])],fila('VAL_TITULAR_INSCRIPCION',K,'APLICA',MSG_TD));
 assert.strictEqual(r.result,'◐ CAMBIÓ OTRO CAMPO','◐ otro campo no cambia: '+r.result);
 console.log('ok sigue mal · titular (✔ / R2P / OTRO CAMBIO / PARQUE / 99-99-999 + Ojo / ◐ otro campo intacto)');
@@ -103,7 +103,7 @@ var HI=[KEY,'Tipo de Interior','Código De Uso'];
 function crcU(ks,ti){return ks.map(function(k){return [k,ti,'010101'];});}
 ok(run([ctx2('UA',HI,crcU([E+'01010015',E+'01010025'],'DPTO'),crcU([E+'01010015',E+'01010025'],'TIENDA'))],fila('VAL_CRC',E+'01010025','APLICA','Inconsistencia por estructura')),'✔ VERIFICADO','crc a');
 sm(run([ctx2('UA',HI,crcU([E+'01010015',E+'01010035'],'DPTO'),crcU([E+'01010015',E+'01010035'],'TIENDA'))],fila('VAL_CRC',E+'01010035','APLICA','Salto de numeración (FI.02.04)')),'R5','crc b');
-assert.strictEqual(run([ctx2('UA',HI,crcU([E+'01010015',E+'99999995'],'DPTO'),crcU([E+'01010015',E+'99999995'],'TIENDA'))],fila('VAL_CRC',E+'99999995','APLICA','Inconsistencia por estructura')).result,'◐ CAMBIÓ OTRA UNIDAD DEL LOTE'); // solo cuenta la unidad ordinaria.
+assert.strictEqual(run([ctx2('UA',HI,crcU([E+'01010015',E+'99999995'],'DPTO'),crcU([E+'01010015',E+'99999995'],'TIENDA'))],fila('VAL_CRC',E+'99999995','APLICA','Inconsistencia por estructura')).result,'✔ VERIFICADO'); // el bien común observado cuenta sus propios cambios.
 console.log('ok sigue mal · VAL_CRC (✔ / R5 / 99-999)');
 // Validadores sin reglas: quedan como hoy aunque el DESPUÉS esté mal
 ok(run([ctx2('UA',HUA,[[K,'010101','CASA HABITACION','PREDIO EN EDIFICIO']],[[K,'020105','TIENDA','PREDIO EN EDIFICIO']])],fila('VAL_USO_PISO',K,'APLICA','Uso no coincide (FI.25.06)')),'✔ VERIFICADO','uso piso');

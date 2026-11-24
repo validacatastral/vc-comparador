@@ -31,17 +31,17 @@ console.log('ok 1 · renombre de código → '+r1.result+' · campos: '+r1.campo
 // 2) Solo cambió el DV (lo recalcula SICUN) → ◐ con nota "solo DV recalculado por SICUN"
 var A2='150112990370190101020010', B2='150112990370190101020019';
 var r2=run(renombre(A2,B2),[fila('VAL_CRC',A2,'APLICA',{message:'VAL_CRC: código no coincide',observation:'se corrigió en SICUN'})])[0];
-assert.match(r2.result,/^◐ Cambió pero sigue mal: .*\(R3\)/,'solo DV evalúa CRC nuevo');
+assert.strictEqual(r2.result,'⚠ SIN CAMBIO EN SICUN','solo DV sin mención');
 assert(/(^| · )solo DV recalculado por SICUN/.test(r2.note),'nota solo DV: '+r2.note);
-assert.strictEqual(r2.campos,'UA · CRC renombrado (solo DV) | TIT · CRC renombrado (solo DV) | CON · CRC renombrado (solo DV)');
+assert.strictEqual(r2.campos,'');assert.strictEqual(r2.crcNuevo,B2);
 assert.strictEqual(T.pubPublica(r2),true,'◐ sigue publicándose como aviso');
 console.log('ok 2 · solo DV → '+r2.result+' · nota: '+r2.note);
 
 // 3) Regla vieja retirada: mencionar "DV"/"dígito verificador" ya no cambia el estado (sigue ◐)
 ['corregir dígito verificador','Digito  Verificador mal','DV incorrecto','el dv no cuadra'].forEach(function(obs,i){
   var r=run(renombre(A2,B2),[fila('VAL_CRC',A2,'APLICA',i%2?{message:obs}:{observation:obs})])[0];
-  if(i%2)assert.match(r.result,/^◐ Cambió pero sigue mal: .*\(R3\)/);else assert.strictEqual(r.result,'✔ CAMBIÓ (renombrado)');assert(/solo DV recalculado por SICUN/.test(r.note));
-  assert.strictEqual(r.campos,r2.campos,'mismos campos');});
+  if(i%2)assert.match(r.result,/^◐ Cambió pero sigue mal: .*\(R3\)/);else assert.strictEqual(r.result,'⚠ SIN CAMBIO EN SICUN');assert(/solo DV recalculado por SICUN/.test(r.note));
+  if(!(i%2))assert.strictEqual(r.campos,r2.campos);});
 console.log('ok 3 · mención de "DV" en obs o mensaje ya no cuenta → ◐ CAMBIÓ OTRO CAMPO');
 
 // 4) NO APLICA con solo campos no esperados (mismo piso) → ✔ NO APLICA CONFIRMADO, nota "también cambió", no se publica
@@ -73,8 +73,8 @@ function soloHuella(a,b){return ['UA','TIT','CON'].map(function(id){return ctx(i
 var h1=run(soloHuella(A1,B1),[fila('VAL_CRC',A1,'APLICA')],huella(A1,B1))[0];
 assert.strictEqual(h1.result,'✔ CAMBIÓ (renombrado)','huella con cambio de código');assert(/CRC cambió/.test(h1.change));
 var h2=run(soloHuella(A2,B2),[fila('VAL_CRC',A2,'APLICA')],huella(A2,B2))[0];
-assert.strictEqual(h2.result,'✔ CAMBIÓ (renombrado)','huella solo DV');assert(/solo DV recalculado por SICUN/.test(h2.note),h2.note);
-assert.strictEqual(h2.campos,'CRC · CRC cambió (solo DV)','campos = lo usado para el estado');
+assert.strictEqual(h2.result,'⚠ SIN CAMBIO EN SICUN','huella solo DV');assert(/solo DV recalculado por SICUN/.test(h2.note),h2.note);
+assert.strictEqual(h2.campos,'');assert.strictEqual(h2.crcNuevo,B2);
 var h3=run(soloHuella(A2,B2),[fila('VAL_CRC',A2,'APLICA',{observation:'corregir dígito verificador'})],huella(A2,B2))[0];
-assert.strictEqual(h3.result,'✔ CAMBIÓ (renombrado)','huella solo DV con mención: la mención ya no cuenta');assert.strictEqual(h3.campos,h2.campos);
+assert.strictEqual(h3.result,'⚠ SIN CAMBIO EN SICUN','mención solo en observación no cuenta');assert.strictEqual(h3.campos,h2.campos);
 console.log('ok 5 · huella: código → '+h1.result+' · solo DV → '+h2.result+' ('+h2.note+') · con mención → '+h3.result);

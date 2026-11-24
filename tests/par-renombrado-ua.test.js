@@ -58,7 +58,7 @@ var S1='150112350070090101020017', S1b='150112350070090101020016';
 var b1b=board([unidad(A1,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA),unidad(S1,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BA)],[unidad(B1,'OTROS','POSESIÓN','',BB),unidad(S1b,'POSEEDOR','POSESIÓN','ESCRITURA PÚBLICA',BB)]);
 r=run(b1b,[fila('VAL_TITULAR_INSCRIPCION',A1,'APLICA'),fila('VAL_TITULAR_INSCRIPCION',S1,'NO APLICA')]);
 assert.strictEqual(r[0].result,'✔ VERIFICADO','1b: '+r[0].result+' ‖ '+r[0].campos);assert.strictEqual(r[0].campos,'UA · '+COND+' | UA · '+TDOC);sinEliminado(r[0],'1b');
-assert.strictEqual(r.length,1,'NO APLICA con solo DV no tiene cambios y se omite');
+assert.strictEqual(r[1].result,'✔ NO APLICA CONFIRMADO');assert.strictEqual(r[1].crcNuevo,S1b);assert(r[1].note.includes('Renombrado → '+S1b));
 console.log('ok 1b · huella empatada → '+r[0].result+' · '+r[0].campos);
 
 // Caso 2 real: 150112350440030101010015 → …016. Condición POSEEDOR→OTROS, Forma POSESIÓN→OTROS, Tipo de Documento ESCRITURA PÚBLICA→vacío.

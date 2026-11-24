@@ -46,9 +46,9 @@ console.log('ok 1 · caso real → '+r1.result+' · campos: '+r1.campos+' · not
 
 // 2) Solo DV, sin otro cambio (datos idénticos: se empareja por huella) → ◐ con nota "solo DV recalculado por SICUN"; "(solo DV)" sí aparece en campos
 var r2=run(board(A,B,[SIN,SIN]),[fila('VAL_CRC',A,'APLICA',{message:'Inconsistencia por estructura'})])[0];
-assert.match(r2.result,/^◐ Cambió pero sigue mal: .*\(R3\).*\(R6C\)/,'solo DV evalúa CRC nuevo');
+assert.strictEqual(r2.result,'⚠ SIN CAMBIO EN SICUN','solo DV sin mención');
 assert(/(^| · )solo DV recalculado por SICUN/.test(r2.note),r2.note);
-assert.strictEqual(r2.campos,'CRC · CRC cambió (solo DV)','datos idénticos → emparejado por huella; "(solo DV)" sí aparece en campos');
+assert.strictEqual(r2.campos,'');assert.strictEqual(r2.crcNuevo,B);
 console.log('ok 2 · solo DV → '+r2.result+' · nota: '+r2.note);
 
 // 2b) Otros validadores: el DV no es esperado ni "otro campo"
@@ -56,7 +56,7 @@ var u=run(board(A,B,[SIN,['CASA / CHALET','S/N','020202']]),[fila('VAL_USO_PISO'
 assert.strictEqual(u.result,'✔ VERIFICADO');assert.strictEqual(u.campos,'UA · Código De Uso');assert(/DV recalculado por SICUN/.test(u.note)&&!/También cambió/.test(u.note),u.note);
 var t=run(board(A,B,[SIN,['CASA / CHALET','S/N','020202']]),[fila('VAL_TITULAR_INSCRIPCION',A,'APLICA')])[0];
 assert.strictEqual(t.result,'◐ CAMBIÓ OTRO CAMPO');assert.strictEqual(t.campos,'UA · Código De Uso','el DV no cuenta como otro campo');
-var nas=run(board(A,B,[SIN,SIN]),[fila('VAL_TITULAR_INSCRIPCION',A,'NO APLICA')]);assert.strictEqual(nas.length,0);var na={result:'NO APLICA sin cambio'};
+var nas=run(board(A,B,[SIN,SIN]),[fila('VAL_TITULAR_INSCRIPCION',A,'NO APLICA')]);assert.strictEqual(nas[0].result,'✔ NO APLICA CONFIRMADO');assert.strictEqual(nas[0].crcNuevo,B);var na=nas[0];
 console.log('ok 2b · VAL_USO_PISO → '+u.result+' ('+u.campos+') · VAL_TITULAR_INSCRIPCION → '+t.result+' ('+t.campos+') · NO APLICA solo DV → '+na.result);
 
 // 3) Renombre de código (primeros 23 dígitos) sigue ✔ VERIFICADO, sin nota de DV
