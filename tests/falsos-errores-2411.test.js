@@ -11,7 +11,7 @@ let b=board(K,['A','5','',''],['B','5','','']);
 let rs=cross(b,[titular,techo]);assert.match(rs.find(r=>r.validator===titular.validator).result,/SIN CAMBIO/);assert.match(rs.find(r=>r.validator===techo.validator).result,/NO APLICA pero SICUN cambió/);
 let no={...titular,state:'NO APLICA'};rs=cross(b,[no,techo]);assert.match(rs.find(r=>r.validator===no.validator).result,/NO APLICA CONFIRMADO/);assert.match(rs.find(r=>r.validator===no.validator).note,/atribuido a VAL_PISO_CATEGORIA_TECHO/);
 b=board(K,['A','5','',''],['A','6','0','']);rs=cross(b,[{...titular,state:'APLICA'}]);assert(!/OTRO CAMPO/.test(rs[0].result));
-b=board(BC,['A','5','',''],['B','6','0','']);rs=cross(b,[{...titular,rawCode:BC,state:'APLICA'}]);assert(!/OTRO CAMPO|VERIFICADO|CAMBIÓ/.test(rs[0].result));
+b=board(BC,['A','5','',''],['B','6','0','']);rs=cross(b,[{...titular,rawCode:BC,state:'APLICA'}]);assert.match(rs[0].result,/OTRO CAMPO/); // El cambio propio de Techo cuenta; el área sin contexto sigue filtrada.
 const ua=ctx('UA',[KEY,'Tipo de Documento'],[[K,'ESCRITURA PÚBLICA']]);ua.B.rows=[{[KEY]:K,'Tipo de Documento':''}];ua.RES=T.compareCtx(ua);rs=cross([ua],[{...titular,state:'NO APLICA'}]);assert.match(rs[0].result,/NO APLICA pero SICUN cambió/);
 console.log('atribución, área, bien común y valor a vacío: ok');
 // Eliminación completa de UA: no se ejecuta la regla final sobre la fila que ya no existe.
@@ -26,3 +26,22 @@ let rr=cross([renombrar(nuevo,'ESCRITURA PÚBLICA')],[titR2])[0];assert.match(rr
 rr=cross([renombrar(nuevo,'')],[titR2])[0];assert.equal(rr.result,'✔ CAMBIÓ (renombrado)');
 rr=cross([renombrar(dv,'ESCRITURA PÚBLICA')],[titR2])[0];assert(!/CAMBIÓ \(renombrado\)|OTRO CAMPO/.test(rr.result));
 rr=cross([renombrar(dv,'')],[{...titR2,state:'NO APLICA'}])[0];assert.match(rr.result,/^ℹ NO APLICA/);
+// El área del bien común observado sí cuenta, incluso para FI.31.02.
+for(const bc of ['150110060330100199999994','150110060600060199999990']){
+ const areas=fila('VAL_CATEGORIAS-AREAS_2',bc,'APLICA','FI.31.02','1');
+ const own=cross(board(bc,['A','5','',''],['A','6','','']),[areas])[0];
+ assert.equal(own.result,'✔ VERIFICADO');assert.match(own.campos,/CON · Área Verificada/);
+ const vecino=bc.slice(0,14)+'0101010010';
+ const bcom=board(bc,['A','5','',''],['A','6','','']);
+ bcom[0].A.rows.push({[KEY]:vecino,'Tipo de Documento':'X'});bcom[0].B.rows.push({[KEY]:vecino,'Tipo de Documento':'X'});bcom[0].RES=T.compareCtx(bcom[0]);
+ const otro=cross(bcom,[fila('VAL_CATEGORIAS-AREAS_2',vecino,'APLICA','FI.31.02','1')])[0];
+ assert(!/OTRA UNIDAD|VERIFICADO|CAMBIÓ/.test(otro.result),'bien común ajeno no cuenta: '+otro.result);
+}
+// DV aislado: solo el mensaje puede hacerlo relevante; nunca se pierde el CRC nuevo.
+const oldDv='150110020260380101030017',newDv=oldDv.slice(0,23)+'8';
+function tableroDv(){const c=ctx('UA',[KEY],[[oldDv]]);c.B.rows=[{[KEY]:newDv}];c.RES=T.compareCtx(c);c.RES.renombrados=[{de:oldDv,a:newDv,row:c.B.rows[0]}];return [c];}
+for(const v of ['VAL_CRC','VAL_TITULAR_INSCRIPCION']){
+ let x=cross(tableroDv(),[fila(v,oldDv,'NO APLICA','FI.02.04')])[0];assert.equal(x.result,'✔ NO APLICA CONFIRMADO');assert.equal(x.crcNuevo,newDv);assert.match(x.note,/Renombrado → 150110020260380101030018/);
+ x=cross(tableroDv(),[fila(v,oldDv,'NO APLICA','Inconsistencia en dígito verificador')])[0];assert.match(x.result,/^ℹ NO APLICA/);assert.equal(x.crcNuevo,newDv);
+ x=cross(tableroDv(),[{...fila(v,oldDv,'NO APLICA','FI.02.04'),observation:'revisar DV'}])[0];assert.equal(x.result,'✔ NO APLICA CONFIRMADO');
+}
