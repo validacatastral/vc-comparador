@@ -4252,6 +4252,12 @@ function c2rows(){
     var revisar=mine.filter(function(it){return it.type==='revisar'&&(wholeLot||it.a===code);}), isCrc=!!(map&&(map.observados||{}).CRC), dvMencion=/\bdv\b|\bdigito\s+(?:de\s+)?verifica(?:dor|cion)\b/.test(c2norm(row.message));
     var vanished=code.length===24&&!common(code)&&present(code,'A')&&!present(code,'B');
     var renamed=vanished&&renNuevo, neutralDV=!!(renamed&&c2esDV(renamed)&&!dvMencion);
+    var renNo=row.state==='NO APLICA'&&!!renamed;
+    if(renNo&&map)relevant=relevant.filter(function(e){
+      if(e.type==='rename'||e.type==='crcmatch')return false;
+      if(e.type==='cell')return c2inList(map.observados,e)||c2inList(map.relacionados,e);
+      return ['add','rem','nuevos','eliminados'].indexOf(e.type)>=0&&c2reports(map).indexOf(e.report)>=0;
+    });
     var resumen=lm?c2lotSummary(lm,isCrc||wholeLot?null:mine,isCrc||wholeLot||mine.length>0):'';
     var split=c2pisoSplit(relevant,map&&level==='CRC+PISO'?(row.piso||''):null,floors,function(e){return c2eventKind(map,e,sameLot);},row.state==='OTRO CAMBIO'), hits=[], otros=split.otros;
     if(split.sinPiso)addNote('cruzado sin piso');
@@ -4269,14 +4275,18 @@ function c2rows(){
     else if(row.state==='APLICA' && isCrc && revisar.length){status='⚠ REVISAR A MANO';addNote('CRC: '+revisar[0].reason+'; no se pudo emparejar la unidad');}
     else if(row.state==='APLICA' && map && !hits.length && c2reports(map).some(function(id){return missing.indexOf(id)>=0;}))status='PENDIENTE DE COMPARACIÓN';
     else {var soloDV=dvs.length>0&&!hits.length&&!otros.length;   /* lo único que cambió es el DV → sin cambio en el campo observado */
-      cls=c2classify(row.state,hits.length,otros.length+(soloDV&&dvMencion?1:0));if(cls.omit&&!c2clean(row.revision)&&note.indexOf(' atribuido a ')<0&&!neutralDV)return;status=cls.result;
+      cls=c2classify(row.state,hits.length,otros.length+(soloDV&&dvMencion?1:0));if(cls.omit&&!c2clean(row.revision)&&note.indexOf(' atribuido a ')<0&&!neutralDV&&!renNo)return;status=cls.result;
       if(cls.extra&&otros.length)addNote('También cambió: '+names(otros));
       if(dvs.length)addNote(soloDV?'solo DV recalculado por SICUN':'DV recalculado por SICUN');
       if(cls.suggestion)addNote('Sugerencia: '+cls.suggestion+(hits.length?' (cambió '+names(hits)+')':''));
       if(revisar.length)addNote('CRC: revisar a mano ('+revisar[0].reason+')');}
     // Las eliminaciones son definitivas; los renombres se evalúan en el CRC nuevo.
     var removed=hits.concat(otros).some(function(e){return (e.type==='eliminados'||e.type==='rem')&&(!map||c2reports(map).indexOf(e.report)>=0);});
-    if(((vanished&&!neutralDV)||removed)&&['APLICA','OTRO CAMBIO','NO APLICA'].indexOf(row.state)>=0){
+    if(renNo&&map){
+      var dvEsObservado=c2esDV(renamed)&&dvMencion;
+      status=(hits.length||otros.length||dvEsObservado)?'ℹ NO APLICA pero SICUN cambió':'✔ NO APLICA CONFIRMADO';
+      if(status==='✔ NO APLICA CONFIRMADO')addNote('CRC renombrado, cambio atribuido a otro validador');
+    }else if(((vanished&&!neutralDV)||removed)&&['APLICA','OTRO CAMBIO','NO APLICA'].indexOf(row.state)>=0){
       status=row.state==='NO APLICA'?'ℹ NO APLICA pero SICUN cambió':'✔ CAMBIÓ ('+(renamed?'renombrado':'eliminado')+')';
     }
     if(soloDV&&dvMencion)otros=dvs;   /* "(solo DV)" solo se muestra cuando es lo único que cambió */

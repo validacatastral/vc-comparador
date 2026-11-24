@@ -45,7 +45,9 @@ function renombre(after, porHuella = false) {
 }
 const tit = fila('VAL_TITULARES', code, 'APLICA');
 for (const porHuella of [false, true]) {
-  const real = run(renombre(nuevo, porHuella), {...tit,state:'NO APLICA'});
+  assert.equal(run(renombre(nuevo, porHuella), {...tit,state:'NO APLICA'}, false).fila, undefined);
+  const real = run(renombre(nuevo, porHuella), {...tit,state:'NO APLICA',revision:'Revisado'});
+  assert.equal(real.fila.resultadoSicun,'✔ NO APLICA CONFIRMADO');
   assert.equal(real.fila.crcNuevo, nuevo);
   assert.doesNotMatch(real.fila.campos, /CRC renombrado/);
   assert.equal(real.excel[0].at(-1), 'CRC nuevo');

@@ -62,3 +62,21 @@ for(const ubicacion of ['22048001','22054001','23010006','23022008','23071010'])
  }
 }
 console.log('FI.29.09: cambios propios de ECC, muros, techo y puertas; bien común ajeno ignorado');
+// FI.32.03: renombre de CRC con NO APLICA compara uso y CIIU del piso solicitado.
+const oldUso='150110220590070102010012',newUso='150110220590070101010011';
+function renUso(op={}){
+ const hu=[KEY,'Código De Uso','Tipo de Interior'],hc=[KEY,'N° Piso','Código De Actividad Económica (CIIU)','Techo'];
+ const u=ctx('UA',hu,[[oldUso,'020105','A']]),c=ctx('CON',hc,['1','2','3'].map(p=>[oldUso,p,'4719','A']));
+ u.B.rows=[{[KEY]:newUso,'Código De Uso':op.uso?'020202':'020105','Tipo de Interior':op.interior?'B':'A'}];
+ c.B.rows=c.A.rows.map(r=>({...r,[KEY]:newUso,'Código De Actividad Económica (CIIU)':r['N° Piso']===op.piso?'4520':'4719',Techo:op.techo?'B':'A'}));
+ for(const rep of [u,c]){rep.RES=T.compareCtx(rep);rep.RES.renombrados=[{de:oldUso,a:newUso,row:rep.B.rows[0]}];}return [u,c];
+}
+for(const piso of ['1','2','3']){
+ const row=fila('VAL_USO_CIIU',oldUso,'NO APLICA','FI.32.03',piso);
+ for(const op of [{},{interior:true,techo:true}]){const v=cross(renUso(op),[row])[0];assert.equal(v.result,'✔ NO APLICA CONFIRMADO',piso);assert.match(v.note,/CRC renombrado, cambio atribuido a otro validador/);assert.equal(v.crcNuevo,newUso);}
+ assert.match(cross(renUso({piso}),[row])[0].result,/^ℹ NO APLICA/,piso+' CIIU');
+ assert.match(cross(renUso({uso:true}),[row])[0].result,/^ℹ NO APLICA/,piso+' uso');
+ const other=piso==='1'?'2':'1';assert.equal(cross(renUso({piso:other}),[row])[0].result,'✔ NO APLICA CONFIRMADO',piso+' otro piso');
+ for(const state of ['APLICA','OTRO CAMBIO'])assert.match(cross(renUso(),[{...row,state,message:''}])[0].result,/^✔ CAMBIÓ \(renombrado\)/);
+}
+console.log('NO APLICA: campos propios entre CRC anterior y nuevo, por piso');
