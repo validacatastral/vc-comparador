@@ -848,11 +848,11 @@ var CAMPOS_VALIDADOR = {
     observados:{UA:['Código De Uso','Descripción Del Uso','Clasificación Del Predio','Predio Catastral En'],CON:[]}, relacionados:{CON:['N° Piso']}},
   /* Sin relacionados a propósito (revisión Comas): un relacionado cuenta como acierto (✔ con APLICA), y estos campos NO resuelven
      la observación por sí solos → deben dar ◐ otro campo (APLICA) o ✔ CAMBIÓ (OTRO CAMBIO).
-     VAL_PRODUCTO: MEP, Unidad de Medida, Código, Descripción, ECS y ECC no corrigen el producto total.
+     VAL_PRODUCTO: MEP, Código, Descripción, ECS y ECC quedan fuera del mapa.
      VAL_COND_PREDIO_EN: cambiar el uso (Código / Descripción Del Uso) no corrige la clasificación vs predio catastral en.
      (VAL_USO_CIIU conserva sus relacionados de uso para no alterar Independencia.) */
-  VAL_PRODUCTO:{level:'CRC', fi:'',   /* "Verificar producto de obra complementaria" */
-    observados:{OBR:['Producto Total']}, relacionados:{}},
+  VAL_PRODUCTO:{level:'CRC', fi:'FI.35.03 | FI.35.06',   /* "Verificar producto de obra complementaria" */
+    observados:{OBR:['Producto Total','Unidad de Medida']}, relacionados:{}},
   VAL_COND_PREDIO_EN:{level:'CRC', fi:'FI.24.03',   /* "clasificación del predio no coincide con predio catastral en" */
     observados:{UA:['Clasificación Del Predio','Predio Catastral En']}, relacionados:{}}
 };
@@ -867,6 +867,17 @@ var CAMPOS_POR_FI = {
     observados:{CON:['Área Verificada']}, relacionados:{CON:['Muros y Columna','Techo','Puertas y Ventanas','N° Piso']}},
   'FI.24.03':{level:'CRC', fi:'FI.24.03', validadores:['VAL_COND_PREDIO_EN'],   /* igual que VAL_COND_PREDIO_EN: el uso cuenta como otro campo */
     observados:{UA:['Clasificación Del Predio','Predio Catastral En']}, relacionados:{}}
+};
+/* Los FI de titulares se aplican solo a VAL_TITULARES y sus variantes. */
+var CAMPOS_TITULARES_NOMBRES={level:'CRC', fi:'',
+  observados:{TIT:['Nombres','Apellido Paterno','Apellido Materno']}, relacionados:{}};
+var CAMPOS_TITULARES_POR_FI={
+  'FI.20.03':{level:'CRC', fi:'FI.20.03',
+    observados:{TIT:['Nro. Documento Identidad','Tipo de Documento de Identidad']}, relacionados:{}},
+  'FI.17.03':{level:'CRC', fi:'FI.17.03',
+    observados:{TIT:['RUC','Razón Social','Tipo de Titular']}, relacionados:{}},
+  'FI.46.05':Object.assign({},CAMPOS_TITULARES_NOMBRES,{fi:'FI.46.05'}),
+  'FI.19.02':Object.assign({},CAMPOS_TITULARES_NOMBRES,{fi:'FI.19.02'})
 };
 var C2_MAP = CAMPOS_VALIDADOR;
 
@@ -2386,7 +2397,13 @@ function c2mapKey(v){var m=/^(VAL_.+?)_\d+$/.exec(v);return C2_MAP[v]?v:m&&C2_MA
 /* Mapa de una fila: por FI del mensaje (CAMPOS_POR_FI, unión si cita varios) o, si no, por nombre de hoja. */
 function c2mapRow(row){
   var own=c2mapKey(row.validator), fis=Array.from(new Set((txt(row.message).match(/F[IB]\.\d{2}\.\d{2}/gi)||[]).map(function(f){return f.toUpperCase();})));
-  var maps=fis.map(function(f){return CAMPOS_POR_FI[f];}).filter(function(m){return m&&(!own||m.validadores.indexOf(own)>=0);});
+  var maps;
+  if(own==='VAL_TITULARES'){
+    if(!fis.length&&/\bverificar datos del titular\b/.test(c2norm(row.message)))return CAMPOS_TITULARES_NOMBRES;
+    maps=fis.map(function(f){return CAMPOS_TITULARES_POR_FI[f];}).filter(Boolean);
+  }else{
+    maps=fis.map(function(f){return CAMPOS_POR_FI[f];}).filter(function(m){return m&&(!own||m.validadores.indexOf(own)>=0);});
+  }
   if(!maps.length)return c2map(row.validator);
   if(maps.length===1)return maps[0];
   var out={level:maps.every(function(m){return m.level===maps[0].level;})?maps[0].level:'CRC',fi:maps.map(function(m){return m.fi;}).join(' | '),observados:{},relacionados:{}};

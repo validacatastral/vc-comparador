@@ -93,3 +93,49 @@ var j=run([ctx('CON',['ECS'])],fila('VAL_CATEGORIAS-AREAS_2','APLICA',M2909)), p
 assert.strictEqual(j.result,'◐ CAMBIÓ OTRO CAMPO');
 assert(/se esperaba: CON · ECC/.test(pj),pj);assert(!/Área Verificada/.test(pj),pj);
 console.log('ok j · pubResultado FI.29.09 solo ECS → '+pj);
+
+// Cada FI selecciona su mapa en todas las hojas de titulares de Comas.
+var nombres=['Nombres','Apellido Paterno','Apellido Materno'];
+var casosTitulares=[
+  ['Documento observado (FI.20.03)', ['Nro. Documento Identidad','Tipo de Documento de Identidad'], 'Nombres'],
+  ['Persona jurídica (FI.17.03)', ['RUC','Razón Social','Tipo de Titular'], 'Nro. Documento Identidad'],
+  ['Verificar datos del titular (FI.46.05)', nombres, 'RUC'],
+  ['Verificar datos del titular (FI.19.02)', nombres, 'Tipo de Titular'],
+  ['Verificar datos del titular (FI.46.05 + FI.19.02)', nombres, 'RUC'],
+  ['VERIFICAR DATOS DEL TITULAR', nombres, 'RUC']
+];
+['','_1','_2','_3','_4'].forEach(function(sufijo){
+  var hoja='VAL_TITULARES'+sufijo;
+  casosTitulares.forEach(function(caso){
+    var row=fila(hoja,'APLICA',caso[0]);
+    var map=T.c2mapRow(row);
+    assert.deepStrictEqual(Array.from(map.observados.TIT),caso[1],hoja+' '+caso[0]);
+    assert.deepStrictEqual(Object.keys(map.relacionados),[]);
+    caso[1].forEach(function(campo){
+      assert.strictEqual(run([ctx('TIT',[campo])],row).result,'✔ VERIFICADO',hoja+' '+caso[0]+' '+campo);
+    });
+    assert.strictEqual(run([ctx('TIT',[caso[2]])],row).result,'◐ CAMBIÓ OTRO CAMPO',hoja+' '+caso[0]);
+  });
+});
+var titularDoc=fila('VAL_TITULARES_1','APLICA',casosTitulares[0][0]);
+var titularNombre=fila('VAL_TITULARES_1','APLICA',casosTitulares[4][0]);
+T.set([ctx('TIT',['Nombres'])],[{rows:[titularDoc,titularNombre]}]);
+assert.deepStrictEqual(Array.from(T.c2rows(),function(r){return r.result;}),['◐ CAMBIÓ OTRO CAMPO','✔ VERIFICADO']);
+['add','rem'].forEach(function(tipo){
+  var titulares=ctx('TIT',['Nombres']);
+  titulares.RES.mods[0].cambios=[{tipo:tipo,row:{Nombres:'SINTÉTICO'}}];
+  assert.strictEqual(run([titulares],titularNombre).result,tipo==='add'?'✔ VERIFICADO':'✔ CAMBIÓ (eliminado)');
+});
+assert.strictEqual(T.c2mapRow(fila('VAL_TITULARES','APLICA','Verificar datos del titular (FI.99.99)')),T.M.VAL_TITULARES);
+assert.strictEqual(T.c2mapRow(fila('VAL_HOJA_NUEVA','APLICA','Documento observado (FI.20.03)')),null);
+console.log('ok k · titulares por FI y por fila, con altas y bajas');
+
+['FI.35.03','FI.35.06','FI.35.03 + FI.35.06'].forEach(function(fi){
+  var row=fila('VAL_PRODUCTO','APLICA','Verificar producto de obra complementaria ('+fi+')');
+  assert.deepStrictEqual(Array.from(T.c2mapRow(row).observados.OBR),['Producto Total','Unidad de Medida']);
+  ['Producto Total','Unidad de Medida'].forEach(function(campo){
+    assert.strictEqual(run([ctx('OBR',[campo])],row).result,'✔ VERIFICADO',fi+' '+campo);
+  });
+  assert.strictEqual(run([ctx('OBR',['MEP'])],row).result,'◐ CAMBIÓ OTRO CAMPO',fi);
+});
+console.log('ok l · VAL_PRODUCTO observa metrado y unidad de medida');
