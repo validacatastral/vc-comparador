@@ -420,3 +420,17 @@ Eliminar una clave o renglón del dominio cuenta como cambio: APLICA y OTRO CAMB
 Para USO_CIIU el uso procede de UA del DESPUÉS y las líneas CON de la unidad aportan contexto. Si alguna línea corresponde al uso según el catálogo, R4A/R4B y R8C no deben marcar las líneas de esa unidad.
 
 La revisión manual se aplica después del cruce. CRUCE_REVISOR añade «Verificación SICUN (sin revisión)» y la publicación envía `filas[].resultadoSicun` como cadena con etiqueta y, si corresponde, códigos de regla; no incluye valores SICUN. `totales.sigueMal` cuenta exclusivamente «◐ Cambió pero sigue mal» y `totales.revisar` cuenta «◐ Cambió, revisar», y se omite cuando es cero. Estos conteos también se calculan por técnico y validador. El Apps Script receptor debe conservar ambos campos nuevos.
+
+## Campos observados en Comas
+
+En `VAL_TITULARES` y sus variantes `_1`, `_2`, `_3` y `_4`, el mensaje de cada fila determina qué campos de TIT se observan.
+
+| FI o mensaje de la fila | Campos observados en TIT |
+|---|---|
+| FI.20.03 | Nro. Documento Identidad y Tipo de Documento de Identidad |
+| FI.17.03 | RUC, Razón Social y Tipo de Titular |
+| FI.46.05, FI.19.02 o «Verificar datos del titular» sin FI | Nombres, Apellido Paterno y Apellido Materno. También cuentan las altas y bajas de renglones de titulares o cónyuges. |
+
+Si la fila cita varios FI reconocidos, se combinan sus campos. Para los demás mensajes se usa el mapa general de titulares.
+
+En `VAL_PRODUCTO` (FI.35.03 y FI.35.06), los campos observados de OBR son Producto Total y Unidad de Medida. Un cambio en cualquiera de los dos cuenta como cambio esperado.
