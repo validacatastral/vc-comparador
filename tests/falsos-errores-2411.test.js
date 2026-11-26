@@ -37,11 +37,11 @@ for(const bc of ['150110060330100199999994','150110060600060199999990']){
  const otro=cross(bcom,[fila('VAL_CATEGORIAS-AREAS_2',vecino,'APLICA','FI.31.02','1')])[0];
  assert(!/OTRA UNIDAD|VERIFICADO|CAMBIÓ/.test(otro.result),'bien común ajeno no cuenta: '+otro.result);
 }
-// DV aislado: solo el mensaje puede hacerlo relevante; nunca se pierde el CRC nuevo.
-const oldDv='150110020260380101030017',newDv=oldDv.slice(0,23)+'8';
+// DV aislado con una unidad conforme en piso 01: solo el mensaje puede hacerlo relevante.
+const oldDv='150110020260380101010017',newDv=oldDv.slice(0,23)+'8';
 function tableroDv(){const c=ctx('UA',[KEY],[[oldDv]]);c.B.rows=[{[KEY]:newDv}];c.RES=T.compareCtx(c);c.RES.renombrados=[{de:oldDv,a:newDv,row:c.B.rows[0]}];return [c];}
 for(const v of ['VAL_CRC','VAL_TITULAR_INSCRIPCION']){
- let x=cross(tableroDv(),[fila(v,oldDv,'NO APLICA','FI.02.04')])[0];assert.equal(x.result,'✔ NO APLICA CONFIRMADO');assert.equal(x.crcNuevo,newDv);assert.match(x.note,/Renombrado → 150110020260380101030018/);
+ let x=cross(tableroDv(),[fila(v,oldDv,'NO APLICA','FI.02.04')])[0];assert.equal(x.result,'✔ NO APLICA CONFIRMADO');assert.equal(x.crcNuevo,newDv);assert.match(x.note,/Renombrado → 150110020260380101010018/);
  x=cross(tableroDv(),[fila(v,oldDv,'NO APLICA','Inconsistencia en dígito verificador')])[0];assert.match(x.result,/^ℹ NO APLICA/);assert.equal(x.crcNuevo,newDv);
  x=cross(tableroDv(),[{...fila(v,oldDv,'NO APLICA','FI.02.04'),observation:'revisar DV'}])[0];assert.equal(x.result,'✔ NO APLICA CONFIRMADO');
 }
